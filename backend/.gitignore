@@ -1,0 +1,13 @@
+# v2-specific ignores
+.env
+.venv/
+data/
+*.db
+*.sqlite
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+__pycache__/
+.coverage
+htmlcov/
