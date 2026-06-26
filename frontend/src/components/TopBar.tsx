@@ -28,7 +28,7 @@ const TopBar: React.FC = () => {
   const fetchStatus = async () => {
     try {
       setIsChecking(true);
-      const response = await fetch('http://localhost:8000/api/health');
+      const response = await fetch('/api/health');
       if (response.ok) {
         const status = await response.json();
         // Map the health response to our system status format

@@ -196,7 +196,7 @@ const MemoryExplorer: React.FC = () => {
   const fetchMemoryData = async () => {
     try {
       setLoading(true);
-      const statsResponse = await fetch('http://localhost:8000/api/memory/stats');
+      const statsResponse = await fetch('/api/memory/stats');
       
       if (statsResponse.ok) {
         const stats = await statsResponse.json();
@@ -214,7 +214,7 @@ const MemoryExplorer: React.FC = () => {
 
   const fetchConversations = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/memory/conversations?limit=50');
+      const response = await fetch('/api/memory/conversations?limit=50');
       if (response.ok) {
         const data = await response.json();
         setConversations(data.conversations || []);
@@ -272,7 +272,7 @@ const MemoryExplorer: React.FC = () => {
   const fetchConversationInteractions = async (conversationId: string) => {
     try {
       setLoadingInteractions(true);
-      const response = await fetch(`http://localhost:8000/api/memory/conversations/${conversationId}/interactions`);
+      const response = await fetch(`/api/memory/conversations/${conversationId}/interactions`);
       if (response.ok) {
         const data = await response.json();
         setConversationInteractions(data.interactions || []);
@@ -305,7 +305,7 @@ const MemoryExplorer: React.FC = () => {
 
   const deleteConversation = async (conversationId: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/memory/conversations/${conversationId}`, {
+      const response = await fetch(`/api/memory/conversations/${conversationId}`, {
         method: 'DELETE'
       });
 
@@ -326,7 +326,7 @@ const MemoryExplorer: React.FC = () => {
   const deleteSelectedConversations = async () => {
     try {
       const deletePromises = Array.from(selectedConversations).map(conversationId =>
-        fetch(`http://localhost:8000/api/memory/conversations/${conversationId}`, {
+        fetch(`/api/memory/conversations/${conversationId}`, {
           method: 'DELETE'
         })
       );

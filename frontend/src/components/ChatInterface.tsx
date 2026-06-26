@@ -304,7 +304,7 @@ export default function ChatInterface() {
   const messageIdRef = useRef<number>(1);
 
   // Backend API configuration
-  const BACKEND_URL = 'http://localhost:8000';
+  const BACKEND_URL = '';
 
   // Enhanced voice input hook
   const {

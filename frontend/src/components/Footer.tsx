@@ -10,7 +10,7 @@ const Footer: React.FC = () => {
     const checkBackendHealth = async () => {
       try {
         setIsChecking(true);
-        const response = await fetch('http://localhost:8000/api/health');
+        const response = await fetch('/api/health');
         if (response.ok) {
           setBackendConnected(true);
         } else {
