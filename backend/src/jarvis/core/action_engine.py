@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from jarvis.services.weather_service import get_weather
 from jarvis.services.smart_home import control_device as _smart_home_control
+from jarvis.services.web_search import search_and_summarize as _web_search
 
 if TYPE_CHECKING:
     from jarvis.core.reminders import RemindersStore
@@ -143,6 +144,7 @@ class ActionEngine:
         notes_store: "Optional[NotesStore]" = None,
         reminders_store: "Optional[RemindersStore]" = None,
         settings_store=None,
+        llm=None,
     ) -> None:
         if notes_store is None:
             from jarvis.dashboard.notes import NotesStore
@@ -156,6 +158,7 @@ class ActionEngine:
         self._notes = notes_store
         self._reminders = reminders_store
         self._settings = settings_store
+        self._llm = llm
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -179,6 +182,7 @@ class ActionEngine:
             "help": self._help,
             "person_identification": self._identify_person,
             "visual_recognition": self._visual_recognition,
+            "web_search": self._web_search,
             "conversation": self._conversation,
         }
 
@@ -390,6 +394,13 @@ class ActionEngine:
             "person identification ('who is this?'), and visual recognition "
             "('what is this?'). Just ask."
         )
+
+    def _web_search(self, intent: dict) -> str:
+        query = (intent.get("query") or "").strip()
+        if not query:
+            return "What would you like me to search for?"
+        limit = int(intent.get("limit") or 5)
+        return _web_search(query, llm=self._llm, limit=limit)
 
     @staticmethod
     def _conversation(intent: dict) -> str:

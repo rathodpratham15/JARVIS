@@ -115,11 +115,18 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_web",
-            "description": "Search the web for a query.",
+            "description": (
+                "Search the internet for real-time information, current events, "
+                "facts about people, companies, products, research, or anything "
+                "that requires up-to-date or public web data. Use this whenever "
+                "the user asks about someone's background, a company, recent news, "
+                "or any topic that benefits from live web results."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query"},
+                    "query": {"type": "string", "description": "Search query optimised for a search engine"},
+                    "limit": {"type": "integer", "description": "Number of results to retrieve (default 5, max 10)"},
                 },
                 "required": ["query"],
             },
@@ -189,7 +196,7 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
         return {**base, "type": "open_app", "app_name": args.get("app_name", "")}
 
     if name == "search_web":
-        return {**base, "type": "search", "query": args.get("query", "")}
+        return {**base, "type": "web_search", "query": args.get("query", ""), "limit": args.get("limit", 5)}
 
     if name == "get_directions":
         return {**base, "type": "navigation", "destination": args.get("destination", "")}

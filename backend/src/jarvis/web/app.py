@@ -68,8 +68,8 @@ def create_app() -> Flask:
     sem_memory = SemanticMemory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
 
     parser = IntentParser()
-    actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings)
     llm = LLMCore()
+    actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings, llm=llm)
     memory = Memory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
@@ -226,6 +226,22 @@ def create_app() -> Flask:
             if results:
                 return {"results": results, "mode": "semantic"}, 200
         return {"results": memory.search(query, limit=20), "mode": "substring"}, 200
+
+    @app.get("/api/search/web")
+    def web_search_endpoint() -> tuple[dict, int]:
+        """Live web search — returns raw results + optional LLM summary."""
+        from jarvis.services.web_search import search, search_and_summarize
+        query = (request.args.get("q") or "").strip()
+        if not query:
+            return {"error": "q is required"}, 400
+        try:
+            limit = int(request.args.get("limit", 5))
+        except ValueError:
+            return {"error": "limit must be an integer"}, 400
+        summarize = request.args.get("summarize", "true").lower() != "false"
+        results = search(query, limit=min(limit, 10))
+        summary = search_and_summarize(query, llm=llm, limit=limit) if summarize else None
+        return {"query": query, "results": results, "summary": summary}, 200
 
     @app.get("/api/search/semantic")
     def semantic_search() -> tuple[dict, int]:
