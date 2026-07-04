@@ -28,6 +28,7 @@ from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
+from jarvis.core.semantic_memory import SemanticMemory
 from jarvis.dashboard import NotesStore, SettingsStore
 from jarvis.plugins import PluginManager
 from jarvis.speech import Synthesizer, Transcriber
@@ -42,7 +43,11 @@ from jarvis.vision import (
 logger = logging.getLogger(__name__)
 
 
-def _build_context(memory: Memory, n: int = 5) -> str | None:
+def _build_context(memory: Memory, n: int = 5, query: str = "", sem: "SemanticMemory | None" = None) -> str | None:
+    if query and sem and sem.available:
+        relevant = sem.search(query, limit=n)
+        if relevant:
+            return " || ".join(f"User: {r['user_input']} | Assistant: {r['response']}" for r in relevant)
     recent = memory.recent(limit=n)
     if not recent:
         return None
@@ -58,6 +63,8 @@ def create_app() -> Flask:
     settings = SettingsStore(path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
     knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
     emotion = EmotionAnalyzer()
+
+    sem_memory = SemanticMemory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
 
     parser = IntentParser()
     actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings)
@@ -102,13 +109,14 @@ def create_app() -> Flask:
             if plugin_response is not None:
                 response = plugin_response
             else:
-                response = llm.query_llm(user_input, memory=_build_context(memory))
+                response = llm.query_llm(user_input, memory=_build_context(memory, query=user_input, sem=sem_memory))
 
         interaction_id = memory.store_interaction(
             user_input=user_input,
             response=response,
             intent_type=intent.get("type"),
         )
+        sem_memory.index_interaction(interaction_id, user_input)
         return {
             "id": interaction_id,
             "response": response,
@@ -128,7 +136,26 @@ def create_app() -> Flask:
         query = (request.args.get("q") or "").strip()
         if not query:
             return {"error": "q is required"}, 400
-        return {"results": memory.search(query, limit=20)}, 200
+        # Try semantic search first; fall back to substring if unavailable
+        if sem_memory.available:
+            results = sem_memory.search(query, limit=20)
+            if results:
+                return {"results": results, "mode": "semantic"}, 200
+        return {"results": memory.search(query, limit=20), "mode": "substring"}, 200
+
+    @app.get("/api/search/semantic")
+    def semantic_search() -> tuple[dict, int]:
+        """Dedicated semantic search endpoint — never falls back to substring."""
+        query = (request.args.get("q") or "").strip()
+        if not query:
+            return {"error": "q is required"}, 400
+        if not sem_memory.available:
+            return {"error": "Semantic search unavailable — sentence-transformers not loaded."}, 503
+        try:
+            limit = int(request.args.get("limit", 10))
+        except ValueError:
+            return {"error": "limit must be an integer"}, 400
+        return {"results": sem_memory.search(query, limit=min(limit, 50)), "mode": "semantic"}, 200
 
     @app.get("/api/plugins")
     def list_plugins() -> tuple[dict, int]:
@@ -456,7 +483,8 @@ def create_app() -> Flask:
         else:
             plugin_response = plugins.dispatch(message)
             response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory))
-        memory.store_interaction(message, response, intent_type=intent.get("type"))
+        interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"))
+        sem_memory.index_interaction(interaction_id, message)
         return {"response": response, "intent": intent.get("type")}, 200
 
     # ── knowledge base ───────────────────────────────────────────────
