@@ -1,187 +1,103 @@
-import React, { useState, useEffect } from 'react';
-import { BellIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import React, { useEffect, useState } from 'react';
+import { StatusDot, MonoLabel } from '@/components/hud/Hud';
 
-interface SystemStatus {
-  llm_service: boolean;
-  voice_recognition: boolean;
-  vision_system: boolean;
-  memory_system: boolean;
-  plugin_system: boolean;
-  face_recognition: boolean;
+interface ModuleStatus {
+  llm: boolean;
+  voice: boolean;
+  vision: boolean;
+  memory: boolean;
+  plugins: boolean;
+  face: boolean;
 }
 
-const TopBar: React.FC = () => {
-  const [systemStatus, setSystemStatus] = useState<SystemStatus>({
-    llm_service: false,
-    voice_recognition: false,
-    vision_system: false,
-    memory_system: false,
-    plugin_system: false,
-    face_recognition: false,
-  });
-  const [backendConnected, setBackendConnected] = useState<boolean>(false);
-  const [isChecking, setIsChecking] = useState<boolean>(true);
+const MODULES: { key: keyof ModuleStatus; label: string }[] = [
+  { key: 'llm', label: 'LLM' },
+  { key: 'voice', label: 'VOICE' },
+  { key: 'vision', label: 'VISION' },
+  { key: 'memory', label: 'MEM' },
+  { key: 'plugins', label: 'PLUGINS' },
+  { key: 'face', label: 'FACE' },
+];
 
-  const fetchStatus = async () => {
-    try {
-      setIsChecking(true);
-      const response = await fetch('http://localhost:8000/api/health');
-      if (response.ok) {
-        const status = await response.json();
-        // Map the health response to our system status format
-        setSystemStatus({
-          llm_service: status.initialized,
-          voice_recognition: status.initialized,
-          vision_system: status.initialized,
-          memory_system: status.initialized,
-          plugin_system: status.initialized,
-          face_recognition: status.initialized
-        });
-        setBackendConnected(true);
-      } else {
-        // Backend responded but with error
-        setBackendConnected(false);
-        setSystemStatus({
-          llm_service: false,
-          voice_recognition: false,
-          vision_system: false,
-          memory_system: false,
-          plugin_system: false,
-          face_recognition: false
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch system status:', error);
-      // Backend is down or unreachable
-      setBackendConnected(false);
-      setSystemStatus({
-        llm_service: false,
-        voice_recognition: false,
-        vision_system: false,
-        memory_system: false,
-        plugin_system: false,
-        face_recognition: false
-      });
-    } finally {
-      setIsChecking(false);
-    }
-  };
+export const TopBar: React.FC = () => {
+  const [online, setOnline] = useState(true);
+  const [modules, setModules] = useState<ModuleStatus>({
+    llm: false, voice: false, vision: false, memory: false, plugins: false, face: false,
+  });
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
+    let mounted = true;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (!mounted) return;
+        const on = data.status === 'ok';
+        // all modules = on (health endpoint doesn't break them out individually)
+        setOnline(on);
+        setModules({ llm: on, voice: on, vision: on, memory: on, plugins: on, face: on });
+      } catch {
+        if (mounted) setOnline(false);
+      }
+    };
+    poll();
+    const t = setInterval(poll, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
   }, []);
 
-  const getStatusBadge = (status: boolean, label: string) => (
-    <div className="flex items-center space-x-2">
-      <Badge 
-        variant={status ? "default" : "secondary"} 
-        className="text-xs px-2 py-0.5"
-      >
-        {label}
-      </Badge>
-    </div>
-  );
-
-  const getBackendStatusBadge = () => {
-    if (isChecking) {
-      return (
-        <Badge variant="secondary" className="text-xs">
-          Checking...
-        </Badge>
-      );
-    }
-    
-    if (backendConnected) {
-      return (
-        <Badge variant="default" className="text-xs">
-          Backend Ready
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="destructive" className="text-xs">
-          Backend Offline
-        </Badge>
-      );
-    }
-  };
-
   return (
-    <div className="bg-background border-b border-border/40 px-6 py-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        {/* Left Section */}
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-              <Cog6ToothIcon className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              J.A.R.V.I.S
-            </h1>
+    <header
+      className="h-16 shrink-0 border-b border-[rgba(0,180,255,0.15)] bg-[#040d1d] flex items-center justify-between px-5"
+      data-testid="top-bar"
+    >
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
+          <div className="relative w-3 h-3">
+            <span className="absolute inset-0 rounded-full bg-[#00d4ff] jv-ring" />
+            <span className="absolute inset-0 rounded-full bg-[#00d4ff]" />
           </div>
-          
-          <Separator orientation="vertical" className="h-6" />
-          
-          {/* System Status Indicators */}
-          <div className="hidden md:flex items-center space-x-3">
-            {getStatusBadge(systemStatus.llm_service, "LLM")}
-            {getStatusBadge(systemStatus.voice_recognition, "Voice")}
-            {getStatusBadge(systemStatus.vision_system, "Vision")}
-            {getStatusBadge(systemStatus.memory_system, "Memory")}
-            {getStatusBadge(systemStatus.plugin_system, "Plugins")}
-            {getStatusBadge(systemStatus.face_recognition, "Face Rec")}
-          </div>
+          <span
+            className="font-orbitron font-bold text-lg tracking-[0.3em] text-[#cae8ff] jv-glow"
+            data-testid="jarvis-logo"
+          >
+            J.A.R.V.I.S
+          </span>
         </div>
 
-        {/* Right Section */}
-        <div className="flex items-center space-x-3">
-          {/* Version Info */}
-          <Badge variant="secondary" className="text-xs">
-            v2.0.0
-          </Badge>
-          
-          {/* AI Assistant Status */}
-          <Badge variant="outline" className="text-xs">
-            AI Assistant
-          </Badge>
-          
-          {/* Dynamic Backend Status */}
-          {getBackendStatusBadge()}
-          
-          <Separator orientation="vertical" className="h-6" />
-          
-          {/* Notifications */}
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <BellIcon className="w-4 h-4" />
-          </Button>
-          
-          {/* Settings */}
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Cog6ToothIcon className="w-4 h-4" />
-          </Button>
+        <div className="hidden md:flex items-center gap-4 pl-5 border-l border-[rgba(0,180,255,0.15)]">
+          {MODULES.map((m) => (
+            <div key={m.key} className="flex items-center gap-1.5" data-testid={`module-${m.key}`}>
+              <StatusDot active={!!modules[m.key]} />
+              <MonoLabel>{m.label}</MonoLabel>
+            </div>
+          ))}
         </div>
       </div>
-      
-      {/* Mobile Status Bar */}
-      <div className="md:hidden mt-3 pt-3 border-t border-border/40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            {getStatusBadge(systemStatus.llm_service, "LLM")}
-            {getStatusBadge(systemStatus.voice_recognition, "Voice")}
-            {getStatusBadge(systemStatus.vision_system, "Vision")}
-          </div>
-          <Badge variant={backendConnected ? "default" : "destructive"} className="text-xs">
-            {backendConnected ? "Ready" : "Offline"}
-          </Badge>
+
+      <div className="flex items-center gap-4">
+        <MonoLabel className="hidden sm:inline">v2.0.0</MonoLabel>
+        <div
+          className="flex items-center gap-2 px-3 py-1 border"
+          style={{
+            borderColor: online ? '#00b4d8' : '#ef4444',
+            boxShadow: online
+              ? '0 0 12px rgba(0,180,255,0.25)'
+              : '0 0 12px rgba(239,68,68,0.25)',
+          }}
+          data-testid="online-indicator"
+        >
+          <StatusDot active={online} className={online ? '' : 'bg-[#ef4444]'} />
+          <span
+            className="font-hud-mono text-[11px] tracking-widest"
+            style={{ color: online ? '#00d4ff' : '#ef4444' }}
+          >
+            {online ? 'ONLINE' : 'OFFLINE'}
+          </span>
         </div>
       </div>
-    </div>
+    </header>
   );
 };
-
-export default TopBar; 

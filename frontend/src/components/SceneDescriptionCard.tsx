@@ -123,7 +123,7 @@ export const SceneDescriptionCard: React.FC<SceneDescriptionCardProps> = ({
               >
                 <Copy className="w-3 h-3" />
               </Button>
-              {navigator.share && (
+              {typeof navigator.share === 'function' && (
                 <Button
                   variant="ghost"
                   size="sm"

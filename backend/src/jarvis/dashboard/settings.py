@@ -12,6 +12,8 @@ _DEFAULTS: dict[str, Any] = {
     "voice_enabled": False,
     "auto_speak_responses": False,
     "default_language": "en",
+    "ha_url": "",
+    "ha_token": "",
 }
 
 
@@ -33,6 +35,9 @@ class SettingsStore:
                 return json.loads(self.path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, FileNotFoundError):
                 return dict(_DEFAULTS)
+
+    def get(self, key: str, default=None):
+        return self.get_all().get(key, default)
 
     def update(self, **values) -> dict:
         with self._lock:

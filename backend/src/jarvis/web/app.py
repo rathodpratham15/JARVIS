@@ -12,6 +12,8 @@ import json
 import logging
 import os
 import tempfile
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +27,7 @@ from jarvis.core.action_engine import ActionEngine
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.memory import Memory
+from jarvis.core.reminders import RemindersStore
 from jarvis.dashboard import NotesStore, SettingsStore
 from jarvis.plugins import PluginManager
 from jarvis.speech import Synthesizer, Transcriber
@@ -50,8 +53,14 @@ def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
 
+    notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
+    reminders = RemindersStore(db_path=os.getenv("JARVIS_REMINDERS_DB", "data/reminders.db"))
+    settings = SettingsStore(path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
+    knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
+    emotion = EmotionAnalyzer()
+
     parser = IntentParser()
-    actions = ActionEngine()
+    actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings)
     llm = LLMCore()
     memory = Memory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
@@ -71,10 +80,8 @@ def create_app() -> Flask:
     )
     transcriber = Transcriber()
     synthesizer = Synthesizer()
-    notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
-    settings = SettingsStore(path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
-    knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
-    emotion = EmotionAnalyzer()
+
+    _start_reminder_poller(reminders)
 
     @app.get("/api/health")
     def health() -> tuple[dict, int]:
@@ -489,7 +496,59 @@ def create_app() -> Flask:
             "method": result.method,
         }, 200
 
+    # ── reminders ────────────────────────────────────────────────────
+
+    @app.get("/api/reminders")
+    def list_reminders() -> tuple[dict, int]:
+        return {"reminders": reminders.list_all()}, 200
+
+    @app.get("/api/reminders/pending")
+    def pending_reminders() -> tuple[dict, int]:
+        return {"reminders": reminders.list_pending()}, 200
+
+    @app.get("/api/reminders/due")
+    def due_reminders() -> tuple[dict, int]:
+        """Reminders whose time has come but haven't been acknowledged yet."""
+        return {"reminders": reminders.list_due()}, 200
+
+    @app.get("/api/timers")
+    def list_timers() -> tuple[dict, int]:
+        with reminders._lock, reminders._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reminders WHERE kind='timer' ORDER BY created_at DESC"
+            ).fetchall()
+        return {"timers": [reminders._to_dict(r) for r in rows]}, 200
+
+    @app.get("/api/timers/pending")
+    def pending_timers() -> tuple[dict, int]:
+        with reminders._lock, reminders._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reminders WHERE kind='timer' AND fired=0 ORDER BY due_at ASC"
+            ).fetchall()
+        return {"timers": [reminders._to_dict(r) for r in rows]}, 200
+
+    @app.delete("/api/reminders/<reminder_id>")
+    def delete_reminder(reminder_id: str) -> tuple[dict, int]:
+        if reminders.delete(reminder_id):
+            return {"deleted": True}, 200
+        return {"error": "not found"}, 404
+
     return app
+
+
+def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30) -> None:
+    """Background thread: marks due reminders as fired every `interval` seconds."""
+    def _poll() -> None:
+        while True:
+            time.sleep(interval)
+            try:
+                for r in reminders_store.list_due():
+                    reminders_store.mark_fired(r["id"])
+                    logger.info("Reminder fired: %s", r["text"])
+            except Exception:
+                logger.exception("Reminder poller error")
+
+    threading.Thread(target=_poll, daemon=True, name="reminder-poller").start()
 
 
 def _person_to_dict(person) -> dict:
