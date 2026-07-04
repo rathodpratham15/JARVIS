@@ -26,6 +26,7 @@ from jarvis.ai import EmotionAnalyzer, KnowledgeBase
 from jarvis.core.action_engine import ActionEngine
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
+from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
 from jarvis.core.semantic_memory import SemanticMemory
@@ -102,14 +103,31 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         intent = parser.parse_intent(user_input)
+        ctx = _build_context(memory)
+        tool_used: str | None = None
+
         if intent.get("action_required"):
+            # Regex matched confidently — dispatch directly, no LLM needed
             response = actions.execute_action(intent)
         else:
             plugin_response = plugins.dispatch(user_input)
             if plugin_response is not None:
                 response = plugin_response
             else:
-                response = llm.query_llm(user_input, memory=_build_context(memory, query=user_input, sem=sem_memory))
+                # Let the LLM decide: answer directly or call a tool
+                text, tool_name, tool_args = llm.query_with_tools(
+                    user_input, tools=TOOLS, memory=ctx
+                )
+                if tool_name:
+                    tool_intent = tool_call_to_intent(tool_name, tool_args or {})
+                    tool_result = actions.execute_action(tool_intent)
+                    tool_used = tool_name
+                    response = llm.finish_after_tool(
+                        user_input, tool_name, tool_result, memory=ctx
+                    )
+                    intent = {**intent, "type": tool_intent.get("type", intent.get("type"))}
+                else:
+                    response = text or ""
 
         interaction_id = memory.store_interaction(
             user_input=user_input,
@@ -117,11 +135,14 @@ def create_app() -> Flask:
             intent_type=intent.get("type"),
         )
         sem_memory.index_interaction(interaction_id, user_input)
-        return {
+        result: dict = {
             "id": interaction_id,
             "response": response,
             "intent": intent.get("type"),
-        }, 200
+        }
+        if tool_used:
+            result["tool_used"] = tool_used
+        return result, 200
 
     @app.post("/api/chat/stream")
     def chat_stream():

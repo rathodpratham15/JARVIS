@@ -7,6 +7,7 @@ runs in demo mode (canned replies for the most common intents).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import datetime
@@ -162,6 +163,97 @@ class LLMCore:
         reply = "".join(full_reply)
         self._record("user", prompt)
         self._record("assistant", reply)
+
+    def query_with_tools(
+        self,
+        prompt: str,
+        tools: list[dict],
+        memory: Optional[str] = None,
+    ) -> tuple[str | None, str | None, dict | None]:
+        """Call the LLM with a tool schema.
+
+        Returns a 3-tuple:
+        - ``(text, None, None)``           — LLM answered directly
+        - ``(None, tool_name, tool_args)`` — LLM wants to call a tool
+        Falls back to a simulated response if no client is available.
+        """
+        if not self.client:
+            return self._simulate_response(prompt), None, None
+
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        if memory:
+            messages.append({"role": "system", "content": f"Context from memory: {memory}"})
+        for m in self.conversation_history[-_CONTEXT_WINDOW:]:
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": prompt})
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+        except Exception as exc:
+            logger.error("LLM tool call failed (%s): %s", self.provider.name, exc)
+            return f"I'm having trouble reaching the language model right now. ({exc})", None, None
+
+        choice = response.choices[0]
+
+        if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+            tc = choice.message.tool_calls[0]
+            try:
+                args = json.loads(tc.function.arguments)
+            except (json.JSONDecodeError, AttributeError):
+                args = {}
+            return None, tc.function.name, args
+
+        reply = choice.message.content or ""
+        self._record("user", prompt)
+        self._record("assistant", reply)
+        return reply, None, None
+
+    def finish_after_tool(
+        self,
+        prompt: str,
+        tool_name: str,
+        tool_result: str,
+        memory: Optional[str] = None,
+    ) -> str:
+        """Feed tool result back to the LLM for a natural-language reply."""
+        if not self.client:
+            return tool_result
+
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        if memory:
+            messages.append({"role": "system", "content": f"Context from memory: {memory}"})
+        for m in self.conversation_history[-_CONTEXT_WINDOW:]:
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": prompt})
+        messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_0", "type": "function", "function": {"name": tool_name, "arguments": "{}"}}],
+        })
+        messages.append({"role": "tool", "tool_call_id": "call_0", "content": tool_result})
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+            reply = response.choices[0].message.content or tool_result
+        except Exception as exc:
+            logger.error("LLM finish_after_tool failed: %s", exc)
+            reply = tool_result
+
+        self._record("user", prompt)
+        self._record("assistant", reply)
+        return reply
 
     def _record(self, role: str, content: str) -> None:
         self.conversation_history.append(
