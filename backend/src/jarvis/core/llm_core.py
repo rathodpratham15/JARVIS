@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Iterator, Optional
 
 from openai import OpenAI
 
@@ -125,6 +125,43 @@ class LLMCore:
         self._record("user", prompt)
         self._record("assistant", reply)
         return reply
+
+    def stream_llm(self, prompt: str, memory: Optional[str] = None) -> Iterator[str]:
+        """Yield response tokens one by one. Falls back to yielding the full
+        simulated response as a single chunk when no client is available."""
+        if not self.client:
+            yield self._simulate_response(prompt)
+            return
+
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        if memory:
+            messages.append({"role": "system", "content": f"Context from memory: {memory}"})
+        for m in self.conversation_history[-_CONTEXT_WINDOW:]:
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": prompt})
+
+        full_reply: list[str] = []
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+            for chunk in stream:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    full_reply.append(token)
+                    yield token
+        except Exception as exc:
+            logger.error("LLM stream failed (%s): %s", self.provider.name, exc)
+            yield f"I'm having trouble reaching the language model right now. ({exc})"
+            return
+
+        reply = "".join(full_reply)
+        self._record("user", prompt)
+        self._record("assistant", reply)
 
     def _record(self, role: str, content: str) -> None:
         self.conversation_history.append(
