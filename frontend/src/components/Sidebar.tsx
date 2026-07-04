@@ -1,88 +1,58 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import {
-  HomeIcon,
-  ChatBubbleLeftRightIcon,
-  MicrophoneIcon,
-  CameraIcon,
-  FaceSmileIcon,
-  EyeIcon,
-  PuzzlePieceIcon,
-  BookOpenIcon,
-  DocumentTextIcon,
-  HeartIcon,
-  Cog6ToothIcon,
-} from '@heroicons/react/24/outline';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { NAV_ITEMS } from '@/config/nav';
+import { MonoLabel } from '@/components/hud/Hud';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon, description: 'System overview' },
-  { name: 'Chat', href: '/chat', icon: ChatBubbleLeftRightIcon, description: 'AI conversations' },
-  { name: 'Voice Input', href: '/voice-input', icon: MicrophoneIcon, description: 'Speech recognition' },
-  { name: 'Camera Recognition', href: '/camera-recognition', icon: CameraIcon, description: 'Real-time detection' },
-  { name: 'Face Recognition', href: '/face-recognition', icon: FaceSmileIcon, description: 'Identity verification' },
-  { name: 'Visual Analysis', href: '/visual-analysis', icon: EyeIcon, description: 'Image processing' },
-  { name: 'Plugins', href: '/plugins', icon: PuzzlePieceIcon, description: 'Extensions & tools' },
-  { name: 'Memory', href: '/memory', icon: BookOpenIcon, description: 'Conversation history' },
-  { name: 'Notes', href: '/notes', icon: DocumentTextIcon, description: 'Quick notes' },
-  { name: 'Emotion Analysis', href: '/emotion-analysis', icon: HeartIcon, description: 'Mood detection' },
-  { name: 'System Control', href: '/system-control', icon: Cog6ToothIcon, description: 'System management' },
-];
-
-const Sidebar: React.FC = () => {
+export const Sidebar: React.FC = () => {
   return (
-    <div className="w-72 bg-background border-r border-border/40 shadow-sm flex flex-col min-h-0">
-      {/* Logo Section - Simplified */}
-      <Card className="border-0 shadow-none rounded-none flex-shrink-0">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Cog6ToothIcon className="w-7 h-7 text-white" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Separator className="flex-shrink-0" />
-
-      {/* Navigation */}
-      <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-3">
-          Navigation
-        </div>
-        {navigation.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            className={({ isActive }) =>
-              `group relative flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className={`p-1.5 rounded-md transition-colors ${
-                  isActive ? 'bg-primary-foreground/20' : 'group-hover:bg-accent'
-                }`}>
-                  <item.icon className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">{item.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {item.description}
+    <aside
+      className="w-56 shrink-0 border-r-2 border-[rgba(0,180,255,0.15)] bg-[#040d1d] overflow-y-auto"
+      data-testid="sidebar"
+    >
+      <div className="px-4 py-4">
+        <MonoLabel>Navigation</MonoLabel>
+      </div>
+      <nav className="px-2 pb-6 space-y-1">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
+              className={({ isActive }) =>
+                [
+                  'group flex items-start gap-3 px-3 py-2.5 border-l-2 transition-colors duration-200',
+                  isActive
+                    ? 'border-l-[#00d4ff] bg-[rgba(0,180,255,0.08)]'
+                    : 'border-l-transparent hover:bg-[rgba(0,180,255,0.04)] hover:border-l-[rgba(0,180,255,0.3)]',
+                ].join(' ')
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon
+                    className="w-4 h-4 mt-0.5 shrink-0 transition-colors"
+                    style={{ color: isActive ? '#00d4ff' : '#4a7fa0' }}
+                  />
+                  <div className="min-w-0">
+                    <div
+                      className="text-sm font-medium leading-tight"
+                      style={{ color: isActive ? '#cae8ff' : '#9fc4e0' }}
+                    >
+                      {item.name}
+                    </div>
+                    <div className="font-hud-mono text-[10px] text-[#4a7fa0] leading-tight mt-0.5 truncate">
+                      {item.desc}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
-          </NavLink>
-        ))}
+                </>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
-    </div>
+    </aside>
   );
 };
-
-export default Sidebar; 

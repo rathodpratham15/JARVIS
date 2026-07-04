@@ -170,7 +170,34 @@ class IntentParser:
         if intent == "music":
             return {"song": first}
         if intent == "smart_home":
-            return {"device": first}
+            if re.search(r"\bturn on\b|\bswitch on\b|\blights? on\b|\benable\b|\bactivate\b", text, re.IGNORECASE):
+                action = "turn_on"
+            elif re.search(r"\bturn off\b|\bswitch off\b|\blights? off\b|\bdisable\b|\bdeactivate\b", text, re.IGNORECASE):
+                action = "turn_off"
+            elif re.search(r"\bdim\b|\bdimmer\b|\bbrightness\b", text, re.IGNORECASE):
+                action = "dim"
+            elif re.search(r"\btemperature to\b|\bset.*thermostat\b|\bheat\b|\bcool\b", text, re.IGNORECASE):
+                action = "set_temp"
+            else:
+                action = "toggle"
+            # Extract device name from the action phrase.
+            dm = re.search(
+                r"(?:turn on|turn off|switch on|switch off|dim|enable|disable|activate|deactivate)"
+                r"\s+(?:the\s+)?(.+)",
+                text, re.IGNORECASE,
+            )
+            if dm:
+                device = dm.group(1).strip()
+            elif action == "set_temp":
+                # "set the thermostat to 72" → device = "thermostat"
+                tm = re.search(r"(?:the\s+)?(\w+(?:\s+\w+)?)\s+to\s+\d+", text, re.IGNORECASE)
+                device = tm.group(1).strip() if tm else "thermostat"
+            else:
+                device = first or text.strip()
+            # Extract temperature value for set_temp
+            temp_m = re.search(r"to\s+(\d+)", text, re.IGNORECASE)
+            extra = {"temperature": int(temp_m.group(1))} if temp_m and action == "set_temp" else {}
+            return {"device": device, "smart_home_action": action, **extra}
         if intent == "timer":
             duration = re.search(DURATION_PATTERN, text, re.IGNORECASE)
             return {"duration": f"{duration.group(1)} {duration.group(2)}"} if duration else {}

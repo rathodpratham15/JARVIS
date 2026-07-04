@@ -12,11 +12,15 @@ import re
 import subprocess
 import urllib.parse
 import webbrowser
-from datetime import datetime
-from pathlib import Path
-from typing import Callable
+from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Callable, Optional
 
 from jarvis.services.weather_service import get_weather
+from jarvis.services.smart_home import control_device as _smart_home_control
+
+if TYPE_CHECKING:
+    from jarvis.core.reminders import RemindersStore
+    from jarvis.dashboard.notes import NotesStore
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +45,6 @@ GOODBYES = [
     "See you later! Take care!",
     "Until next time!",
 ]
-
-NOTES_FILE = Path.home() / "jarvis_notes.txt"
 
 _WORD_OPERATORS = {
     "plus": "+", "add": "+",
@@ -86,11 +88,74 @@ def _eval_node(node: ast.AST) -> float:
     raise ValueError(f"Disallowed expression element: {ast.dump(node)}")
 
 
+def _parse_duration(duration_str: Optional[str]) -> Optional[timedelta]:
+    """Convert '5 minutes', '30 seconds', '2 hours' to a timedelta."""
+    if not duration_str:
+        return None
+    m = re.search(r"(\d+)\s*(second|minute|hour)s?", duration_str, re.IGNORECASE)
+    if not m:
+        return None
+    n, unit = int(m.group(1)), m.group(2).lower()
+    return {"second": timedelta(seconds=n), "minute": timedelta(minutes=n), "hour": timedelta(hours=n)}[unit]
+
+
+def _parse_due_time(time_str: Optional[str]) -> Optional[datetime]:
+    """Convert an extracted time string to an absolute UTC datetime, or None."""
+    if not time_str:
+        return None
+    s = time_str.lower().strip()
+    now = datetime.now()
+
+    m = re.match(r"in (\d+)\s*(second|minute|hour)s?", s)
+    if m:
+        n, unit = int(m.group(1)), m.group(2)
+        delta = {"second": timedelta(seconds=n), "minute": timedelta(minutes=n), "hour": timedelta(hours=n)}[unit]
+        return (now + delta).astimezone(timezone.utc)
+
+    m = re.search(r"(\d{1,2}):(\d{2})\s*(am|pm)?", s)
+    if m:
+        hour, minute, period = int(m.group(1)), int(m.group(2)), m.group(3)
+        if period == "pm" and hour != 12:
+            hour += 12
+        elif period == "am" and hour == 12:
+            hour = 0
+        due = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if due <= now:
+            due += timedelta(days=1)
+        return due.astimezone(timezone.utc)
+
+    if "tomorrow" in s:
+        return (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    if "tonight" in s:
+        due = now.replace(hour=20, minute=0, second=0, microsecond=0)
+        if due <= now:
+            due += timedelta(days=1)
+        return due.astimezone(timezone.utc)
+
+    return None
+
+
 class ActionEngine:
     """Maps intent dicts to handler methods and returns a spoken response."""
 
-    def __init__(self) -> None:
-        self.reminders: list[dict] = []
+    def __init__(
+        self,
+        notes_store: "Optional[NotesStore]" = None,
+        reminders_store: "Optional[RemindersStore]" = None,
+        settings_store=None,
+    ) -> None:
+        if notes_store is None:
+            from jarvis.dashboard.notes import NotesStore
+            notes_store = NotesStore()
+        if reminders_store is None:
+            from jarvis.core.reminders import RemindersStore
+            reminders_store = RemindersStore()
+        if settings_store is None:
+            from jarvis.dashboard.settings import SettingsStore
+            settings_store = SettingsStore()
+        self._notes = notes_store
+        self._reminders = reminders_store
+        self._settings = settings_store
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -202,25 +267,17 @@ class ActionEngine:
         if not text:
             return "What would you like me to remind you about?"
         time_info = intent.get("time")
-        self.reminders.append(
-            {
-                "id": len(self.reminders) + 1,
-                "text": text,
-                "time": time_info,
-                "created": datetime.now().isoformat(),
-                "completed": False,
-            }
-        )
-        return f"I've set a reminder for '{text}'{' ' + time_info if time_info else ''}."
+        due = _parse_due_time(time_info)
+        self._reminders.add(text, due_at=due)
+        if due:
+            return f"Reminder set: '{text}' at {due.strftime('%I:%M %p')}."
+        return f"Reminder saved: '{text}'."
 
-    @staticmethod
-    def _note(intent: dict) -> str:
+    def _note(self, intent: dict) -> str:
         text = (intent.get("note_text") or "").strip()
         if not text:
             return "What would you like me to note down?"
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with NOTES_FILE.open("a", encoding="utf-8") as fh:
-            fh.write(f"[{timestamp}] {text}\n")
+        self._notes.add(content=text)
         return f"Saved your note: '{text}'"
 
     @staticmethod
@@ -250,17 +307,34 @@ class ActionEngine:
         webbrowser.open("https://music.youtube.com")
         return "Opening YouTube Music for you."
 
-    @staticmethod
-    def _smart_home(intent: dict) -> str:
-        device = intent.get("device", "device")
-        return f"Smart home control for {device} is not yet implemented."
+    def _smart_home(self, intent: dict) -> str:
+        device = (intent.get("device") or "").strip()
+        if not device:
+            return "Which device would you like to control?"
+        action = intent.get("smart_home_action", "toggle")
+        extra = {"temperature": intent["temperature"]} if "temperature" in intent else None
+        ha_url = self._settings.get("ha_url", "")
+        ha_token = self._settings.get("ha_token", "")
+        return _smart_home_control(device, action, extra=extra, ha_url=ha_url, ha_token=ha_token)
 
-    @staticmethod
-    def _timer(intent: dict) -> str:
-        duration = intent.get("duration")
-        if not duration:
+    def _timer(self, intent: dict) -> str:
+        duration_str = intent.get("duration")
+        if not duration_str:
             return "How long should I set the timer for?"
-        return f"Timer for {duration} is not yet implemented."
+        delta = _parse_duration(duration_str)
+        if delta is None:
+            return f"I didn't understand the duration '{duration_str}'. Try '5 minutes' or '30 seconds'."
+        due = (datetime.now(timezone.utc) + delta)
+        self._reminders.add(text=f"Timer: {duration_str}", due_at=due, kind="timer")
+        # Human-readable duration
+        total = int(delta.total_seconds())
+        if total >= 3600:
+            label = f"{total // 3600}h {(total % 3600) // 60}m" if total % 3600 else f"{total // 3600} hour(s)"
+        elif total >= 60:
+            label = f"{total // 60} minute(s)"
+        else:
+            label = f"{total} second(s)"
+        return f"Timer set for {label}."
 
     @staticmethod
     def _navigation(intent: dict) -> str:
@@ -319,7 +393,7 @@ class ActionEngine:
         )
 
     def get_reminders(self) -> list[dict]:
-        return list(self.reminders)
+        return self._reminders.list_pending()
 
     def supported_actions(self) -> list[str]:
         return list(self.actions.keys())

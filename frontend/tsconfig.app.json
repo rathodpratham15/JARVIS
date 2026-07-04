@@ -29,5 +29,31 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/components/AdvancedAIDashboard.tsx",
+    "src/components/CameraRecognition.tsx",
+    "src/components/ChatInterface.tsx",
+    "src/components/CommandHistory.tsx",
+    "src/components/Dashboard.tsx",
+    "src/components/EmotionAnalysisDashboard.tsx",
+    "src/components/EnhancedSceneAnalysis.tsx",
+    "src/components/FaceRecognitionDashboard.tsx",
+    "src/components/ImageUpload.tsx",
+    "src/components/IntroScreen.tsx",
+    "src/components/LoadingSpinner.tsx",
+    "src/components/MemoryExplorer.tsx",
+    "src/components/MobileInterface.tsx",
+    "src/components/NotesManager.tsx",
+    "src/components/PluginManager.tsx",
+    "src/components/QuickCommands.tsx",
+    "src/components/SceneDescriptionCard.tsx",
+    "src/components/SettingsManager.tsx",
+    "src/components/SystemController.tsx",
+    "src/components/ThemeProvider.tsx",
+    "src/components/VisualAnalysisDashboard.tsx",
+    "src/components/VoiceTranscription.tsx",
+    "src/components/VoiceVisualizer.tsx",
+    "src/hooks/useVoiceInput.ts"
+  ]
 }

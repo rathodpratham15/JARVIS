@@ -12,7 +12,7 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({
   audioData = [],
   className = ""
 }) => {
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number>(0);
   const [bars, setBars] = useState<number[]>(new Array(32).fill(0));
 
   useEffect(() => {

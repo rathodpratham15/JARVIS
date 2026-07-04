@@ -1,109 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import React, { useEffect, useState } from 'react';
+import { StatusDot } from '@/components/hud/Hud';
 
-const Footer: React.FC = () => {
-  const [backendConnected, setBackendConnected] = useState<boolean>(false);
-  const [isChecking, setIsChecking] = useState<boolean>(true);
+export const Footer: React.FC = () => {
+  const [nominal, setNominal] = useState(true);
 
   useEffect(() => {
-    const checkBackendHealth = async () => {
+    let mounted = true;
+    const poll = async () => {
       try {
-        setIsChecking(true);
-        const response = await fetch('/api/health');
-        if (response.ok) {
-          setBackendConnected(true);
-        } else {
-          setBackendConnected(false);
-        }
-      } catch (error) {
-        console.error('Failed to check backend health:', error);
-        setBackendConnected(false);
-      } finally {
-        setIsChecking(false);
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (mounted) setNominal(data.status === 'ok');
+      } catch {
+        if (mounted) setNominal(false);
       }
     };
-
-    checkBackendHealth();
-    const interval = setInterval(checkBackendHealth, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
+    poll();
+    const t = setInterval(poll, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
   }, []);
 
-  const getStatusBadge = () => {
-    if (isChecking) {
-      return (
-        <Badge variant="secondary" className="text-xs">
-          Checking...
-        </Badge>
-      );
-    }
-    
-    if (backendConnected) {
-      return (
-        <Badge variant="default" className="text-xs">
-          Online
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="destructive" className="text-xs">
-          Offline
-        </Badge>
-      );
-    }
-  };
-
-  const getActivityBadge = () => {
-    if (isChecking) {
-      return (
-        <Badge variant="secondary" className="text-xs">
-          Checking...
-        </Badge>
-      );
-    }
-    
-    if (backendConnected) {
-      return (
-        <Badge variant="default" className="text-xs">
-          Active
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="secondary" className="text-xs">
-          Inactive
-        </Badge>
-      );
-    }
-  };
-
   return (
-    <footer className="bg-background border-t border-border/40 mt-auto">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-          {/* Left Section */}
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-muted-foreground">
-              <p>Powered by Advanced AI</p>
-              <p className="font-medium">J.A.R.V.I.S v2.0.0</p>
-            </div>
-            <Separator orientation="vertical" className="h-8" />
-            <div className="flex items-center space-x-2">
-              {getStatusBadge()}
-              {getActivityBadge()}
-            </div>
-          </div>
-
-          {/* Right Section */}
-          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-            <span>© 2024 J.A.R.V.I.S AI Assistant</span>
-            <Separator orientation="vertical" className="h-4" />
-            <span>Built with React & Python</span>
-          </div>
-        </div>
+    <footer
+      className="h-9 shrink-0 border-t border-[rgba(0,180,255,0.15)] bg-[#040d1d] flex items-center justify-between px-5"
+      data-testid="footer"
+    >
+      <span className="font-hud-mono text-[10px] tracking-widest text-[#4a7fa0]">
+        J.A.R.V.I.S v2.0.0
+      </span>
+      <div className="flex items-center gap-2">
+        <StatusDot active={nominal} className={nominal ? '' : 'bg-[#ef4444]'} />
+        <span
+          className="font-hud-mono text-[10px] tracking-widest"
+          style={{ color: nominal ? '#4a7fa0' : '#ef4444' }}
+        >
+          {nominal ? 'SYS NOMINAL' : 'SYS FAULT'}
+        </span>
       </div>
     </footer>
   );
 };
-
-export default Footer; 
