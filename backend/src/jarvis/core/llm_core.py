@@ -127,6 +127,43 @@ class LLMCore:
         self._record("assistant", reply)
         return reply
 
+    def stream_llm(self, prompt: str, memory: Optional[str] = None) -> Iterator[str]:
+        """Yield response tokens one by one. Falls back to yielding the full
+        simulated response as a single chunk when no client is available."""
+        if not self.client:
+            yield self._simulate_response(prompt)
+            return
+
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        if memory:
+            messages.append({"role": "system", "content": f"Context from memory: {memory}"})
+        for m in self.conversation_history[-_CONTEXT_WINDOW:]:
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": prompt})
+
+        full_reply: list[str] = []
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+            for chunk in stream:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    full_reply.append(token)
+                    yield token
+        except Exception as exc:
+            logger.error("LLM stream failed (%s): %s", self.provider.name, exc)
+            yield f"I'm having trouble reaching the language model right now. ({exc})"
+            return
+
+        reply = "".join(full_reply)
+        self._record("user", prompt)
+        self._record("assistant", reply)
+
     def query_with_tools(
         self,
         prompt: str,
@@ -136,9 +173,9 @@ class LLMCore:
         """Call the LLM with a tool schema.
 
         Returns a 3-tuple:
-        - ``(text, None, None)``         — LLM answered directly (no tool call)
+        - ``(text, None, None)``           — LLM answered directly
         - ``(None, tool_name, tool_args)`` — LLM wants to call a tool
-        Falls back to ``query_llm`` if no client is available.
+        Falls back to a simulated response if no client is available.
         """
         if not self.client:
             return self._simulate_response(prompt), None, None
@@ -165,7 +202,6 @@ class LLMCore:
 
         choice = response.choices[0]
 
-        # LLM wants to call a tool
         if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
             tc = choice.message.tool_calls[0]
             try:
@@ -174,7 +210,6 @@ class LLMCore:
                 args = {}
             return None, tc.function.name, args
 
-        # LLM answered directly
         reply = choice.message.content or ""
         self._record("user", prompt)
         self._record("assistant", reply)
@@ -187,7 +222,7 @@ class LLMCore:
         tool_result: str,
         memory: Optional[str] = None,
     ) -> str:
-        """Send the tool result back to the LLM and get a final natural-language reply."""
+        """Feed tool result back to the LLM for a natural-language reply."""
         if not self.client:
             return tool_result
 
@@ -197,17 +232,12 @@ class LLMCore:
         for m in self.conversation_history[-_CONTEXT_WINDOW:]:
             messages.append({"role": m["role"], "content": m["content"]})
         messages.append({"role": "user", "content": prompt})
-        # Provide a stub assistant message indicating a tool was called
         messages.append({
             "role": "assistant",
             "content": None,
             "tool_calls": [{"id": "call_0", "type": "function", "function": {"name": tool_name, "arguments": "{}"}}],
         })
-        messages.append({
-            "role": "tool",
-            "tool_call_id": "call_0",
-            "content": tool_result,
-        })
+        messages.append({"role": "tool", "tool_call_id": "call_0", "content": tool_result})
 
         try:
             response = self.client.chat.completions.create(

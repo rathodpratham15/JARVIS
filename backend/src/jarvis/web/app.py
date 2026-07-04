@@ -29,6 +29,7 @@ from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
+from jarvis.core.semantic_memory import SemanticMemory
 from jarvis.dashboard import NotesStore, SettingsStore
 from jarvis.plugins import PluginManager
 from jarvis.speech import Synthesizer, Transcriber
@@ -43,7 +44,11 @@ from jarvis.vision import (
 logger = logging.getLogger(__name__)
 
 
-def _build_context(memory: Memory, n: int = 5) -> str | None:
+def _build_context(memory: Memory, n: int = 5, query: str = "", sem: "SemanticMemory | None" = None) -> str | None:
+    if query and sem and sem.available:
+        relevant = sem.search(query, limit=n)
+        if relevant:
+            return " || ".join(f"User: {r['user_input']} | Assistant: {r['response']}" for r in relevant)
     recent = memory.recent(limit=n)
     if not recent:
         return None
@@ -59,6 +64,8 @@ def create_app() -> Flask:
     settings = SettingsStore(path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
     knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
     emotion = EmotionAnalyzer()
+
+    sem_memory = SemanticMemory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
 
     parser = IntentParser()
     actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings)
@@ -112,11 +119,9 @@ def create_app() -> Flask:
                     user_input, tools=TOOLS, memory=ctx
                 )
                 if tool_name:
-                    # Execute the tool the LLM chose
                     tool_intent = tool_call_to_intent(tool_name, tool_args or {})
                     tool_result = actions.execute_action(tool_intent)
                     tool_used = tool_name
-                    # Feed result back to LLM for a natural reply
                     response = llm.finish_after_tool(
                         user_input, tool_name, tool_result, memory=ctx
                     )
@@ -129,6 +134,7 @@ def create_app() -> Flask:
             response=response,
             intent_type=intent.get("type"),
         )
+        sem_memory.index_interaction(interaction_id, user_input)
         result: dict = {
             "id": interaction_id,
             "response": response,
@@ -137,6 +143,69 @@ def create_app() -> Flask:
         if tool_used:
             result["tool_used"] = tool_used
         return result, 200
+
+    @app.post("/api/chat/stream")
+    def chat_stream():
+        from flask import Response, stream_with_context
+        import json as _json
+
+        payload = request.get_json(silent=True) or {}
+        user_input = (payload.get("message") or "").strip()
+        if not user_input:
+            return {"error": "message field is required"}, 400
+
+        intent = parser.parse_intent(user_input)
+
+        # Action-engine / plugin intents return instantly — no streaming needed.
+        # Wrap as a single SSE event so the frontend can use one code path.
+        if intent.get("action_required"):
+            response_text = actions.execute_action(intent)
+        else:
+            plugin_response = plugins.dispatch(user_input)
+            if plugin_response is not None:
+                response_text = plugin_response
+            else:
+                response_text = None  # will stream below
+
+        if response_text is not None:
+            # Non-LLM response: emit as a single data event then done
+            interaction_id = memory.store_interaction(
+                user_input=user_input,
+                response=response_text,
+                intent_type=intent.get("type"),
+            )
+
+            def _single():
+                yield f"data: {_json.dumps({'token': response_text})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+
+            return Response(
+                stream_with_context(_single()),
+                mimetype="text/event-stream",
+                headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+            )
+
+        # LLM path: stream tokens
+        ctx = _build_context(memory)
+
+        def _stream():
+            full: list[str] = []
+            for token in llm.stream_llm(user_input, memory=ctx):
+                full.append(token)
+                yield f"data: {_json.dumps({'token': token})}\n\n"
+            full_text = "".join(full)
+            interaction_id = memory.store_interaction(
+                user_input=user_input,
+                response=full_text,
+                intent_type=intent.get("type"),
+            )
+            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+
+        return Response(
+            stream_with_context(_stream()),
+            mimetype="text/event-stream",
+            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        )
 
     @app.get("/api/history")
     def history() -> tuple[dict, int]:
@@ -151,7 +220,26 @@ def create_app() -> Flask:
         query = (request.args.get("q") or "").strip()
         if not query:
             return {"error": "q is required"}, 400
-        return {"results": memory.search(query, limit=20)}, 200
+        # Try semantic search first; fall back to substring if unavailable
+        if sem_memory.available:
+            results = sem_memory.search(query, limit=20)
+            if results:
+                return {"results": results, "mode": "semantic"}, 200
+        return {"results": memory.search(query, limit=20), "mode": "substring"}, 200
+
+    @app.get("/api/search/semantic")
+    def semantic_search() -> tuple[dict, int]:
+        """Dedicated semantic search endpoint — never falls back to substring."""
+        query = (request.args.get("q") or "").strip()
+        if not query:
+            return {"error": "q is required"}, 400
+        if not sem_memory.available:
+            return {"error": "Semantic search unavailable — sentence-transformers not loaded."}, 503
+        try:
+            limit = int(request.args.get("limit", 10))
+        except ValueError:
+            return {"error": "limit must be an integer"}, 400
+        return {"results": sem_memory.search(query, limit=min(limit, 50)), "mode": "semantic"}, 200
 
     @app.get("/api/plugins")
     def list_plugins() -> tuple[dict, int]:
@@ -479,7 +567,8 @@ def create_app() -> Flask:
         else:
             plugin_response = plugins.dispatch(message)
             response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory))
-        memory.store_interaction(message, response, intent_type=intent.get("type"))
+        interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"))
+        sem_memory.index_interaction(interaction_id, message)
         return {"response": response, "intent": intent.get("type")}, 200
 
     # ── knowledge base ───────────────────────────────────────────────

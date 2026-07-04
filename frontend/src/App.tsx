@@ -7,26 +7,19 @@ import { useReminderPoller } from '@/hooks/useReminderPoller';
 import Dashboard from '@/pages/Dashboard';
 import Chat from '@/pages/Chat';
 import VoiceInput from '@/pages/VoiceInput';
-import CameraRecognition from '@/pages/CameraRecognition';
-import FaceRecognition from '@/pages/FaceRecognition';
-import VisualAnalysis from '@/pages/VisualAnalysis';
+import Vision from '@/pages/Vision';
+import Intelligence from '@/pages/Intelligence';
+import Data from '@/pages/Data';
 import Plugins from '@/pages/Plugins';
-import Memory from '@/pages/Memory';
-import Notes from '@/pages/Notes';
-import EmotionAnalysis from '@/pages/EmotionAnalysis';
 import SystemControl from '@/pages/SystemControl';
 import SettingsManager from '@/pages/SettingsManager';
-import KnowledgeBase from '@/pages/KnowledgeBase';
 
 import './App.css';
 
-// Mobile placeholder — shown on small screens instead of the HUD shell
 const MobileNotice = () => (
   <div className="flex flex-col items-center justify-center h-screen bg-[#020817] text-[#cae8ff] p-8 text-center">
     <div className="font-orbitron text-2xl tracking-widest jv-glow mb-4">J.A.R.V.I.S</div>
-    <p className="font-hud-mono text-xs tracking-widest text-[#4a7fa0]">
-      DESKTOP INTERFACE REQUIRED
-    </p>
+    <p className="font-hud-mono text-xs tracking-widest text-[#4a7fa0]">DESKTOP INTERFACE REQUIRED</p>
     <p className="text-sm text-[#4a7fa0] mt-4">Please open on a larger screen.</p>
   </div>
 );
@@ -35,32 +28,22 @@ function AppInner() {
   useReminderPoller();
   return (
     <>
-      {/* Mobile notice for small screens */}
-      <div className="block md:hidden">
-        <MobileNotice />
-      </div>
-
-      {/* Desktop HUD shell */}
+      <div className="block md:hidden"><MobileNotice /></div>
       <div className="hidden md:block">
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/voice-input" element={<VoiceInput />} />
-            <Route path="/camera-recognition" element={<CameraRecognition />} />
-            <Route path="/face-recognition" element={<FaceRecognition />} />
-            <Route path="/visual-analysis" element={<VisualAnalysis />} />
+            <Route path="/vision" element={<Vision />} />
+            <Route path="/intelligence" element={<Intelligence />} />
+            <Route path="/data" element={<Data />} />
             <Route path="/plugins" element={<Plugins />} />
-            <Route path="/memory" element={<Memory />} />
-            <Route path="/notes" element={<Notes />} />
-            <Route path="/emotion-analysis" element={<EmotionAnalysis />} />
             <Route path="/system-control" element={<SystemControl />} />
-            <Route path="/knowledge" element={<KnowledgeBase />} />
             <Route path="/settings" element={<SettingsManager />} />
           </Route>
         </Routes>
       </div>
-
       <Toaster position="bottom-right" />
     </>
   );
