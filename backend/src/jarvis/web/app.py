@@ -115,6 +115,69 @@ def create_app() -> Flask:
             "intent": intent.get("type"),
         }, 200
 
+    @app.post("/api/chat/stream")
+    def chat_stream():
+        from flask import Response, stream_with_context
+        import json as _json
+
+        payload = request.get_json(silent=True) or {}
+        user_input = (payload.get("message") or "").strip()
+        if not user_input:
+            return {"error": "message field is required"}, 400
+
+        intent = parser.parse_intent(user_input)
+
+        # Action-engine / plugin intents return instantly — no streaming needed.
+        # Wrap as a single SSE event so the frontend can use one code path.
+        if intent.get("action_required"):
+            response_text = actions.execute_action(intent)
+        else:
+            plugin_response = plugins.dispatch(user_input)
+            if plugin_response is not None:
+                response_text = plugin_response
+            else:
+                response_text = None  # will stream below
+
+        if response_text is not None:
+            # Non-LLM response: emit as a single data event then done
+            interaction_id = memory.store_interaction(
+                user_input=user_input,
+                response=response_text,
+                intent_type=intent.get("type"),
+            )
+
+            def _single():
+                yield f"data: {_json.dumps({'token': response_text})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+
+            return Response(
+                stream_with_context(_single()),
+                mimetype="text/event-stream",
+                headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+            )
+
+        # LLM path: stream tokens
+        ctx = _build_context(memory)
+
+        def _stream():
+            full: list[str] = []
+            for token in llm.stream_llm(user_input, memory=ctx):
+                full.append(token)
+                yield f"data: {_json.dumps({'token': token})}\n\n"
+            full_text = "".join(full)
+            interaction_id = memory.store_interaction(
+                user_input=user_input,
+                response=full_text,
+                intent_type=intent.get("type"),
+            )
+            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+
+        return Response(
+            stream_with_context(_stream()),
+            mimetype="text/event-stream",
+            headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+        )
+
     @app.get("/api/history")
     def history() -> tuple[dict, int]:
         try:
