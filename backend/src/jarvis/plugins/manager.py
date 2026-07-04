@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
@@ -23,13 +24,21 @@ logger = logging.getLogger(__name__)
 
 
 class PluginManager:
-    def __init__(self, plugins_dir: str | Path = "plugins") -> None:
+    def __init__(self, plugins_dir: str | Path = "plugins", state_path: str | Path = "data/plugins_state.json") -> None:
         self.plugins_dir = Path(plugins_dir)
         self.plugins: dict[str, BasePlugin] = {}
-        # Tracked here rather than on the manifest because most plugins
-        # construct a fresh manifest in get_manifest() — mutating that
-        # would silently no-op.
-        self._enabled: dict[str, bool] = {}
+        self._state_path = Path(state_path)
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        self._enabled: dict[str, bool] = self._load_state()
+
+    def _load_state(self) -> dict[str, bool]:
+        try:
+            return json.loads(self._state_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _save_state(self) -> None:
+        self._state_path.write_text(json.dumps(self._enabled, indent=2), encoding="utf-8")
 
     def discover(self) -> None:
         """Find and instantiate plugins under `plugins_dir`. Idempotent."""
@@ -66,7 +75,9 @@ class PluginManager:
                 logger.warning("Duplicate plugin name %r — skipping", manifest.name)
                 continue
             self.plugins[manifest.name] = instance
-            self._enabled[manifest.name] = manifest.enabled
+            # Persist saved state takes priority; fall back to manifest default.
+            if manifest.name not in self._enabled:
+                self._enabled[manifest.name] = manifest.enabled
             logger.info("Loaded plugin %s v%s", manifest.name, manifest.version)
 
     def list(self) -> list[dict]:
@@ -101,6 +112,7 @@ class PluginManager:
         if name not in self.plugins:
             return False
         self._enabled[name] = enabled
+        self._save_state()
         return True
 
     def is_enabled(self, name: str) -> bool:

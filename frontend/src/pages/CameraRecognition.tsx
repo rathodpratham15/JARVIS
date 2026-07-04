@@ -45,14 +45,27 @@ export default function CameraRecognition() {
   useEffect(() => () => stop(), []);
 
   const scan = async () => {
+    if (!videoRef.current) return;
     setScanning(true);
     setResult(null);
     try {
-      // Send an empty formdata; the backend uses the live camera feed
+      // Capture current video frame to a canvas, convert to blob, upload
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d')!.drawImage(video, 0, 0);
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.92)
+      );
       const formData = new FormData();
+      formData.append('image', blob, 'frame.jpg');
       const res = await fetch('/api/face/identify', { method: 'POST', body: formData });
       const data: FaceResult = await res.json();
       setResult(data);
+      hudToast.info(data.person ? `IDENTIFIED: ${data.person.name}` : 'NO MATCH FOUND');
+    } catch {
+      hudToast.error('SCAN FAILED');
     } finally {
       setScanning(false);
     }

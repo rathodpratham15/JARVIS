@@ -11,6 +11,7 @@ import {
   HeartPulse,
   Cpu,
   Settings,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,5 +34,6 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/notes', name: 'Notes', desc: 'Quick notes', icon: StickyNote },
   { path: '/emotion-analysis', name: 'Emotion', desc: 'Sentiment scan', icon: HeartPulse },
   { path: '/system-control', name: 'System Control', desc: 'Action center', icon: Cpu },
+  { path: '/knowledge', name: 'Knowledge', desc: 'Information repository', icon: BookOpen },
   { path: '/settings', name: 'Settings', desc: 'Configuration', icon: Settings },
 ];

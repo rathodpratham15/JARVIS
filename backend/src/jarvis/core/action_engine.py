@@ -351,7 +351,16 @@ class ActionEngine:
 
     @staticmethod
     def _email(intent: dict) -> str:
-        return "Email functionality is not yet implemented."
+        query = (intent.get("query") or intent.get("original_text") or "").strip()
+        to = re.search(r"to\s+([\w.+-]+@[\w.-]+)", query, re.IGNORECASE)
+        if to:
+            webbrowser.open(f"mailto:{to.group(1)}")
+            return f"Opening your email client to compose a message to {to.group(1)}."
+        if "check" in query.lower() or "inbox" in query.lower():
+            webbrowser.open("https://mail.google.com")
+            return "Opening Gmail."
+        webbrowser.open("https://mail.google.com/mail/u/0/#compose")
+        return "Opening Gmail to compose a new message."
 
     @staticmethod
     def _greeting(intent: dict) -> str:

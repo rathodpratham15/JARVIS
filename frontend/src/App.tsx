@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import Layout from '@/components/Layout';
+import { useReminderPoller } from '@/hooks/useReminderPoller';
 
 // Pages
 import Dashboard from '@/pages/Dashboard';
@@ -15,6 +16,7 @@ import Notes from '@/pages/Notes';
 import EmotionAnalysis from '@/pages/EmotionAnalysis';
 import SystemControl from '@/pages/SystemControl';
 import SettingsManager from '@/pages/SettingsManager';
+import KnowledgeBase from '@/pages/KnowledgeBase';
 
 import './App.css';
 
@@ -29,9 +31,10 @@ const MobileNotice = () => (
   </div>
 );
 
-function App() {
+function AppInner() {
+  useReminderPoller();
   return (
-    <Router>
+    <>
       {/* Mobile notice for small screens */}
       <div className="block md:hidden">
         <MobileNotice />
@@ -52,12 +55,21 @@ function App() {
             <Route path="/notes" element={<Notes />} />
             <Route path="/emotion-analysis" element={<EmotionAnalysis />} />
             <Route path="/system-control" element={<SystemControl />} />
+            <Route path="/knowledge" element={<KnowledgeBase />} />
             <Route path="/settings" element={<SettingsManager />} />
           </Route>
         </Routes>
       </div>
 
       <Toaster position="bottom-right" />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppInner />
     </Router>
   );
 }
