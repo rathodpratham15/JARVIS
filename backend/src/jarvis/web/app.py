@@ -27,6 +27,7 @@ from jarvis.core.action_engine import ActionEngine
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
+from jarvis.core.agent import ReActAgent
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
 from jarvis.core.semantic_memory import SemanticMemory
@@ -70,6 +71,7 @@ def create_app() -> Flask:
     parser = IntentParser()
     llm = LLMCore()
     actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings, llm=llm)
+    agent = ReActAgent(llm=llm, actions=actions)
     memory = Memory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
@@ -143,6 +145,38 @@ def create_app() -> Flask:
         if tool_used:
             result["tool_used"] = tool_used
         return result, 200
+
+    @app.post("/api/agent")
+    def agent_run() -> tuple[dict, int]:
+        """Multi-step agent endpoint.
+
+        Body: { "goal": str, "max_steps": int (optional, default 8) }
+        Returns the final answer plus a trace of every tool call made.
+        """
+        payload = request.get_json(silent=True) or {}
+        goal = (payload.get("goal") or payload.get("message") or "").strip()
+        if not goal:
+            return {"error": "goal field is required"}, 400
+        max_steps = int(payload.get("max_steps", 8))
+        agent.max_steps = min(max(1, max_steps), 15)
+
+        ctx = _build_context(memory)
+        result = agent.run(goal, memory_context=ctx)
+
+        interaction_id = memory.store_interaction(
+            user_input=goal,
+            response=result.final_answer,
+            intent_type="agent",
+            metadata={"steps": len(result.steps), "stopped_early": result.stopped_early},
+        )
+        sem_memory.index_interaction(interaction_id, goal)
+
+        return {
+            "id": interaction_id,
+            "response": result.final_answer,
+            "intent": "agent",
+            **result.to_dict(),
+        }, 200
 
     @app.post("/api/chat/stream")
     def chat_stream():
