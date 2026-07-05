@@ -261,6 +261,39 @@ def create_app() -> Flask:
                 return {"results": results, "mode": "semantic"}, 200
         return {"results": memory.search(query, limit=20), "mode": "substring"}, 200
 
+    @app.post("/api/research/person")
+    def research_person_endpoint() -> tuple[dict, int]:
+        """Aggregate public web information about a person.
+
+        Body: { "name": str, "company": str (opt), "role": str (opt) }
+        """
+        from jarvis.services.people_research import research_person as _rp
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        profile = _rp(
+            name=name,
+            company=(payload.get("company") or ""),
+            role=(payload.get("role") or ""),
+            llm=llm,
+        )
+        return {"profile": profile.to_dict()}, 200
+
+    @app.post("/api/research/company")
+    def research_company_endpoint() -> tuple[dict, int]:
+        """Aggregate public web information about a company.
+
+        Body: { "name": str }
+        """
+        from jarvis.services.people_research import research_company as _rc
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        profile = _rc(name=name, llm=llm)
+        return {"profile": profile.to_dict()}, 200
+
     @app.get("/api/search/web")
     def web_search_endpoint() -> tuple[dict, int]:
         """Live web search — returns raw results + optional LLM summary."""
@@ -276,6 +309,33 @@ def create_app() -> Flask:
         results = search(query, limit=min(limit, 10))
         summary = search_and_summarize(query, llm=llm, limit=limit) if summarize else None
         return {"query": query, "results": results, "summary": summary}, 200
+
+    @app.post("/api/research")
+    def research_endpoint() -> tuple[dict, int]:
+        """People / company / topic research pipeline.
+
+        Body: { "subject": str, "kind": "person"|"company"|"topic",
+                "company": str (optional hint for person), "role": str (optional) }
+        """
+        from jarvis.services.research import ResearchPipeline
+        payload = request.get_json(silent=True) or {}
+        subject = (payload.get("subject") or payload.get("name") or "").strip()
+        if not subject:
+            return {"error": "subject is required"}, 400
+        kind = (payload.get("kind") or "person").lower()
+        pipeline = ResearchPipeline(llm=llm)
+
+        if kind == "company":
+            profile = pipeline.research_company(subject)
+        elif kind == "topic":
+            profile = pipeline.research_topic(subject)
+        else:
+            hints = {}
+            if payload.get("company"):
+                hints["company"] = payload["company"]
+            profile = pipeline.research_person(subject, hints=hints)
+
+        return profile.to_dict(), 200
 
     @app.get("/api/search/semantic")
     def semantic_search() -> tuple[dict, int]:

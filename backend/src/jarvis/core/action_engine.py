@@ -19,6 +19,7 @@ from jarvis.services.weather_service import get_weather
 from jarvis.services.smart_home import control_device as _smart_home_control
 from jarvis.services.web_search import search_and_summarize as _web_search
 
+
 if TYPE_CHECKING:
     from jarvis.core.reminders import RemindersStore
     from jarvis.dashboard.notes import NotesStore
@@ -183,6 +184,8 @@ class ActionEngine:
             "person_identification": self._identify_person,
             "visual_recognition": self._visual_recognition,
             "web_search": self._web_search,
+            "research_person": self._research_person,
+            "research_company": self._research_company,
             "conversation": self._conversation,
         }
 
@@ -394,6 +397,39 @@ class ActionEngine:
             "person identification ('who is this?'), and visual recognition "
             "('what is this?'). Just ask."
         )
+
+    def _research_person(self, intent: dict) -> str:
+        name = (intent.get("name") or "").strip()
+        if not name:
+            return "Who would you like me to research?"
+        from jarvis.services.research import ResearchPipeline
+        pipeline = ResearchPipeline(llm=self._llm)
+        hints = {}
+        if intent.get("company"):
+            hints["company"] = intent["company"]
+        profile = pipeline.research_person(name=name, hints=hints)
+        if profile.sections:
+            parts = [profile.summary, ""]
+            for section, content in profile.sections.items():
+                if content and content.lower() not in ("...", "n/a", ""):
+                    parts.append(f"**{section}**: {content}")
+            return "\n".join(parts).strip()
+        return profile.summary
+
+    def _research_company(self, intent: dict) -> str:
+        name = (intent.get("name") or "").strip()
+        if not name:
+            return "Which company would you like me to research?"
+        from jarvis.services.research import ResearchPipeline
+        pipeline = ResearchPipeline(llm=self._llm)
+        profile = pipeline.research_company(name=name)
+        if profile.sections:
+            parts = [profile.summary, ""]
+            for section, content in profile.sections.items():
+                if content and content.lower() not in ("...", "n/a", ""):
+                    parts.append(f"**{section}**: {content}")
+            return "\n".join(parts).strip()
+        return profile.summary
 
     def _web_search(self, intent: dict) -> str:
         query = (intent.get("query") or "").strip()
