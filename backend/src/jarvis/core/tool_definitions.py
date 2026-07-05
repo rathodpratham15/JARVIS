@@ -166,6 +166,44 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "research_person",
+            "description": (
+                "Look up publicly available professional information about a person. "
+                "Use when the user wants to learn about someone's background, career, "
+                "education, or public work — e.g. before a meeting, after a networking "
+                "event, or when given a name and company from a business card."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Full name of the person"},
+                    "company": {"type": "string", "description": "Company or organisation (optional, helps disambiguation)"},
+                    "role": {"type": "string", "description": "Job title or role (optional)"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "research_company",
+            "description": (
+                "Look up publicly available information about a company or organisation — "
+                "industry, founding, key people, products, recent news."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Company or organisation name"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
 ]
 
 # Map tool function names → intent dicts that ActionEngine understands
@@ -209,5 +247,17 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
             "smart_home_action": args.get("action", "toggle"),
             "temperature": args.get("temperature"),
         }
+
+    if name == "research_person":
+        return {
+            **base,
+            "type": "research_person",
+            "name": args.get("name", ""),
+            "company": args.get("company", ""),
+            "role": args.get("role", ""),
+        }
+
+    if name == "research_company":
+        return {**base, "type": "research_company", "name": args.get("name", "")}
 
     return {**base, "type": "conversation"}
