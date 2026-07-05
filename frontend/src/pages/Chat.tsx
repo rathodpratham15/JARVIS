@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Send, Zap, MessageSquare } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Send, Zap, MessageSquare, Clock, CheckCircle2, XCircle, Loader2, X } from 'lucide-react';
 import { MonoLabel, ScanLoader } from '@/components/hud/Hud';
 import { PageHeader } from '@/components/hud/PageHeader';
+import { hudToast } from '@/lib/hudToast';
 
 interface AgentStep {
   step: number;
@@ -28,6 +29,18 @@ interface Interaction {
   timestamp: string;
 }
 
+interface BackgroundTask {
+  task_id: string;
+  goal: string;
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
+  created_at: string;
+  finished_at?: string;
+  final_answer?: string;
+  steps?: AgentStep[];
+  error?: string;
+  stopped_early?: boolean;
+}
+
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -36,8 +49,12 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const [bgMode, setBgMode] = useState(false);
+  const [tasks, setTasks] = useState<BackgroundTask[]>([]);
+  const [showTasks, setShowTasks] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetch('/api/history?limit=20')
@@ -56,6 +73,48 @@ export default function Chat() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // ── Background task polling ────────────────────────────────────────────
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tasks');
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(data.tasks ?? []);
+      }
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchTasks();
+    pollRef.current = setInterval(fetchTasks, 4000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [fetchTasks]);
+
+  const sendBackground = async (text: string) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: text, max_steps: 8 }),
+      });
+      if (res.ok) {
+        hudToast.info('TASK QUEUED — running in background');
+        setShowTasks(true);
+        await fetchTasks();
+      } else {
+        hudToast.error('TASK SUBMISSION FAILED');
+      }
+    } catch {
+      hudToast.error('TASK SUBMISSION FAILED');
+    }
+  };
+
+  const cancelTask = async (taskId: string) => {
+    await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    hudToast.info('TASK CANCELLED');
+    await fetchTasks();
+  };
 
   // ── Agent mode (multi-step) ─────────────────────────────────────────────
   const sendAgent = async (text: string) => {
@@ -168,6 +227,7 @@ export default function Chat() {
     const text = input.trim();
     if (!text || sending) return;
     setInput('');
+    if (bgMode) { sendBackground(text); return; }
     if (agentMode) sendAgent(text);
     else sendStream(text);
   };
@@ -181,25 +241,58 @@ export default function Chat() {
     <div className="flex flex-col h-[calc(100vh-9rem)]" data-testid="chat-page">
       <div className="flex items-center justify-between mb-4">
         <PageHeader overline="Conversational Interface" title="CHAT" />
-        {/* Mode toggle */}
-        <button
-          onClick={() => setAgentMode((v) => !v)}
-          className={`flex items-center gap-2 px-3 py-1.5 border font-hud-mono text-[10px] tracking-widest transition-colors ${
-            agentMode
-              ? 'border-[#fbbf24] text-[#fbbf24] bg-[rgba(251,191,36,0.08)]'
-              : 'border-[rgba(0,180,255,0.3)] text-[#4a7fa0] hover:border-[#00b4d8] hover:text-[#cae8ff]'
-          }`}
-          title={agentMode ? 'Switch to single-turn chat' : 'Switch to multi-step agent mode'}
-        >
-          {agentMode ? <Zap className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-          {agentMode ? 'AGENT' : 'CHAT'}
-        </button>
+        {/* Mode toggles */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setAgentMode((v) => !v); setBgMode(false); }}
+            className={`flex items-center gap-2 px-3 py-1.5 border font-hud-mono text-[10px] tracking-widest transition-colors ${
+              agentMode && !bgMode
+                ? 'border-[#fbbf24] text-[#fbbf24] bg-[rgba(251,191,36,0.08)]'
+                : 'border-[rgba(0,180,255,0.3)] text-[#4a7fa0] hover:border-[#00b4d8] hover:text-[#cae8ff]'
+            }`}
+            title={agentMode ? 'Switch to single-turn chat' : 'Switch to agent mode'}
+          >
+            {agentMode && !bgMode ? <Zap className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+            {agentMode && !bgMode ? 'AGENT' : 'CHAT'}
+          </button>
+          <button
+            onClick={() => { setBgMode((v) => !v); setAgentMode(false); setShowTasks(true); }}
+            className={`flex items-center gap-2 px-3 py-1.5 border font-hud-mono text-[10px] tracking-widest transition-colors ${
+              bgMode
+                ? 'border-[#22d3ee] text-[#22d3ee] bg-[rgba(34,211,238,0.08)]'
+                : 'border-[rgba(0,180,255,0.3)] text-[#4a7fa0] hover:border-[#00b4d8] hover:text-[#cae8ff]'
+            }`}
+            title="Run goal as a background task"
+          >
+            <Clock className="w-3 h-3" />
+            {bgMode ? 'BG TASK' : 'BG'}
+          </button>
+          {tasks.length > 0 && (
+            <button
+              onClick={() => setShowTasks((v) => !v)}
+              className="flex items-center gap-1.5 px-2 py-1.5 border border-[rgba(0,180,255,0.3)] text-[#4a7fa0] hover:text-[#cae8ff] font-hud-mono text-[10px] tracking-widest"
+            >
+              <Clock className="w-3 h-3" />
+              {tasks.filter(t => t.status === 'running' || t.status === 'pending').length > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#fbbf24]" style={{ animation: 'jv-pulse 1s infinite' }} />
+              )}
+              TASKS ({tasks.length})
+            </button>
+          )}
+        </div>
       </div>
 
-      {agentMode && (
+      {agentMode && !bgMode && (
         <div className="mb-3 px-3 py-2 border border-[rgba(251,191,36,0.3)] bg-[rgba(251,191,36,0.05)]">
           <span className="font-hud-mono text-[10px] tracking-widest text-[#fbbf24]">
-            AGENT MODE — JARVIS will plan and execute multiple steps to complete complex tasks
+            AGENT MODE — JARVIS will plan and execute multiple steps to complete your goal
+          </span>
+        </div>
+      )}
+      {bgMode && (
+        <div className="mb-3 px-3 py-2 border border-[rgba(34,211,238,0.3)] bg-[rgba(34,211,238,0.05)]">
+          <span className="font-hud-mono text-[10px] tracking-widest text-[#22d3ee]">
+            BACKGROUND MODE — goal runs async, you can keep chatting while it works
           </span>
         </div>
       )}
@@ -275,12 +368,58 @@ export default function Chat() {
         <div ref={endRef} />
       </div>
 
+      {/* Background tasks panel */}
+      {showTasks && tasks.length > 0 && (
+        <div className="mb-2 border border-[rgba(0,180,255,0.15)] bg-[#071228]">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[rgba(0,180,255,0.12)]">
+            <MonoLabel>Background Tasks</MonoLabel>
+            <button onClick={() => setShowTasks(false)} className="text-[#4a7fa0] hover:text-[#cae8ff]">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {tasks.map((t) => (
+              <div key={t.task_id} className="flex items-start gap-3 px-3 py-2 border-b border-[rgba(0,180,255,0.08)] last:border-0">
+                <div className="shrink-0 mt-0.5">
+                  {t.status === 'running' && <Loader2 className="w-3 h-3 text-[#fbbf24] animate-spin" />}
+                  {t.status === 'pending' && <Clock className="w-3 h-3 text-[#4a7fa0]" />}
+                  {t.status === 'done' && <CheckCircle2 className="w-3 h-3 text-[#22d3ee]" />}
+                  {(t.status === 'failed' || t.status === 'cancelled') && <XCircle className="w-3 h-3 text-[#ef4444]" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-hud-mono text-[10px] text-[#cae8ff] truncate">{t.goal}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`font-hud-mono text-[9px] tracking-widest ${
+                      t.status === 'done' ? 'text-[#22d3ee]' :
+                      t.status === 'running' ? 'text-[#fbbf24]' :
+                      t.status === 'pending' ? 'text-[#4a7fa0]' : 'text-[#ef4444]'
+                    }`}>{t.status.toUpperCase()}</span>
+                    {t.steps && t.steps.length > 0 && (
+                      <span className="font-hud-mono text-[9px] text-[#4a7fa0]">{t.steps.length} steps</span>
+                    )}
+                  </div>
+                  {t.final_answer && (
+                    <p className="text-[10px] text-[#9fc4e0] mt-1 line-clamp-2">{t.final_answer}</p>
+                  )}
+                  {t.error && <p className="text-[10px] text-[#ef4444] mt-1">{t.error}</p>}
+                </div>
+                {(t.status === 'running' || t.status === 'pending') && (
+                  <button onClick={() => cancelTask(t.task_id)} className="shrink-0 text-[#4a7fa0] hover:text-[#ef4444] transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="hud-panel flex items-center gap-3 p-2 mt-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
-          placeholder={agentMode ? 'Describe a multi-step goal...' : 'Type a command or question...'}
+          placeholder={bgMode ? 'Describe a background goal...' : agentMode ? 'Describe a multi-step goal...' : 'Type a command or question...'}
           data-testid="chat-input"
           disabled={sending}
           className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-[#cae8ff] placeholder:text-[#4a7fa0] disabled:opacity-60"
@@ -290,13 +429,15 @@ export default function Chat() {
           disabled={sending}
           data-testid="chat-send-button"
           className={`flex items-center gap-2 px-4 py-2 border font-hud-mono text-xs tracking-widest transition-colors disabled:opacity-40 ${
-            agentMode
+            bgMode
+              ? 'bg-[rgba(34,211,238,0.1)] border-[#22d3ee] text-[#22d3ee] hover:bg-[rgba(34,211,238,0.2)]'
+              : agentMode
               ? 'bg-[rgba(251,191,36,0.1)] border-[#fbbf24] text-[#fbbf24] hover:bg-[rgba(251,191,36,0.2)]'
               : 'bg-[rgba(0,180,255,0.1)] border-[#00b4d8] text-[#00d4ff] hover:bg-[rgba(0,180,255,0.2)]'
           }`}
         >
-          {agentMode ? <Zap className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
-          {agentMode ? 'RUN' : 'SEND'}
+          {bgMode ? <Clock className="w-3.5 h-3.5" /> : agentMode ? <Zap className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+          {bgMode ? 'QUEUE' : agentMode ? 'RUN' : 'SEND'}
         </button>
       </div>
     </div>

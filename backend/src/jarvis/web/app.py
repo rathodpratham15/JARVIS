@@ -28,6 +28,7 @@ from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
 from jarvis.core.agent import ReActAgent
+from jarvis.core.task_manager import TaskManager
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
 from jarvis.core.semantic_memory import SemanticMemory
@@ -66,13 +67,14 @@ def create_app() -> Flask:
     knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
     emotion = EmotionAnalyzer()
 
+    memory = Memory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
     sem_memory = SemanticMemory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
 
     parser = IntentParser()
     llm = LLMCore()
     actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings, llm=llm)
     agent = ReActAgent(llm=llm, actions=actions)
-    memory = Memory(db_path=os.getenv("JARVIS_DB", "data/memory.db"))
+    task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
     face_engine = FaceRecognitionEngine(
@@ -177,6 +179,40 @@ def create_app() -> Flask:
             "intent": "agent",
             **result.to_dict(),
         }, 200
+
+    # ── background tasks ──────────────────────────────────────────────
+
+    @app.post("/api/tasks")
+    def submit_task() -> tuple[dict, int]:
+        """Submit a goal to run as a background agent task.
+
+        Body: { "goal": str, "max_steps": int (optional, default 8) }
+        Returns immediately with a task_id to poll.
+        """
+        payload = request.get_json(silent=True) or {}
+        goal = (payload.get("goal") or payload.get("message") or "").strip()
+        if not goal:
+            return {"error": "goal is required"}, 400
+        max_steps = min(max(1, int(payload.get("max_steps", 8))), 15)
+        task_id = task_mgr.submit(goal, max_steps=max_steps)
+        return {"task_id": task_id, "status": "pending", "goal": goal}, 202
+
+    @app.get("/api/tasks")
+    def list_tasks() -> tuple[dict, int]:
+        return {"tasks": task_mgr.list_all()}, 200
+
+    @app.get("/api/tasks/<task_id>")
+    def get_task(task_id: str) -> tuple[dict, int]:
+        task = task_mgr.get(task_id)
+        if task is None:
+            return {"error": "task not found"}, 404
+        return task.to_dict(), 200
+
+    @app.delete("/api/tasks/<task_id>")
+    def cancel_task(task_id: str) -> tuple[dict, int]:
+        if task_mgr.cancel(task_id):
+            return {"cancelled": True, "task_id": task_id}, 200
+        return {"error": "task not found"}, 404
 
     @app.post("/api/chat/stream")
     def chat_stream():
