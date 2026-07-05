@@ -75,6 +75,14 @@ def create_app() -> Flask:
     actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings, llm=llm)
     agent = ReActAgent(llm=llm, actions=actions)
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
+
+    from jarvis.core.scheduler import Scheduler
+    sched = Scheduler(
+        task_manager=task_mgr,
+        db_path=os.getenv("JARVIS_SCHEDULER_DB", "data/scheduler.db"),
+    )
+    sched.start()
+
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
     face_engine = FaceRecognitionEngine(
@@ -790,6 +798,62 @@ def create_app() -> Flask:
         if reminders.delete(reminder_id):
             return {"deleted": True}, 200
         return {"error": "not found"}, 404
+
+    # ── autonomous scheduling ─────────────────────────────────────────
+
+    @app.get("/api/schedules")
+    def list_schedules() -> tuple[dict, int]:
+        return {"jobs": sched.list_all()}, 200
+
+    @app.post("/api/schedules")
+    def create_schedule() -> tuple[dict, int]:
+        """Create a new scheduled job.
+
+        Body: { "name": str, "goal": str, "schedule_expr": str, "enabled": bool (opt) }
+        """
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        goal = (payload.get("goal") or "").strip()
+        expr = (payload.get("schedule_expr") or "").strip()
+        if not name or not goal or not expr:
+            return {"error": "name, goal, and schedule_expr are required"}, 400
+        enabled = bool(payload.get("enabled", True))
+        try:
+            job_id = sched.add(name=name, goal=goal, schedule_expr=expr, enabled=enabled)
+        except ValueError as exc:
+            return {"error": str(exc)}, 400
+        return {"job": sched.get(job_id).to_dict()}, 201
+
+    @app.get("/api/schedules/<job_id>")
+    def get_schedule(job_id: str) -> tuple[dict, int]:
+        job = sched.get(job_id)
+        if job is None:
+            return {"error": "job not found"}, 404
+        return job.to_dict(), 200
+
+    @app.delete("/api/schedules/<job_id>")
+    def delete_schedule(job_id: str) -> tuple[dict, int]:
+        if sched.remove(job_id):
+            return {"deleted": True, "id": job_id}, 200
+        return {"error": "job not found"}, 404
+
+    @app.patch("/api/schedules/<job_id>")
+    def toggle_schedule(job_id: str) -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        if "enabled" not in payload:
+            return {"error": "enabled field is required"}, 400
+        if not sched.set_enabled(job_id, bool(payload["enabled"])):
+            return {"error": "job not found"}, 404
+        job = sched.get(job_id)
+        return job.to_dict(), 200
+
+    @app.post("/api/schedules/<job_id>/run")
+    def run_schedule_now(job_id: str) -> tuple[dict, int]:
+        """Trigger a scheduled job immediately (outside its schedule)."""
+        task_id = sched.trigger(job_id)
+        if task_id is None:
+            return {"error": "job not found"}, 404
+        return {"task_id": task_id, "status": "submitted"}, 202
 
     # ── OS / desktop control ──────────────────────────────────────────
 
