@@ -186,6 +186,7 @@ class ActionEngine:
             "web_search": self._web_search,
             "research_person": self._research_person,
             "research_company": self._research_company,
+            "os_control": self._os_control,
             "conversation": self._conversation,
         }
 
@@ -430,6 +431,23 @@ class ActionEngine:
                     parts.append(f"**{section}**: {content}")
             return "\n".join(parts).strip()
         return profile.summary
+
+    @staticmethod
+    def _os_control(intent: dict) -> str:
+        from jarvis.services.os_control import perform_action, screenshot_b64
+        action = (intent.get("os_action") or "").strip()
+        if not action:
+            return "Which desktop action should I perform? (click, type, press, hotkey, scroll)"
+        if action == "screenshot":
+            result = screenshot_b64()
+            if "error" in result:
+                return result["error"]
+            return f"Screenshot captured ({result['width']}×{result['height']} px)."
+        kwargs = {}
+        for k in ("x", "y", "text", "key", "keys", "button", "clicks"):
+            if intent.get(k) is not None:
+                kwargs[k] = intent[k]
+        return perform_action(action, **kwargs)
 
     def _web_search(self, intent: dict) -> str:
         query = (intent.get("query") or "").strip()
