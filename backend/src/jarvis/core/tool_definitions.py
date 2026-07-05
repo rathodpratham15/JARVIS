@@ -204,6 +204,47 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "os_control",
+            "description": (
+                "Control the desktop: move the mouse, click, double-click, type text, "
+                "press keyboard keys, trigger hotkeys (e.g. Cmd+C), or scroll. "
+                "Use when the user asks to click something on screen, type in a field, "
+                "press a key combination, or interact with a running application."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["click", "double_click", "move", "scroll", "type", "press", "hotkey"],
+                        "description": "The desktop action to perform",
+                    },
+                    "x": {"type": "integer", "description": "Screen X coordinate (pixels from left)"},
+                    "y": {"type": "integer", "description": "Screen Y coordinate (pixels from top)"},
+                    "text": {"type": "string", "description": "Text to type (for 'type' action)"},
+                    "key": {"type": "string", "description": "Key name to press, e.g. 'enter', 'escape', 'tab'"},
+                    "keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Key chord for hotkey, e.g. ['command', 'c'] for Cmd+C",
+                    },
+                    "button": {
+                        "type": "string",
+                        "enum": ["left", "right", "middle"],
+                        "description": "Mouse button for click actions (default: left)",
+                    },
+                    "clicks": {
+                        "type": "integer",
+                        "description": "Number of scroll ticks (positive = up, negative = down)",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    },
 ]
 
 # Map tool function names → intent dicts that ActionEngine understands
@@ -259,5 +300,19 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "research_company":
         return {**base, "type": "research_company", "name": args.get("name", "")}
+
+    if name == "os_control":
+        return {
+            **base,
+            "type": "os_control",
+            "os_action": args.get("action", ""),
+            "x": args.get("x"),
+            "y": args.get("y"),
+            "text": args.get("text"),
+            "key": args.get("key"),
+            "keys": args.get("keys"),
+            "button": args.get("button", "left"),
+            "clicks": args.get("clicks"),
+        }
 
     return {**base, "type": "conversation"}

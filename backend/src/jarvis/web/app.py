@@ -791,6 +791,38 @@ def create_app() -> Flask:
             return {"deleted": True}, 200
         return {"error": "not found"}, 404
 
+    # ── OS / desktop control ──────────────────────────────────────────
+
+    @app.get("/api/os/screenshot")
+    def os_screenshot() -> tuple[dict, int]:
+        """Capture the full screen and return as base64 PNG."""
+        from jarvis.services.os_control import screenshot_b64
+        result = screenshot_b64()
+        if "error" in result:
+            return {"error": result["error"]}, 503
+        return result, 200
+
+    @app.get("/api/os/screen-size")
+    def os_screen_size() -> tuple[dict, int]:
+        from jarvis.services.os_control import get_screen_size
+        return get_screen_size(), 200
+
+    @app.post("/api/os/action")
+    def os_action() -> tuple[dict, int]:
+        """Execute a desktop action (click, type, press, hotkey, scroll).
+
+        Body: { "action": str, ...action-specific params }
+        """
+        from jarvis.services.os_control import perform_action
+        payload = request.get_json(silent=True) or {}
+        action = (payload.get("action") or "").strip()
+        if not action:
+            return {"error": "action is required"}, 400
+        # Strip action key before passing kwargs
+        kwargs = {k: v for k, v in payload.items() if k != "action"}
+        result = perform_action(action, **kwargs)
+        return {"result": result}, 200
+
     return app
 
 
