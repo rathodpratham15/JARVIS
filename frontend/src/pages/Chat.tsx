@@ -238,7 +238,7 @@ export default function Chat() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-9rem)]" data-testid="chat-page">
+    <div className="flex flex-col h-[calc(100vh-13rem)] md:h-[calc(100vh-9rem)]" data-testid="chat-page">
       <div className="flex items-center justify-between mb-4">
         <PageHeader overline="Conversational Interface" title="CHAT" />
         {/* Mode toggles */}

@@ -1,16 +1,30 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { NAV_ITEMS } from '@/config/nav';
 import { MonoLabel } from '@/components/hud/Hud';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   return (
     <aside
       className="w-56 shrink-0 border-r-2 border-[rgba(0,180,255,0.15)] bg-[#040d1d] overflow-y-auto"
       data-testid="sidebar"
     >
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 flex items-center justify-between">
         <MonoLabel>Navigation</MonoLabel>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-[#4a7fa0] hover:text-[#cae8ff] transition-colors"
+            aria-label="Close navigation"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
       <nav className="px-2 pb-6 space-y-1">
         {NAV_ITEMS.map((item) => {
@@ -20,6 +34,7 @@ export const Sidebar: React.FC = () => {
               key={item.path}
               to={item.path}
               end={item.path === '/'}
+              onClick={onClose}
               data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
               className={({ isActive }) =>
                 [

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Menu } from 'lucide-react';
 import { StatusDot, MonoLabel } from '@/components/hud/Hud';
 
 interface ModuleStatus {
@@ -19,7 +20,11 @@ const MODULES: { key: keyof ModuleStatus; label: string }[] = [
   { key: 'face', label: 'FACE' },
 ];
 
-export const TopBar: React.FC = () => {
+interface TopBarProps {
+  onMenuClick?: () => void;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const [online, setOnline] = useState(true);
   const [modules, setModules] = useState<ModuleStatus>({
     llm: false, voice: false, vision: false, memory: false, plugins: false, face: false,
@@ -53,7 +58,16 @@ export const TopBar: React.FC = () => {
       className="h-16 shrink-0 border-b border-[rgba(0,180,255,0.15)] bg-[#040d1d] flex items-center justify-between px-5"
       data-testid="top-bar"
     >
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-3 md:gap-6">
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="md:hidden p-1.5 text-[#4a7fa0] hover:text-[#00d4ff] transition-colors"
+            aria-label="Open navigation"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
         <div className="flex items-center gap-3">
           <div className="relative w-3 h-3">
             <span className="absolute inset-0 rounded-full bg-[#00d4ff] jv-ring" />
