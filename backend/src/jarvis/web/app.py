@@ -34,14 +34,37 @@ from jarvis.core.reminders import RemindersStore
 from jarvis.core.semantic_memory import SemanticMemory
 from jarvis.dashboard import NotesStore, SettingsStore
 from jarvis.plugins import PluginManager
-from jarvis.speech import Synthesizer, Transcriber
-from jarvis.system import ActionController
-from jarvis.vision import (
-    FaceRecognitionEngine,
-    SceneAnalyzer,
-    SceneHistoryStore,
-    format_recognition_result,
-)
+
+# Hardware/platform-dependent — may not be available in cloud deployments
+try:
+    from jarvis.speech import Synthesizer, Transcriber
+    _speech_available = True
+except Exception:
+    Synthesizer = None  # type: ignore[assignment,misc]
+    Transcriber = None  # type: ignore[assignment,misc]
+    _speech_available = False
+
+try:
+    from jarvis.system import ActionController
+    _system_available = True
+except Exception:
+    ActionController = None  # type: ignore[assignment,misc]
+    _system_available = False
+
+try:
+    from jarvis.vision import (
+        FaceRecognitionEngine,
+        SceneAnalyzer,
+        SceneHistoryStore,
+        format_recognition_result,
+    )
+    _vision_available = True
+except Exception:
+    FaceRecognitionEngine = None  # type: ignore[assignment,misc]
+    SceneAnalyzer = None  # type: ignore[assignment,misc]
+    SceneHistoryStore = None  # type: ignore[assignment,misc]
+    format_recognition_result = None  # type: ignore[assignment]
+    _vision_available = False
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +108,22 @@ def create_app() -> Flask:
 
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
+
     face_engine = FaceRecognitionEngine(
         data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
         tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
-    )
-    scene_analyzer = SceneAnalyzer()
+    ) if _vision_available else None
+    scene_analyzer = SceneAnalyzer() if _vision_available else None
     scene_history = SceneHistoryStore(
         db_path=os.getenv("JARVIS_VISION_HISTORY_DB", "data/vision_history.db"),
-    )
+    ) if _vision_available else None
     captures_dir = Path(os.getenv("JARVIS_CAPTURES_DIR", "data/captures"))
     captures_dir.mkdir(parents=True, exist_ok=True)
     system_controller = ActionController(
         log_path=os.getenv("JARVIS_SYSTEM_LOG", "logs/system_actions.jsonl"),
-    )
-    transcriber = Transcriber()
-    synthesizer = Synthesizer()
+    ) if _system_available else None
+    transcriber = Transcriber() if _speech_available else None
+    synthesizer = Synthesizer() if _speech_available else None
 
     _start_reminder_poller(reminders)
 

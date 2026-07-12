@@ -1,0 +1,25 @@
+# Cloud-safe dependencies — excludes hardware/platform-specific packages:
+# face_recognition (needs dlib+cmake), pyaudio (needs PortAudio),
+# sounddevice (needs libsndfile), openai-whisper (huge model download),
+# pyautogui (needs display), opencv-python (large), sentence-transformers (needs torch)
+
+flask>=2.3.0
+flask-cors>=4.0.0
+flask-socketio>=5.3.0
+python-socketio>=5.8.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+rich>=13.0.0
+colorama>=0.4.6
+psutil>=5.9.0
+schedule>=1.2.0
+pillow>=10.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+wikipedia>=1.4.0
+textblob>=0.17.0
+openai>=1.0.0
+google-generativeai>=0.7.0
+gunicorn>=21.0.0
+eventlet>=0.36.0

@@ -1,0 +1,25 @@
+{
+  "name": "J.A.R.V.I.S — Personal AI",
+  "short_name": "JARVIS",
+  "description": "AI operating companion — chat, agent tasks, desktop control, and more.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#020817",
+  "background_color": "#020817",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}
