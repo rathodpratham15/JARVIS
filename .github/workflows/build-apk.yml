@@ -5,6 +5,7 @@ on:
     branches: [main, feature/**]
     paths:
       - 'frontend/**'
+      - '.github/workflows/build-apk.yml'
   workflow_dispatch:   # lets you trigger manually from GitHub UI
 
 jobs:
