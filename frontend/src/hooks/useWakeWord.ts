@@ -69,18 +69,19 @@ async function runNativeLoop(
         partialResults: true,
         popup: false,
       });
-      // Also check final matches in case partialResults didn't fire
-      if (!activated && result.matches) {
-        const text = result.matches.join(' ').toLowerCase();
-        // Debug: show what was heard
-        if (text.length > 0) toast(`Heard: "${result.matches[0]}"`, { duration: 2000 });
-        if (text.includes('jarvis')) {
-          activated = true;
-          onActivation();
+      if (!activated) {
+        const matches = result.matches ?? [];
+        if (matches.length > 0) {
+          const text = matches.join(' ').toLowerCase();
+          toast(`Heard: "${matches[0]}"`, { duration: 3000 });
+          if (text.includes('jarvis')) { activated = true; onActivation(); }
+        } else {
+          toast('Session ended — no speech detected', { duration: 2000 });
         }
       }
-    } catch {
-      // recognition ended or errored — loop will restart
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`SR error: ${msg}`, { duration: 3000 });
     }
 
     handle.remove();
@@ -150,11 +151,14 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
       }
     };
     rec.onerror = (e) => {
+      toast(`Mic error: ${e.error}`, { duration: 3000 });
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setSupported(false);
     };
     rec.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (isWakePhrase(e.results[i][0].transcript)) {
+        const t = e.results[i][0].transcript;
+        if (t.trim()) toast(`Heard: "${t}"`, { duration: 2000 });
+        if (isWakePhrase(t)) {
           onActivation();
           rec.stop();
           setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 3000);
