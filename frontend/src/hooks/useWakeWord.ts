@@ -39,35 +39,51 @@ async function runNativeLoop(
   const { speechRecognition } = await SpeechRecognition.requestPermissions();
   if (speechRecognition !== 'granted') { setListening(false); return; }
 
-  // Partial-result listener fires while the recognizer is active
-  const handle = await SpeechRecognition.addListener(
-    'partialResults',
-    (data: { matches: string[] }) => {
-      const text = (data.matches ?? []).join(' ');
-      if (isWakePhrase(text)) {
-        onActivation();
-        SpeechRecognition.stop().catch(() => {});
-      }
-    }
-  );
-
   setListening(true);
 
   while (runningRef.current) {
+    // Re-register partial results listener each iteration — some Android
+    // versions drop the listener after the recognizer session ends.
+    await SpeechRecognition.removeAllListeners();
+    let activated = false;
+
+    const handle = await SpeechRecognition.addListener(
+      'partialResults',
+      (data: { matches: string[] }) => {
+        if (activated) return;
+        const text = (data.matches ?? []).join(' ').toLowerCase();
+        if (text.includes('jarvis')) {
+          activated = true;
+          onActivation();
+          SpeechRecognition.stop().catch(() => {});
+        }
+      }
+    );
+
     try {
-      await SpeechRecognition.start({
+      // start() resolves when the recognizer session ends (silence / timeout)
+      const result = await SpeechRecognition.start({
         language: 'en-US',
         maxResults: 5,
         partialResults: true,
         popup: false,
       });
+      // Also check final matches in case partialResults didn't fire
+      if (!activated && result.matches) {
+        const text = result.matches.join(' ').toLowerCase();
+        if (text.includes('jarvis')) {
+          activated = true;
+          onActivation();
+        }
+      }
     } catch {
       // recognition ended or errored — loop will restart
     }
+
+    handle.remove();
     if (runningRef.current) await sleep(400);
   }
 
-  handle.remove();
   await SpeechRecognition.removeAllListeners();
   setListening(false);
 }
