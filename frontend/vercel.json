@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://jarvis-backend.onrender.com/api/:path*"
+      "destination": "https://jarvis-backend-production-e737.up.railway.app/api/:path*"
     }
   ],
   "headers": [

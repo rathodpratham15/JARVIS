@@ -5,7 +5,7 @@ import App from './App.tsx'
 import { setupNativeApi } from './lib/setupNativeApi'
 
 // Native APK calls hit the deployed Render backend directly
-setupNativeApi('https://jarvis-backend.onrender.com')
+setupNativeApi('https://jarvis-backend-production-e737.up.railway.app')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
