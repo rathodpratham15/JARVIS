@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 // Web Speech API types not in every TS lib — declare minimally
 interface SpeechRecognitionEvent {
@@ -36,6 +37,12 @@ interface UseWakeWordOptions {
 }
 
 export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions) {
+  // Android WebView doesn't ship the Chrome speech service — skip entirely on native
+  // to prevent a crash when the permission dialog resolves.
+  if (Capacitor.isNativePlatform()) {
+    return { listening: false, supported: false };
+  }
+
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   const recRef = useRef<SpeechRec | null>(null);
