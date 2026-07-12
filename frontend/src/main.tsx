@@ -4,8 +4,8 @@ import './index.css'
 import App from './App.tsx'
 import { setupNativeApi } from './lib/setupNativeApi'
 
-// Point native APK calls at the Mac backend (same WiFi required)
-setupNativeApi('http://10.110.100.3:5050')
+// Native APK calls hit the deployed Render backend directly
+setupNativeApi('https://jarvis-backend.onrender.com')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
