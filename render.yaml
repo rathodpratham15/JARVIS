@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: jarvis-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && pip install -e .
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet -w 1 --timeout 120 wsgi:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: JARVIS_LLM_PROVIDER
+        sync: false
+      - key: JARVIS_LLM_MODEL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
