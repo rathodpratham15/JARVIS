@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { toast } from 'sonner';
 
 // Web Speech API types — not in every TS lib
 interface SpeechRecognitionEvent {
@@ -71,6 +72,8 @@ async function runNativeLoop(
       // Also check final matches in case partialResults didn't fire
       if (!activated && result.matches) {
         const text = result.matches.join(' ').toLowerCase();
+        // Debug: show what was heard
+        if (text.length > 0) toast(`Heard: "${result.matches[0]}"`, { duration: 2000 });
         if (text.includes('jarvis')) {
           activated = true;
           onActivation();
