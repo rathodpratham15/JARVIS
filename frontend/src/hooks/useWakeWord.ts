@@ -1,31 +1,17 @@
-/**
- * Wake-word listener — continuously listens for "jarvis" (or "hey jarvis" /
- * "hi jarvis") using the Web Speech API and calls `onActivation` when heard.
- *
- * The hook does nothing on browsers that don't support SpeechRecognition
- * (Firefox desktop) or when the user denies microphone access.
- *
- * Usage:
- *   useWakeWord({ onActivation: () => navigate('/chat') })
- */
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 
-// Web Speech API types not in every TS lib — declare minimally
+// Web Speech API types — not in every TS lib
 interface SpeechRecognitionEvent {
   resultIndex: number;
   results: { [i: number]: { [j: number]: { transcript: string } } & { length: number } } & { length: number };
 }
 interface SpeechRecognitionErrorEvent { error: string; }
 interface SpeechRec extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
+  continuous: boolean; interimResults: boolean; lang: string;
+  start(): void; stop(): void;
+  onstart: (() => void) | null; onend: (() => void) | null;
   onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
   onresult: ((e: SpeechRecognitionEvent) => void) | null;
 }
@@ -36,33 +22,98 @@ interface UseWakeWordOptions {
   enabled?: boolean;
 }
 
-export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions) {
-  // Android WebView doesn't ship the Chrome speech service — skip entirely on native
-  // to prevent a crash when the permission dialog resolves.
-  if (Capacitor.isNativePlatform()) {
-    return { listening: false, supported: false };
+function isWakePhrase(transcript: string): boolean {
+  const t = transcript.toLowerCase().trim();
+  return t.includes('jarvis');
+}
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ─── Native Android path (uses @capacitor-community/speech-recognition) ───────
+
+async function runNativeLoop(
+  onActivation: () => void,
+  runningRef: React.MutableRefObject<boolean>,
+  setListening: (v: boolean) => void
+) {
+  const { speechRecognition } = await SpeechRecognition.requestPermissions();
+  if (speechRecognition !== 'granted') { setListening(false); return; }
+
+  // Partial-result listener fires while the recognizer is active
+  const handle = await SpeechRecognition.addListener(
+    'partialResults',
+    (data: { matches: string[] }) => {
+      const text = (data.matches ?? []).join(' ');
+      if (isWakePhrase(text)) {
+        onActivation();
+        SpeechRecognition.stop().catch(() => {});
+      }
+    }
+  );
+
+  setListening(true);
+
+  while (runningRef.current) {
+    try {
+      await SpeechRecognition.start({
+        language: 'en-US',
+        maxResults: 5,
+        partialResults: true,
+        popup: false,
+      });
+    } catch {
+      // recognition ended or errored — loop will restart
+    }
+    if (runningRef.current) await sleep(400);
   }
 
+  handle.remove();
+  await SpeechRecognition.removeAllListeners();
+  setListening(false);
+}
+
+// ─── Browser path (Web Speech API) ────────────────────────────────────────────
+
+export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
+
+  // ── Native Android ──────────────────────────────────────────────────────────
+  const nativeRunning = useRef(false);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    SpeechRecognition.available().then(({ available }) => {
+      if (!available) return;
+      setSupported(true);
+      if (!enabled) return;
+
+      nativeRunning.current = true;
+      runNativeLoop(onActivation, nativeRunning, setListening).catch(() => {
+        setListening(false);
+      });
+    });
+
+    return () => {
+      nativeRunning.current = false;
+      SpeechRecognition.stop().catch(() => {});
+      setListening(false);
+    };
+  // onActivation intentionally excluded — stable ref assumed at call site
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  // ── Web Speech API (browser / PWA) ─────────────────────────────────────────
   const recRef = useRef<SpeechRec | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
-  const isWakePhrase = (transcript: string): boolean => {
-    const t = transcript.toLowerCase().trim();
-    return (
-      t.includes('jarvis') ||
-      t.includes('hey jarvis') ||
-      t.includes('hi jarvis') ||
-      t.includes('ok jarvis')
-    );
-  };
+  const startWeb = useCallback(() => {
+    if (Capacitor.isNativePlatform()) return;
 
-  const start = useCallback(() => {
     const w = window as unknown as Record<string, unknown>;
     const Rec = (w['SpeechRecognition'] || w['webkitSpeechRecognition']) as SpeechRecCtor | undefined;
-
     if (!Rec) return;
 
     setSupported(true);
@@ -80,14 +131,11 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
       }
     };
     rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        setSupported(false);
-      }
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setSupported(false);
     };
     rec.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript;
-        if (isWakePhrase(transcript)) {
+        if (isWakePhrase(e.results[i][0].transcript)) {
           onActivation();
           rec.stop();
           setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 3000);
@@ -96,25 +144,20 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
       }
     };
 
-    try {
-      rec.start();
-    } catch { /* already started */ }
+    try { rec.start(); } catch { /* already started */ }
   }, [onActivation]);
 
-  const stop = useCallback(() => {
+  const stopWeb = useCallback(() => {
     recRef.current?.stop();
     recRef.current = null;
     setListening(false);
   }, []);
 
   useEffect(() => {
-    if (enabled) {
-      start();
-    } else {
-      stop();
-    }
-    return stop;
-  }, [enabled, start, stop]);
+    if (Capacitor.isNativePlatform()) return;
+    if (enabled) startWeb(); else stopWeb();
+    return stopWeb;
+  }, [enabled, startWeb, stopWeb]);
 
   return { listening, supported };
 }
