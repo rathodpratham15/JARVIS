@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
-import { toast } from 'sonner';
 
 // Web Speech API types — not in every TS lib
 interface SpeechRecognitionEvent {
@@ -73,16 +72,10 @@ async function runNativeLoop(
         const matches = result.matches ?? [];
         if (matches.length > 0) {
           const text = matches.join(' ').toLowerCase();
-          toast(`Heard: "${matches[0]}"`, { duration: 3000 });
           if (text.includes('jarvis')) { activated = true; onActivation(); }
-        } else {
-          toast('Session ended — no speech detected', { duration: 2000 });
         }
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast(`SR error: ${msg}`, { duration: 3000 });
-    }
+    } catch { }
 
     handle.remove();
     if (runningRef.current) await sleep(400);
@@ -128,9 +121,14 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
   const recRef = useRef<SpeechRec | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  // Chrome requires a user gesture before audio capture works; track whether
+  // we've seen one yet so we don't spin trying to start before it's possible.
+  const gestureRef = useRef(false);
+  const gotResultRef = useRef(false); // whether this session ever produced audio
 
-  const startWeb = useCallback(() => {
+  const startWebNow = useCallback(() => {
     if (Capacitor.isNativePlatform()) return;
+    if (recRef.current) return; // already running
 
     const w = window as unknown as Record<string, unknown>;
     const Rec = (w['SpeechRecognition'] || w['webkitSpeechRecognition']) as SpeechRecCtor | undefined;
@@ -143,31 +141,38 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
     rec.lang = 'en-US';
     recRef.current = rec;
 
-    rec.onstart = () => setListening(true);
+    rec.onstart = () => { setListening(true); };
     rec.onend = () => {
+      recRef.current = null;
       setListening(false);
-      if (enabledRef.current) {
-        setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 500);
+      // Only restart if this session produced audio AND no pending restart is scheduled.
+      if (enabledRef.current && gestureRef.current && gotResultRef.current) {
+        gotResultRef.current = false;
+        setTimeout(startWebNow, 1500);
       }
     };
     rec.onerror = (e) => {
-      toast(`Mic error: ${e.error}`, { duration: 3000 });
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setSupported(false);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        setSupported(false);
+      }
+      // Silently ignore aborted / no-speech
     };
     rec.onresult = (e) => {
+      gotResultRef.current = true;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
-        if (t.trim()) toast(`Heard: "${t}"`, { duration: 2000 });
         if (isWakePhrase(t)) {
-          onActivation();
+          gotResultRef.current = false; // prevent onend from scheduling another restart
+          recRef.current = null;
           rec.stop();
-          setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 3000);
+          onActivation();
+          setTimeout(startWebNow, 3000);
           return;
         }
       }
     };
 
-    try { rec.start(); } catch { /* already started */ }
+    try { rec.start(); } catch { recRef.current = null; }
   }, [onActivation]);
 
   const stopWeb = useCallback(() => {
@@ -178,9 +183,26 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
-    if (enabled) startWeb(); else stopWeb();
-    return stopWeb;
-  }, [enabled, startWeb, stopWeb]);
+    if (!enabled) { stopWeb(); return; }
+
+    // Start immediately in case gesture already happened (e.g. page navigation)
+    startWebNow();
+
+    // Also hook into any user interaction — Chrome needs this for autoplay-style capture
+    const onGesture = () => {
+      if (!gestureRef.current) {
+        gestureRef.current = true;
+        startWebNow();
+      }
+    };
+    document.addEventListener('click', onGesture);
+    document.addEventListener('keydown', onGesture);
+    return () => {
+      document.removeEventListener('click', onGesture);
+      document.removeEventListener('keydown', onGesture);
+      stopWeb();
+    };
+  }, [enabled, startWebNow, stopWeb]);
 
   return { listening, supported };
 }
