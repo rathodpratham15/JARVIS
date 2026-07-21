@@ -120,7 +120,7 @@ class LLMCore:
             )
         except Exception as exc:
             logger.error("LLM query failed (%s): %s", self.provider.name, exc)
-            return f"I'm having trouble reaching the language model right now. ({exc})"
+            return "I'm having trouble reaching the language model right now. Please try again."
 
         reply = response.choices[0].message.content or ""
         self._record("user", prompt)
@@ -157,7 +157,7 @@ class LLMCore:
                     yield token
         except Exception as exc:
             logger.error("LLM stream failed (%s): %s", self.provider.name, exc)
-            yield f"I'm having trouble reaching the language model right now. ({exc})"
+            yield "I'm having trouble reaching the language model right now. Please try again."
             return
 
         reply = "".join(full_reply)
@@ -198,7 +198,7 @@ class LLMCore:
             )
         except Exception as exc:
             logger.error("LLM tool call failed (%s): %s", self.provider.name, exc)
-            return f"I'm having trouble reaching the language model right now. ({exc})", None, None
+            return "I'm having trouble reaching the language model right now. Please try again.", None, None
 
         choice = response.choices[0]
 
