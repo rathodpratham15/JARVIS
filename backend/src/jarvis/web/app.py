@@ -201,6 +201,52 @@ def create_app() -> Flask:
         sem_memory.index_interaction(interaction_id, user_input)
         return {"id": interaction_id, "response": response}, 200
 
+    @app.post("/api/tts")
+    def tts():
+        """Text-to-speech. Tries ElevenLabs, falls back to macOS say."""
+        import subprocess, tempfile, platform
+        from flask import Response as FlaskResponse
+        payload = request.get_json(silent=True) or {}
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return {"error": "text is required"}, 400
+
+        # ── ElevenLabs (primary) ──────────────────────────────────────────────
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        if api_key:
+            try:
+                from elevenlabs.client import ElevenLabs as _EL
+                client = _EL(api_key=api_key)
+                chunks = client.text_to_speech.convert(
+                    voice_id=voice_id,
+                    text=text,
+                    model_id="eleven_multilingual_v2",
+                    output_format="mp3_44100_128",
+                )
+                audio_bytes = b"".join(chunks)
+                return FlaskResponse(audio_bytes, mimetype="audio/mpeg")
+            except Exception as exc:
+                logger.warning("ElevenLabs TTS failed, falling back: %s", exc)
+
+        # ── macOS say (local dev fallback) ────────────────────────────────────
+        if platform.system() == "Darwin":
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as f:
+                    tmp = f.name
+                subprocess.run(
+                    ["say", "-v", "Samantha", "-o", tmp, text],
+                    timeout=15, check=True, capture_output=True,
+                )
+                with open(tmp, "rb") as f:
+                    audio_bytes = f.read()
+                os.unlink(tmp)
+                return FlaskResponse(audio_bytes, mimetype="audio/aiff")
+            except Exception as exc:
+                logger.error("macOS say TTS failed: %s", exc)
+
+        return {"error": "TTS unavailable"}, 503
+
     @app.post("/api/agent")
     def agent_run() -> tuple[dict, int]:
         """Multi-step agent endpoint.

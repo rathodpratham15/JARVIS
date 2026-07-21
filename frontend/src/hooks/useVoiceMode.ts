@@ -11,61 +11,68 @@ function isExit(text: string): boolean {
   return EXIT_PHRASES.some(p => t.includes(p))
 }
 
-// ── TTS ───────────────────────────────────────────────────────────────────────
+// ── Audio unlock ──────────────────────────────────────────────────────────────
+// Call synchronously inside a user-gesture handler. Once an AudioContext is
+// resumed in a gesture, it stays unlocked for the lifetime of the page —
+// no 5-second expiry like the transient activation used by speechSynthesis.
 
-// Chrome requires speechSynthesis to be "unlocked" inside a synchronous
-// user-gesture handler before any async speak() call will produce audio.
-// Call this immediately when the user triggers voice mode.
-function unlockSpeech(): void {
-  const synth = window.speechSynthesis
-  if (!synth) return
-  const u = new SpeechSynthesisUtterance('')
-  u.volume = 0
-  synth.speak(u)
+let _audioCtx: AudioContext | null = null
+
+function unlockAudio(): void {
+  try {
+    const AC = window.AudioContext || (window as any).webkitAudioContext
+    if (!_audioCtx) _audioCtx = new AC()
+    _audioCtx.resume()
+  } catch { /* not available */ }
 }
 
-function speak(text: string): Promise<void> {
-  return new Promise(resolve => {
+// ── TTS ───────────────────────────────────────────────────────────────────────
+// Fetches audio bytes from /api/tts and plays via AudioContext.decodeAudioData.
+// Using AudioContext (not HTMLAudioElement or speechSynthesis) is the only
+// approach that reliably works after a long async chain in Chrome.
+
+async function speak(text: string): Promise<void> {
+  // Fetch audio from backend (ElevenLabs or macOS say fallback)
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+    if (res.ok && _audioCtx) {
+      const arrayBuf = await res.arrayBuffer()
+      return new Promise(resolve => {
+        _audioCtx!.decodeAudioData(
+          arrayBuf,
+          decoded => {
+            const src = _audioCtx!.createBufferSource()
+            src.buffer = decoded
+            src.connect(_audioCtx!.destination)
+            src.onended = () => resolve()
+            src.start(0)
+          },
+          () => resolve(), // decode error → silent
+        )
+      })
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: Web Speech Synthesis
+  await new Promise<void>(resolve => {
     const synth = window.speechSynthesis
     if (!synth) { resolve(); return }
-
     synth.cancel()
-
+    synth.resume()
     const utt = new SpeechSynthesisUtterance(text)
     utt.rate = 1.0
     utt.lang = 'en-US'
-
-    // Prefer a local English voice — Google voices require network and can fail
     const voices = synth.getVoices()
-    const preferred =
-      voices.find(v => v.lang.startsWith('en') && v.localService) ||
-      voices.find(v => v.lang.startsWith('en'))
-    if (preferred) utt.voice = preferred
-
-    let resolved = false
-    const done = () => { if (!resolved) { resolved = true; resolve() } }
-
-    utt.onend = done
-    utt.onerror = done
-
-    // Chrome bug: onend sometimes silently never fires (especially after
-    // a page-load or when the tab loses focus mid-utterance). Resolve after
-    // a generous estimate so the conversation loop doesn't hang.
-    const fallbackMs = Math.max(4000, text.length * 65)
-    const fallback = setTimeout(done, fallbackMs)
-    utt.onend = () => { clearTimeout(fallback); done() }
-    utt.onerror = () => { clearTimeout(fallback); done() }
-
+    const v = voices.find(v => v.lang.startsWith('en') && v.localService) || voices.find(v => v.lang.startsWith('en'))
+    if (v) utt.voice = v
+    const fallback = setTimeout(resolve, Math.max(4000, text.length * 65))
+    utt.onend = () => { clearTimeout(fallback); resolve() }
+    utt.onerror = () => { clearTimeout(fallback); resolve() }
     synth.speak(utt)
-
-    // Second Chrome bug: speak() may be a no-op if the audio context is
-    // suspended (autoplay policy). Resume it then re-queue if needed.
-    setTimeout(() => {
-      if (!resolved && !synth.speaking) {
-        synth.cancel()
-        synth.speak(utt)
-      }
-    }, 250)
   })
 }
 
@@ -132,19 +139,18 @@ export function useVoiceMode() {
   const start = useCallback(() => {
     if (running.current) return
 
-    // Unlock speech synthesis while still inside the user-gesture call stack —
-    // must happen before any async work or Chrome will silently block audio.
-    if (!Capacitor.isNativePlatform()) unlockSpeech()
+    // Unlock HTML5 audio and speechSynthesis while still in the gesture handler
+    if (!Capacitor.isNativePlatform()) unlockAudio()
 
     running.current = true
     setActive(true)
 
     ;(async () => {
-      // Wait for voices to load (first call to getVoices may return [])
+      // Wait for speech synthesis voices (first call may return [])
       if (!Capacitor.isNativePlatform() && window.speechSynthesis) {
         if (window.speechSynthesis.getVoices().length === 0) {
           await new Promise<void>(res => {
-            const id = setTimeout(res, 1000) // fallback if event never fires
+            const id = setTimeout(res, 1000)
             window.speechSynthesis.onvoiceschanged = () => { clearTimeout(id); res() }
           })
         }
