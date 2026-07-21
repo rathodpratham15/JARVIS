@@ -13,16 +13,59 @@ function isExit(text: string): boolean {
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
 
+// Chrome requires speechSynthesis to be "unlocked" inside a synchronous
+// user-gesture handler before any async speak() call will produce audio.
+// Call this immediately when the user triggers voice mode.
+function unlockSpeech(): void {
+  const synth = window.speechSynthesis
+  if (!synth) return
+  const u = new SpeechSynthesisUtterance('')
+  u.volume = 0
+  synth.speak(u)
+}
+
 function speak(text: string): Promise<void> {
   return new Promise(resolve => {
     const synth = window.speechSynthesis
     if (!synth) { resolve(); return }
+
     synth.cancel()
+
     const utt = new SpeechSynthesisUtterance(text)
-    utt.rate = 1.05
-    utt.onend = () => resolve()
-    utt.onerror = () => resolve()
+    utt.rate = 1.0
+    utt.lang = 'en-US'
+
+    // Prefer a local English voice — Google voices require network and can fail
+    const voices = synth.getVoices()
+    const preferred =
+      voices.find(v => v.lang.startsWith('en') && v.localService) ||
+      voices.find(v => v.lang.startsWith('en'))
+    if (preferred) utt.voice = preferred
+
+    let resolved = false
+    const done = () => { if (!resolved) { resolved = true; resolve() } }
+
+    utt.onend = done
+    utt.onerror = done
+
+    // Chrome bug: onend sometimes silently never fires (especially after
+    // a page-load or when the tab loses focus mid-utterance). Resolve after
+    // a generous estimate so the conversation loop doesn't hang.
+    const fallbackMs = Math.max(4000, text.length * 65)
+    const fallback = setTimeout(done, fallbackMs)
+    utt.onend = () => { clearTimeout(fallback); done() }
+    utt.onerror = () => { clearTimeout(fallback); done() }
+
     synth.speak(utt)
+
+    // Second Chrome bug: speak() may be a no-op if the audio context is
+    // suspended (autoplay policy). Resume it then re-queue if needed.
+    setTimeout(() => {
+      if (!resolved && !synth.speaking) {
+        synth.cancel()
+        synth.speak(utt)
+      }
+    }, 250)
   })
 }
 
@@ -88,10 +131,25 @@ export function useVoiceMode() {
 
   const start = useCallback(() => {
     if (running.current) return
+
+    // Unlock speech synthesis while still inside the user-gesture call stack —
+    // must happen before any async work or Chrome will silently block audio.
+    if (!Capacitor.isNativePlatform()) unlockSpeech()
+
     running.current = true
     setActive(true)
 
     ;(async () => {
+      // Wait for voices to load (first call to getVoices may return [])
+      if (!Capacitor.isNativePlatform() && window.speechSynthesis) {
+        if (window.speechSynthesis.getVoices().length === 0) {
+          await new Promise<void>(res => {
+            const id = setTimeout(res, 1000) // fallback if event never fires
+            window.speechSynthesis.onvoiceschanged = () => { clearTimeout(id); res() }
+          })
+        }
+      }
+
       while (running.current) {
         setVoiceState('listening')
         setTranscript('')
