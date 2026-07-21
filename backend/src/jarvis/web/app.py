@@ -180,6 +180,12 @@ def create_app() -> Flask:
             result["tool_used"] = tool_used
         return result, 200
 
+    _VOICE_SYSTEM_PROMPT = (
+        "You are Jarvis, a voice assistant. "
+        "Reply in 1-2 short sentences only — no lists, no markdown, no filler. "
+        "Be direct and natural, as if speaking aloud."
+    )
+
     @app.post("/api/voice-chat")
     def voice_chat() -> tuple[dict, int]:
         """Conversational endpoint for voice mode — bypasses the action engine
@@ -191,7 +197,12 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         ctx = _build_context(memory)
-        response = llm.query_llm(user_input, memory=ctx)
+        response = llm.query_llm(
+            user_input,
+            memory=ctx,
+            system_prompt_override=_VOICE_SYSTEM_PROMPT,
+            max_tokens_override=80,
+        )
 
         interaction_id = memory.store_interaction(
             user_input=user_input,
@@ -234,9 +245,11 @@ def create_app() -> Flask:
             try:
                 with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as f:
                     tmp = f.name
+                word_count = len(text.split())
+                timeout_s = max(15, word_count * 2)
                 subprocess.run(
                     ["say", "-v", "Samantha", "-o", tmp, text],
-                    timeout=15, check=True, capture_output=True,
+                    timeout=timeout_s, check=True, capture_output=True,
                 )
                 with open(tmp, "rb") as f:
                     audio_bytes = f.read()

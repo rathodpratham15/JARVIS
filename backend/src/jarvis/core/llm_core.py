@@ -98,11 +98,18 @@ class LLMCore:
         logger.info("LLMCore using provider=%s model=%s", self.provider.name, self.model)
         return OpenAI(**kwargs)
 
-    def query_llm(self, prompt: str, memory: Optional[str] = None) -> str:
+    def query_llm(
+        self,
+        prompt: str,
+        memory: Optional[str] = None,
+        system_prompt_override: Optional[str] = None,
+        max_tokens_override: Optional[int] = None,
+    ) -> str:
         if not self.client:
             return self._simulate_response(prompt)
 
-        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        sys = system_prompt_override or self.system_prompt
+        messages: list[dict] = [{"role": "system", "content": sys}]
         if memory:
             messages.append({"role": "system", "content": f"Context from memory: {memory}"})
         # Strip non-standard fields like `timestamp`. OpenAI tolerates them
@@ -116,7 +123,7 @@ class LLMCore:
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens=max_tokens_override or self.max_tokens,
             )
         except Exception as exc:
             logger.error("LLM query failed (%s): %s", self.provider.name, exc)
