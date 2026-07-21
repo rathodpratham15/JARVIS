@@ -58,7 +58,7 @@ async function listenNative(): Promise<string | null> {
 }
 
 async function sendToBackend(message: string): Promise<string> {
-  const res = await fetch('/api/chat', {
+  const res = await fetch('/api/voice-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),

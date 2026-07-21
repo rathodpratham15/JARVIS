@@ -180,6 +180,27 @@ def create_app() -> Flask:
             result["tool_used"] = tool_used
         return result, 200
 
+    @app.post("/api/voice-chat")
+    def voice_chat() -> tuple[dict, int]:
+        """Conversational endpoint for voice mode — bypasses the action engine
+        and goes straight to the LLM so responses are natural speech, not
+        attempted OS/tool actions."""
+        payload = request.get_json(silent=True) or {}
+        user_input = (payload.get("message") or "").strip()
+        if not user_input:
+            return {"error": "message field is required"}, 400
+
+        ctx = _build_context(memory)
+        response = llm.query_llm(user_input, memory=ctx)
+
+        interaction_id = memory.store_interaction(
+            user_input=user_input,
+            response=response,
+            intent_type="voice",
+        )
+        sem_memory.index_interaction(interaction_id, user_input)
+        return {"id": interaction_id, "response": response}, 200
+
     @app.post("/api/agent")
     def agent_run() -> tuple[dict, int]:
         """Multi-step agent endpoint.

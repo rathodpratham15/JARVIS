@@ -20,6 +20,7 @@ export function VoiceModeOverlay({ active, voiceState, transcript, reply, onDism
   if (!active) return null
 
   const isListening = voiceState === 'listening'
+  const isProcessing = voiceState === 'processing'
   const isSpeaking = voiceState === 'speaking'
 
   return (
@@ -34,43 +35,64 @@ export function VoiceModeOverlay({ active, voiceState, transcript, reply, onDism
           J.A.R.V.I.S — VOICE MODE
         </span>
 
-        {/* Pulse rings + core dot */}
-        <div className="relative flex items-center justify-center w-32 h-32">
-          {/* Outer expanding ring — only during listening/speaking */}
+        {/* Ring visualiser */}
+        <div className="relative flex items-center justify-center w-36 h-36">
+
+          {/* Outer expanding ripple — listening & speaking */}
           {(isListening || isSpeaking) && (
             <span
-              className="absolute w-32 h-32 rounded-full border border-[#00d4ff]"
-              style={{ animation: 'jv-ring 1.6s ease-out infinite', opacity: 0.4 }}
+              className="absolute w-36 h-36 rounded-full border border-[#00d4ff]"
+              style={{ animation: 'jv-ring 1.6s ease-out infinite', opacity: 0.45 }}
             />
           )}
+
+          {/* Second delayed ripple during speaking — gives a "wave" feel */}
+          {isSpeaking && (
+            <span
+              className="absolute w-36 h-36 rounded-full border border-[#00d4ff]"
+              style={{ animation: 'jv-ring 1.6s ease-out 0.55s infinite', opacity: 0.3 }}
+            />
+          )}
+
           {/* Middle ring */}
           <span
-            className="absolute w-20 h-20 rounded-full border border-[#00d4ff]"
+            className="absolute w-24 h-24 rounded-full border border-[#00d4ff]"
             style={{
-              animation: isListening ? 'jv-pulse 1.2s ease-in-out infinite' : 'none',
-              opacity: isListening ? 0.5 : 0.15,
+              animation: isListening
+                ? 'jv-pulse 1.2s ease-in-out infinite'
+                : isSpeaking
+                ? 'jv-pulse 0.7s ease-in-out infinite'
+                : 'none',
+              opacity: isListening ? 0.5 : isSpeaking ? 0.55 : 0.12,
             }}
           />
+
           {/* Inner ring */}
           <span
-            className="absolute w-12 h-12 rounded-full border border-[#00d4ff]"
-            style={{ opacity: isSpeaking ? 0.6 : 0.2 }}
+            className="absolute w-14 h-14 rounded-full border border-[#00d4ff]"
+            style={{
+              opacity: isSpeaking ? 0.7 : isListening ? 0.3 : 0.15,
+              animation: isSpeaking ? 'jv-pulse 0.9s ease-in-out infinite' : 'none',
+            }}
           />
+
           {/* Core dot */}
           <span
             className="w-3 h-3 rounded-full bg-[#00d4ff]"
             style={{
-              animation: voiceState === 'processing'
-                ? 'jv-pulse 0.8s ease-in-out infinite'
+              animation: isProcessing
+                ? 'jv-pulse 0.6s ease-in-out infinite'
                 : 'none',
-              boxShadow: '0 0 12px rgba(0,212,255,0.7)',
+              boxShadow: isSpeaking
+                ? '0 0 18px rgba(0,212,255,0.9)'
+                : '0 0 10px rgba(0,212,255,0.6)',
             }}
           />
         </div>
 
         {/* State label */}
         <span className="font-hud-mono text-xs tracking-[0.25em] text-[#00d4ff]">
-          {isListening ? 'LISTENING' : voiceState === 'processing' ? 'THINKING' : 'SPEAKING'}
+          {isListening ? 'LISTENING' : isProcessing ? 'THINKING' : 'SPEAKING'}
         </span>
 
         {/* What the user said */}
