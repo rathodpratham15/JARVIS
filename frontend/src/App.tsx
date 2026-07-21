@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import Layout from '@/components/Layout';
@@ -29,23 +30,35 @@ if ('serviceWorker' in navigator) {
 function WakeWord() {
   const navigate = useNavigate();
 
-  const { listening, supported } = useWakeWord({
-    onActivation: () => {
-      hudToast.info('JARVIS ACTIVATED — listening…');
-      navigate('/chat');
-    },
-  });
+  const activate = useCallback(() => {
+    hudToast.info('JARVIS ACTIVATED — listening…');
+    navigate('/chat');
+  }, [navigate]);
 
-  if (!supported) return null;
+  const { listening, supported } = useWakeWord({ onActivation: activate });
+
+  // Desktop keyboard shortcut: press '/' to activate JARVIS
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return; // don't intercept text fields
+        e.preventDefault();
+        activate();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activate]);
 
   return (
-    <div className="md:hidden fixed bottom-20 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(2,8,23,0.9)] border border-[rgba(0,180,255,0.25)] backdrop-blur-sm pointer-events-none">
+    <div className="fixed bottom-20 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(2,8,23,0.9)] border border-[rgba(0,180,255,0.25)] backdrop-blur-sm pointer-events-none">
       <span
         className="w-1.5 h-1.5 rounded-full bg-[#00d4ff]"
         style={{ animation: listening ? 'jv-pulse 1.2s ease-in-out infinite' : 'none', opacity: listening ? 1 : 0.3 }}
       />
       <span className="font-hud-mono text-[9px] tracking-widest text-[#4a7fa0]">
-        {listening ? 'LISTENING' : 'STANDBY'}
+        {listening ? 'LISTENING' : supported ? 'STANDBY' : '/ TO ACTIVATE'}
       </span>
     </div>
   );
