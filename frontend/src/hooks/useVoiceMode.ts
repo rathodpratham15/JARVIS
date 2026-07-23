@@ -77,6 +77,9 @@ async function speak(text: string): Promise<void> {
 }
 
 // ── Single-shot recognition ───────────────────────────────────────────────────
+// Exported so stop() can abort an in-flight session immediately, freeing the
+// mic before wake-word detection tries to restart.
+let _abortWeb: (() => void) | null = null
 
 function listenWeb(): Promise<string | null> {
   return new Promise(resolve => {
@@ -89,8 +92,12 @@ function listenWeb(): Promise<string | null> {
     rec.interimResults = false
     rec.lang = 'en-US'
     let done = false
-    const finish = (v: string | null) => { if (!done) { done = true; resolve(v) } }
+    const finish = (v: string | null) => {
+      _abortWeb = null
+      if (!done) { done = true; resolve(v) }
+    }
 
+    _abortWeb = () => { try { rec.abort() } catch { /* ignore */ } finish(null) }
     rec.onresult = (e: any) => finish(e.results[0]?.[0]?.transcript?.trim() || null)
     rec.onerror = () => finish(null)
     rec.onend = () => finish(null)
@@ -129,6 +136,9 @@ export function useVoiceMode() {
 
   const stop = useCallback(() => {
     running.current = false
+    // Abort any in-flight web recognition immediately so the mic is freed
+    // before useWakeWord tries to restart its own session.
+    if (_abortWeb) { _abortWeb(); _abortWeb = null }
     window.speechSynthesis?.cancel()
     if (Capacitor.isNativePlatform()) SpeechRecognition.stop().catch(() => {})
     setActive(false)

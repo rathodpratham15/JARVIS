@@ -241,22 +241,36 @@ def create_app() -> Flask:
                 logger.warning("ElevenLabs TTS failed, falling back: %s", exc)
 
         # ── macOS say (local dev fallback) ────────────────────────────────────
+        # `say` outputs AIFF-C which Chrome's decodeAudioData() cannot decode.
+        # Use afconvert to produce a standard PCM WAV that all browsers support.
         if platform.system() == "Darwin":
+            tmp_aiff = tmp_wav = None
             try:
                 with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as f:
-                    tmp = f.name
+                    tmp_aiff = f.name
+                tmp_wav = tmp_aiff.replace(".aiff", ".wav")
                 word_count = len(text.split())
                 timeout_s = max(15, word_count * 2)
                 subprocess.run(
-                    ["say", "-v", "Samantha", "-o", tmp, text],
+                    ["say", "-v", "Samantha", "-o", tmp_aiff, text],
                     timeout=timeout_s, check=True, capture_output=True,
                 )
-                with open(tmp, "rb") as f:
+                subprocess.run(
+                    ["afconvert", "-f", "WAVE", "-d", "LEI16@22050", tmp_aiff, tmp_wav],
+                    timeout=10, check=True, capture_output=True,
+                )
+                with open(tmp_wav, "rb") as f:
                     audio_bytes = f.read()
-                os.unlink(tmp)
-                return FlaskResponse(audio_bytes, mimetype="audio/aiff")
+                return FlaskResponse(audio_bytes, mimetype="audio/wav")
             except Exception as exc:
                 logger.error("macOS say TTS failed: %s", exc)
+            finally:
+                for p in (tmp_aiff, tmp_wav):
+                    if p:
+                        try:
+                            os.unlink(p)
+                        except OSError:
+                            pass
 
         return {"error": "TTS unavailable"}, 503
 
