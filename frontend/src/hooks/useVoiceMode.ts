@@ -83,7 +83,7 @@ let _abortWeb: (() => void) | null = null
 
 function listenWeb(): Promise<string | null> {
   return new Promise(resolve => {
-    const w = window as Record<string, unknown>
+    const w = window as unknown as Record<string, unknown>
     const Rec = (w['SpeechRecognition'] || w['webkitSpeechRecognition']) as (new () => any) | undefined
     if (!Rec) { resolve(null); return }
 
