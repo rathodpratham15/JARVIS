@@ -1061,7 +1061,7 @@ def main() -> None:
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    load_dotenv()
+    load_dotenv(override=True)
     app = create_app()
     app.run(host=args.host, port=args.port, debug=args.debug)
 
