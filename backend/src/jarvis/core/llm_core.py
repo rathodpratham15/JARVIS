@@ -98,18 +98,11 @@ class LLMCore:
         logger.info("LLMCore using provider=%s model=%s", self.provider.name, self.model)
         return OpenAI(**kwargs)
 
-    def query_llm(
-        self,
-        prompt: str,
-        memory: Optional[str] = None,
-        system_prompt_override: Optional[str] = None,
-        max_tokens_override: Optional[int] = None,
-    ) -> str:
+    def query_llm(self, prompt: str, memory: Optional[str] = None) -> str:
         if not self.client:
             return self._simulate_response(prompt)
 
-        sys = system_prompt_override or self.system_prompt
-        messages: list[dict] = [{"role": "system", "content": sys}]
+        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
         if memory:
             messages.append({"role": "system", "content": f"Context from memory: {memory}"})
         # Strip non-standard fields like `timestamp`. OpenAI tolerates them
@@ -123,11 +116,11 @@ class LLMCore:
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=max_tokens_override or self.max_tokens,
+                max_tokens=self.max_tokens,
             )
         except Exception as exc:
             logger.error("LLM query failed (%s): %s", self.provider.name, exc)
-            return "I'm having trouble reaching the language model right now. Please try again."
+            return f"I'm having trouble reaching the language model right now. ({exc})"
 
         reply = response.choices[0].message.content or ""
         self._record("user", prompt)
@@ -164,7 +157,7 @@ class LLMCore:
                     yield token
         except Exception as exc:
             logger.error("LLM stream failed (%s): %s", self.provider.name, exc)
-            yield "I'm having trouble reaching the language model right now. Please try again."
+            yield f"I'm having trouble reaching the language model right now. ({exc})"
             return
 
         reply = "".join(full_reply)
@@ -205,7 +198,7 @@ class LLMCore:
             )
         except Exception as exc:
             logger.error("LLM tool call failed (%s): %s", self.provider.name, exc)
-            return "I'm having trouble reaching the language model right now. Please try again.", None, None
+            return f"I'm having trouble reaching the language model right now. ({exc})", None, None
 
         choice = response.choices[0]
 

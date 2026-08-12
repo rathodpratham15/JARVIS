@@ -180,100 +180,6 @@ def create_app() -> Flask:
             result["tool_used"] = tool_used
         return result, 200
 
-    _VOICE_SYSTEM_PROMPT = (
-        "You are Jarvis, a voice assistant. "
-        "Reply in 1-2 short sentences only — no lists, no markdown, no filler. "
-        "Be direct and natural, as if speaking aloud."
-    )
-
-    @app.post("/api/voice-chat")
-    def voice_chat() -> tuple[dict, int]:
-        """Conversational endpoint for voice mode — bypasses the action engine
-        and goes straight to the LLM so responses are natural speech, not
-        attempted OS/tool actions."""
-        payload = request.get_json(silent=True) or {}
-        user_input = (payload.get("message") or "").strip()
-        if not user_input:
-            return {"error": "message field is required"}, 400
-
-        ctx = _build_context(memory)
-        response = llm.query_llm(
-            user_input,
-            memory=ctx,
-            system_prompt_override=_VOICE_SYSTEM_PROMPT,
-            max_tokens_override=80,
-        )
-
-        interaction_id = memory.store_interaction(
-            user_input=user_input,
-            response=response,
-            intent_type="voice",
-        )
-        sem_memory.index_interaction(interaction_id, user_input)
-        return {"id": interaction_id, "response": response}, 200
-
-    @app.post("/api/tts")
-    def tts():
-        """Text-to-speech. Tries ElevenLabs, falls back to macOS say."""
-        import subprocess, tempfile, platform
-        from flask import Response as FlaskResponse
-        payload = request.get_json(silent=True) or {}
-        text = (payload.get("text") or "").strip()
-        if not text:
-            return {"error": "text is required"}, 400
-
-        # ── ElevenLabs (primary) ──────────────────────────────────────────────
-        api_key = os.getenv("ELEVENLABS_API_KEY")
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
-        if api_key:
-            try:
-                from elevenlabs.client import ElevenLabs as _EL
-                client = _EL(api_key=api_key)
-                chunks = client.text_to_speech.convert(
-                    voice_id=voice_id,
-                    text=text,
-                    model_id="eleven_multilingual_v2",
-                    output_format="mp3_44100_128",
-                )
-                audio_bytes = b"".join(chunks)
-                return FlaskResponse(audio_bytes, mimetype="audio/mpeg")
-            except Exception as exc:
-                logger.warning("ElevenLabs TTS failed, falling back: %s", exc)
-
-        # ── macOS say (local dev fallback) ────────────────────────────────────
-        # `say` outputs AIFF-C which Chrome's decodeAudioData() cannot decode.
-        # Use afconvert to produce a standard PCM WAV that all browsers support.
-        if platform.system() == "Darwin":
-            tmp_aiff = tmp_wav = None
-            try:
-                with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as f:
-                    tmp_aiff = f.name
-                tmp_wav = tmp_aiff.replace(".aiff", ".wav")
-                word_count = len(text.split())
-                timeout_s = max(15, word_count * 2)
-                subprocess.run(
-                    ["say", "-v", "Samantha", "-o", tmp_aiff, text],
-                    timeout=timeout_s, check=True, capture_output=True,
-                )
-                subprocess.run(
-                    ["afconvert", "-f", "WAVE", "-d", "LEI16@22050", tmp_aiff, tmp_wav],
-                    timeout=10, check=True, capture_output=True,
-                )
-                with open(tmp_wav, "rb") as f:
-                    audio_bytes = f.read()
-                return FlaskResponse(audio_bytes, mimetype="audio/wav")
-            except Exception as exc:
-                logger.error("macOS say TTS failed: %s", exc)
-            finally:
-                for p in (tmp_aiff, tmp_wav):
-                    if p:
-                        try:
-                            os.unlink(p)
-                        except OSError:
-                            pass
-
-        return {"error": "TTS unavailable"}, 503
-
     @app.post("/api/agent")
     def agent_run() -> tuple[dict, int]:
         """Multi-step agent endpoint.
@@ -1061,7 +967,7 @@ def main() -> None:
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    load_dotenv(override=True)
+    load_dotenv()
     app = create_app()
     app.run(host=args.host, port=args.port, debug=args.debug)
 

@@ -1,11 +1,10 @@
 import { useCallback, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import Layout from '@/components/Layout';
-import { VoiceModeOverlay } from '@/components/VoiceModeOverlay';
 import { useReminderPoller } from '@/hooks/useReminderPoller';
 import { useWakeWord } from '@/hooks/useWakeWord';
-import { useVoiceMode } from '@/hooks/useVoiceMode';
+import { hudToast } from '@/lib/hudToast';
 
 // Pages
 import Dashboard from '@/pages/Dashboard';
@@ -27,54 +26,41 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-function VoiceActivation() {
-  const { active, voiceState, transcript, reply, start, stop } = useVoiceMode();
+// Single component handles both navigation + the floating badge
+function WakeWord() {
+  const navigate = useNavigate();
 
-  // Wake word detection — paused while voice mode is active to avoid re-triggering
-  const { listening, supported } = useWakeWord({
-    onActivation: start,
-    enabled: !active,
-  });
+  const activate = useCallback(() => {
+    hudToast.info('JARVIS ACTIVATED — listening…');
+    navigate('/chat');
+  }, [navigate]);
 
-  // '/' shortcut: open voice mode (or close if already open)
-  const onKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      e.preventDefault();
-      if (active) stop(); else start();
-    }
-  }, [active, start, stop]);
+  const { listening, supported } = useWakeWord({ onActivation: activate });
 
+  // Desktop keyboard shortcut: press '/' to activate JARVIS
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return; // don't intercept text fields
+        e.preventDefault();
+        activate();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onKey]);
+  }, [activate]);
 
   return (
-    <>
-      <VoiceModeOverlay
-        active={active}
-        voiceState={voiceState}
-        transcript={transcript}
-        reply={reply}
-        onDismiss={stop}
+    <div className="fixed bottom-20 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(2,8,23,0.9)] border border-[rgba(0,180,255,0.25)] backdrop-blur-sm pointer-events-none">
+      <span
+        className="w-1.5 h-1.5 rounded-full bg-[#00d4ff]"
+        style={{ animation: listening ? 'jv-pulse 1.2s ease-in-out infinite' : 'none', opacity: listening ? 1 : 0.3 }}
       />
-
-      {/* Floating status badge */}
-      <div className="fixed bottom-20 right-3 z-30 flex items-center gap-1.5 px-2.5 py-1 bg-[rgba(2,8,23,0.9)] border border-[rgba(0,180,255,0.25)] backdrop-blur-sm pointer-events-none">
-        <span
-          className="w-1.5 h-1.5 rounded-full bg-[#00d4ff]"
-          style={{
-            animation: (listening || active) ? 'jv-pulse 1.2s ease-in-out infinite' : 'none',
-            opacity: (listening || active) ? 1 : 0.3,
-          }}
-        />
-        <span className="font-hud-mono text-[9px] tracking-widest text-[#4a7fa0]">
-          {active ? 'VOICE MODE' : listening ? 'LISTENING' : supported ? 'STANDBY' : '/ TO ACTIVATE'}
-        </span>
-      </div>
-    </>
+      <span className="font-hud-mono text-[9px] tracking-widest text-[#4a7fa0]">
+        {listening ? 'LISTENING' : supported ? 'STANDBY' : '/ TO ACTIVATE'}
+      </span>
+    </div>
   );
 }
 
@@ -95,7 +81,7 @@ function AppInner() {
           <Route path="/settings" element={<SettingsManager />} />
         </Route>
       </Routes>
-      <VoiceActivation />
+      <WakeWord />
       <Toaster position="bottom-right" />
     </>
   );

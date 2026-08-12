@@ -121,14 +121,10 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
   const recRef = useRef<SpeechRec | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
-  // Chrome requires a user gesture before audio capture works.
+  // Chrome requires a user gesture before audio capture works; track whether
+  // we've seen one yet so we don't spin trying to start before it's possible.
   const gestureRef = useRef(false);
-  // True once onstart fires — means Chrome successfully opened the mic.
-  // We use this instead of gotResultRef so no-speech timeouts still restart.
-  const startedRef = useRef(false);
-  // Set before rec.stop() on wake-word detection to prevent onend scheduling
-  // a second restart (we schedule one manually with a longer delay).
-  const suppressRestartRef = useRef(false);
+  const gotResultRef = useRef(false); // whether this session ever produced audio
 
   const startWebNow = useCallback(() => {
     if (Capacitor.isNativePlatform()) return;
@@ -145,18 +141,13 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
     rec.lang = 'en-US';
     recRef.current = rec;
 
-    rec.onstart = () => { startedRef.current = true; setListening(true); };
+    rec.onstart = () => { setListening(true); };
     rec.onend = () => {
       recRef.current = null;
       setListening(false);
-      const didStart = startedRef.current;
-      const suppress = suppressRestartRef.current;
-      startedRef.current = false;
-      suppressRestartRef.current = false;
-      // Restart whenever Chrome successfully opened the mic (handles no-speech
-      // timeouts). Skip only if we never got onstart (mic blocked) or a manual
-      // restart is already scheduled (wake-word case).
-      if (enabledRef.current && gestureRef.current && didStart && !suppress) {
+      // Only restart if this session produced audio AND no pending restart is scheduled.
+      if (enabledRef.current && gestureRef.current && gotResultRef.current) {
+        gotResultRef.current = false;
         setTimeout(startWebNow, 1500);
       }
     };
@@ -164,15 +155,14 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         setSupported(false);
       }
-      // Silently ignore aborted / no-speech — onend handles the restart.
+      // Silently ignore aborted / no-speech
     };
     rec.onresult = (e) => {
+      gotResultRef.current = true;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (isWakePhrase(t)) {
-          // Block automatic onend restart; schedule our own after 3 s so voice
-          // mode has time to take the mic before wake-word tries to come back.
-          suppressRestartRef.current = true;
+          gotResultRef.current = false; // prevent onend from scheduling another restart
           recRef.current = null;
           rec.stop();
           onActivation();
@@ -198,11 +188,10 @@ export function useWakeWord({ onActivation, enabled = true }: UseWakeWordOptions
     // Start immediately in case gesture already happened (e.g. page navigation)
     startWebNow();
 
-    // On every user interaction: mark gesture done AND restart recognition if
-    // it has died (e.g. after a no-speech timeout that didn't auto-recover).
+    // Also hook into any user interaction — Chrome needs this for autoplay-style capture
     const onGesture = () => {
-      gestureRef.current = true;
-      if (!recRef.current) {
+      if (!gestureRef.current) {
+        gestureRef.current = true;
         startWebNow();
       }
     };
