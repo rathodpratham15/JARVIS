@@ -215,6 +215,57 @@ class TaskManager:
                     task.error = str(exc)
                     task.finished_at = datetime.now(timezone.utc).isoformat()
 
+    @staticmethod
+    def _parse_xml_tool_call(content: str):
+        """Parse Groq's XML-style function calls into (name, args).
+
+        Handles two formats emitted by llama models:
+          <function=name>{"arg": "val"}</function>
+          <function=name({"arg": "val"})></function>
+        """
+        import json as _json, re as _re
+        if not content:
+            return None, None
+        name_m = _re.search(r"<function=(\w+)", content)
+        if not name_m:
+            return None, None
+        name = name_m.group(1)
+        brace = content.find("{")
+        if brace == -1:
+            return name, {}
+        raw = content[brace:]
+        raw = _re.sub(r"\s*\)?\s*</function>.*$", "", raw, flags=_re.DOTALL).strip().rstrip(")")
+        for candidate in (raw, raw + "}"):
+            try:
+                return name, _json.loads(candidate)
+            except _json.JSONDecodeError:
+                continue
+        return name, {}
+
+    @staticmethod
+    def _extract_groq_failed_call(exc: Exception):
+        """If exc is a Groq tool_use_failed 400, return (name, args); else (None, None)."""
+        import json as _json, re as _re
+        failed_gen = ""
+        try:
+            # Preferred: use raw httpx response (avoids Python repr escaping issues)
+            response = getattr(exc, "response", None)
+            if response is not None:
+                body = _json.loads(response.text)
+                failed_gen = body.get("error", {}).get("failed_generation", "")
+            if not failed_gen:
+                # Fallback: exc.body is the parsed dict in some SDK versions
+                body = getattr(exc, "body", None)
+                if isinstance(body, dict):
+                    failed_gen = body.get("error", {}).get("failed_generation", "")
+            if not failed_gen:
+                return None, None
+            logger.debug("Groq failed_generation: %r", failed_gen)
+            return TaskManager._parse_xml_tool_call(failed_gen)
+        except Exception as parse_exc:
+            logger.debug("_extract_groq_failed_call parse error: %s", parse_exc)
+            return None, None
+
     def _run_with_cancel_check(self, agent: "ReActAgent", task: Task) -> "AgentResult":
         """Run the agent loop, honouring cancel requests between steps."""
         import json as _json
@@ -242,6 +293,19 @@ class TaskManager:
                     max_tokens=agent.llm.max_tokens,
                 ) if agent.llm.client else None
             except Exception as exc:
+                # Groq rejects malformed tool calls at API level with 400;
+                # recover by parsing the failed_generation from the error body.
+                xml_name, xml_args = self._extract_groq_failed_call(exc)
+                if xml_name:
+                    logger.info("Recovered Groq XML tool call: %s %s", xml_name, xml_args)
+                    tool_intent = tool_call_to_intent(xml_name, xml_args)
+                    tool_result = agent.actions.execute_action(tool_intent)
+                    steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
+                    messages.append({
+                        "role": "user",
+                        "content": f"Tool result for {xml_name}: {tool_result}\n\nContinue with the task or provide a final answer.",
+                    })
+                    continue
                 return AgentResult(
                     final_answer=f"Task failed on step {i + 1}: {exc}",
                     steps=steps,
@@ -277,10 +341,26 @@ class TaskManager:
                 messages.append({"role": "tool", "tool_call_id": call_id, "content": tool_result})
                 continue
 
-            final = choice.message.content or ""
+            content = choice.message.content or ""
+
+            # Groq fallback: model emits <function=name>{...}</function> in plain content
+            xml_name, xml_args = self._parse_xml_tool_call(content)
+            if xml_name:
+                call_id = f"call_xml_{i}"
+                logger.debug("XML tool call parsed: %s %s", xml_name, xml_args)
+                tool_intent = tool_call_to_intent(xml_name, xml_args)
+                tool_result = agent.actions.execute_action(tool_intent)
+                steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
+                messages.append({"role": "assistant", "content": content})
+                messages.append({
+                    "role": "user",
+                    "content": f"Tool result for {xml_name}: {tool_result}\n\nContinue with the task or provide a final answer.",
+                })
+                continue
+
             agent.llm._record("user", task.goal)
-            agent.llm._record("assistant", final)
-            return AgentResult(final_answer=final, steps=steps)
+            agent.llm._record("assistant", content)
+            return AgentResult(final_answer=content, steps=steps)
 
         # Hit step limit
         messages.append({"role": "user", "content": "Summarise what you have found so far."})
