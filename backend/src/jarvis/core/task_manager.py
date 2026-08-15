@@ -338,10 +338,13 @@ class TaskManager:
                 steps.append(AgentStep(step=i + 1, tool_name=tool_name, tool_args=tool_args, tool_result=tool_result))
                 _capped = tool_result[:4000] + ("…[truncated]" if len(tool_result) > 4000 else "")
                 messages.append({
-                    "role": "assistant", "content": "",
-                    "tool_calls": [{"id": call_id, "type": "function", "function": {"name": tool_name, "arguments": tc.function.arguments or "{}"}}],
+                    "role": "assistant",
+                    "content": f"I called {tool_name}({tc.function.arguments or '{}'}).",
                 })
-                messages.append({"role": "tool", "tool_call_id": call_id, "content": _capped})
+                messages.append({
+                    "role": "user",
+                    "content": f"[{tool_name} result]:\n{_capped}\n\nContinue with the task or provide a final answer.",
+                })
                 continue
 
             content = choice.message.content or ""

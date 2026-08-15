@@ -147,26 +147,18 @@ class ReActAgent:
                     tool_result=tool_result,
                 ))
 
-                # Append the assistant tool-call + tool result to the thread.
-                # Gemini rejects content:null; use "" instead.
-                # Truncate large tool results so Gemini step-2 context fits.
+                # Use plain text messages for tool results rather than the
+                # tool_calls/role:"tool" protocol. Gemini's OAI-compat layer
+                # fails to match tool_call_ids on step 2+, causing 400 errors.
+                # Plain user messages are universally compatible.
                 _capped = tool_result[:4000] + ("…[truncated]" if len(tool_result) > 4000 else "")
                 messages.append({
                     "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{
-                        "id": call_id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_name,
-                            "arguments": tc.function.arguments or "{}",
-                        },
-                    }],
+                    "content": f"I called {tool_name}({tc.function.arguments or '{}'}).",
                 })
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                    "content": _capped,
+                    "role": "user",
+                    "content": f"[{tool_name} result]:\n{_capped}\n\nContinue with the task or provide a final answer.",
                 })
                 continue
 
