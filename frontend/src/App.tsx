@@ -15,6 +15,7 @@ import Vision from '@/pages/Vision';
 import Intelligence from '@/pages/Intelligence';
 import Data from '@/pages/Data';
 import Plugins from '@/pages/Plugins';
+import Schedules from '@/pages/Schedules';
 import SystemControl from '@/pages/SystemControl';
 import SettingsManager from '@/pages/SettingsManager';
 
@@ -91,6 +92,7 @@ function AppInner() {
           <Route path="/intelligence" element={<Intelligence />} />
           <Route path="/data" element={<Data />} />
           <Route path="/plugins" element={<Plugins />} />
+          <Route path="/schedules" element={<Schedules />} />
           <Route path="/system-control" element={<SystemControl />} />
           <Route path="/settings" element={<SettingsManager />} />
         </Route>

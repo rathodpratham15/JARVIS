@@ -7,6 +7,7 @@ import {
   Database,
   Brain,
   Cpu,
+  Clock,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/intelligence',  name: 'Intelligence',   desc: 'Emotion · Knowledge',   icon: Brain           },
   { path: '/data',          name: 'Data',           desc: 'Memory · Notes',        icon: Database        },
   { path: '/plugins',       name: 'Plugins',        desc: 'Manage modules',        icon: Plug            },
+  { path: '/schedules',     name: 'Schedules',      desc: 'Autonomous jobs',       icon: Clock           },
   { path: '/system-control',name: 'System Control', desc: 'Action center',         icon: Cpu             },
   { path: '/settings',      name: 'Settings',       desc: 'Configuration',         icon: Settings        },
 ];

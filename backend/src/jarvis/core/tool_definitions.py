@@ -15,10 +15,11 @@ TOOLS: list[dict] = [
             "description": "Get current weather or forecast for a location.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "location": {"type": "string", "description": "City name or 'current location'"},
                 },
-                "required": [],
+                "required": ["location"],
             },
         },
     },
@@ -29,6 +30,7 @@ TOOLS: list[dict] = [
             "description": "Get the current time or date.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "kind": {
                         "type": "string",
@@ -47,6 +49,7 @@ TOOLS: list[dict] = [
             "description": "Evaluate an arithmetic expression.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "expression": {"type": "string", "description": "Math expression, e.g. '1024 * 768'"},
                 },
@@ -61,6 +64,7 @@ TOOLS: list[dict] = [
             "description": "Save a reminder for the user, optionally at a specific time.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "text": {"type": "string", "description": "What to remind the user about"},
                     "time": {"type": "string", "description": "When to fire the reminder, e.g. 'in 5 minutes', '9pm', 'tomorrow'"},
@@ -76,6 +80,7 @@ TOOLS: list[dict] = [
             "description": "Set a countdown timer.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "duration": {"type": "string", "description": "Duration, e.g. '5 minutes', '30 seconds'"},
                 },
@@ -90,6 +95,7 @@ TOOLS: list[dict] = [
             "description": "Save a note for the user.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "text": {"type": "string", "description": "The note content"},
                 },
@@ -104,6 +110,7 @@ TOOLS: list[dict] = [
             "description": "Open or launch an application by name.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "app_name": {"type": "string", "description": "Application name, e.g. 'Spotify', 'Chrome'"},
                 },
@@ -124,9 +131,9 @@ TOOLS: list[dict] = [
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "query": {"type": "string", "description": "Search query optimised for a search engine"},
-                    "limit": {"type": "integer", "description": "Number of results to retrieve (default 5, max 10)"},
                 },
                 "required": ["query"],
             },
@@ -139,6 +146,7 @@ TOOLS: list[dict] = [
             "description": "Get directions or navigate to a destination.",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "destination": {"type": "string", "description": "Place or address to navigate to"},
                 },
@@ -153,6 +161,7 @@ TOOLS: list[dict] = [
             "description": "Control a smart home device (lights, thermostat, fan, etc.).",
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "device": {"type": "string", "description": "Device name, e.g. 'bedroom lights', 'thermostat'"},
                     "action": {
@@ -178,6 +187,7 @@ TOOLS: list[dict] = [
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "name": {"type": "string", "description": "Full name of the person"},
                     "company": {"type": "string", "description": "Company or organisation (optional, helps disambiguation)"},
@@ -197,6 +207,7 @@ TOOLS: list[dict] = [
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "name": {"type": "string", "description": "Company or organisation name"},
                 },
@@ -216,6 +227,7 @@ TOOLS: list[dict] = [
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "action": {
                         "type": "string",
