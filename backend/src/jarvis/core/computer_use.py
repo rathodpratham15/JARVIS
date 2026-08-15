@@ -106,18 +106,25 @@ class ComputerUseTask:
 
 def _parse_action(text: str) -> Optional[dict]:
     """Extract JSON action from LLM response — handles markdown fences."""
-    # Strip markdown code fences if present
     text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Try finding a JSON object anywhere in the text
-        m = re.search(r"\{.*?\}", text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group())
-            except json.JSONDecodeError:
-                pass
+        pass
+    # Find outermost JSON object by tracking brace depth
+    start = text.find("{")
+    if start != -1:
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:i + 1])
+                    except json.JSONDecodeError:
+                        break
     return None
 
 
@@ -201,7 +208,7 @@ class ComputerUseManager:
                 action_dict = self._ask_vision(task.goal, b64, w, h, history_text, step_num)
 
                 if action_dict is None:
-                    raise RuntimeError("Vision LLM returned an unparseable response.")
+                    raise RuntimeError("Vision LLM returned no parseable action. Check backend logs for the raw response.")
 
                 action_type = action_dict.get("action", "")
                 reason = action_dict.get("reason", action_dict.get("result", ""))
@@ -259,26 +266,36 @@ class ComputerUseManager:
             "What is the next action?"
         )
 
-        try:
-            response = self._client.chat.completions.create(
-                model=self._vision_model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": [
-                        {"type": "text", "text": user_text},
-                        {"type": "image_url", "image_url": {
-                            "url": f"data:image/png;base64,{b64}"
-                        }},
-                    ]},
-                ],
-                max_tokens=256,
-                temperature=0.1,
-            )
-            raw = response.choices[0].message.content or ""
-            return _parse_action(raw)
-        except Exception as exc:
-            logger.error("Vision LLM call failed: %s", exc)
-            return None
+        for attempt in range(3):
+            try:
+                response = self._client.chat.completions.create(
+                    model=self._vision_model,
+                    messages=[
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": user_text},
+                            {"type": "image_url", "image_url": {
+                                "url": f"data:image/png;base64,{b64}"
+                            }},
+                        ]},
+                    ],
+                    max_tokens=1024,
+                    temperature=0.1,
+                )
+                raw = response.choices[0].message.content or ""
+                parsed = _parse_action(raw)
+                if parsed is None:
+                    logger.warning("Vision LLM response unparseable (step %d): %s", step, raw[:300])
+                return parsed
+            except Exception as exc:
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                if status == 503 and attempt < 2:
+                    logger.warning("Vision LLM 503, retrying in %ds (attempt %d/3)", 3 * (attempt + 1), attempt + 1)
+                    time.sleep(3 * (attempt + 1))
+                    continue
+                logger.error("Vision LLM call failed: %s", exc)
+                return None
+        return None
 
     @staticmethod
     def _execute(action: dict, perform_action) -> str:

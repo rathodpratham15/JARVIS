@@ -100,8 +100,18 @@ def create_app() -> Flask:
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
     from jarvis.core.computer_use import ComputerUseManager
-    vision_model = os.getenv("JARVIS_VISION_MODEL", "llama-3.2-11b-vision-preview")
-    cu_mgr = ComputerUseManager(llm_client=llm.client, vision_model=vision_model)
+    from openai import OpenAI as _OpenAI
+    _gemini_key = os.getenv("GEMINI_API_KEY")
+    if _gemini_key:
+        _vision_client = _OpenAI(
+            api_key=_gemini_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+        vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.5-flash")
+    else:
+        _vision_client = llm.client
+        vision_model = os.getenv("JARVIS_VISION_MODEL", "llama-3.2-11b-vision-preview")
+    cu_mgr = ComputerUseManager(llm_client=_vision_client, vision_model=vision_model)
 
     from jarvis.core.scheduler import Scheduler
     sched = Scheduler(
