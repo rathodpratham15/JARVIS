@@ -242,11 +242,50 @@ class Scheduler:
         with self._lock:
             job.last_run = now
             job.run_count += 1
-            job.last_result = task_id
-            job.last_status = "submitted"
+            job.last_result = None
+            job.last_status = "running"
         self._save(job)
         logger.info("Scheduler fired job %r → task %s", job.name, task_id)
+
+        # Watch the task in the background and update job status when it finishes
+        threading.Thread(
+            target=self._watch_task,
+            args=(job, task_id),
+            daemon=True,
+            name=f"sched-watch-{task_id[:8]}",
+        ).start()
         return task_id
+
+    def _watch_task(self, job: ScheduledJob, task_id: str) -> None:
+        """Poll the task until done, then write final status + result back to the job."""
+        import time
+        for _ in range(120):   # give it up to 10 minutes (120 × 5s)
+            time.sleep(5)
+            task = self._tm.get(task_id)
+            if task is None:
+                break
+            if task.status.value in ("done", "failed", "cancelled"):
+                if task.status.value == "done" and task.result:
+                    result_text = task.result.final_answer or "Completed."
+                    status_text = "done"
+                elif task.error:
+                    result_text = f"Error: {task.error}"
+                    status_text = "failed"
+                else:
+                    result_text = task.status.value
+                    status_text = task.status.value
+                with self._lock:
+                    job.last_status = status_text
+                    job.last_result = result_text[:1000]
+                self._save(job)
+                logger.info("Job %r finished: status=%s result=%s",
+                            job.name, status_text, result_text[:80])
+                return
+        # Timed out waiting
+        with self._lock:
+            if job.last_status == "running":
+                job.last_status = "timeout"
+        self._save(job)
 
     def _attach(self, job: ScheduledJob) -> None:
         """Register job on the schedule lib scheduler."""

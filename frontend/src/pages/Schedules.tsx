@@ -226,12 +226,27 @@ export default function Schedules() {
                   {job.last_status && (
                     <div>
                       <MonoLabel className="block">Status</MonoLabel>
-                      <span className={`font-hud-mono text-[10px] ${job.last_status === 'submitted' ? 'text-[#00d4ff]' : 'text-[#9fc4e0]'}`}>
+                      <span className={`font-hud-mono text-[10px] ${
+                        job.last_status === 'done'    ? 'text-emerald-400' :
+                        job.last_status === 'failed'  ? 'text-red-400'     :
+                        job.last_status === 'running' ? 'text-[#00d4ff] animate-pulse' :
+                        job.last_status === 'timeout' ? 'text-yellow-400'  :
+                        'text-[#00d4ff]'
+                      }`}>
                         {job.last_status.toUpperCase()}
                       </span>
                     </div>
                   )}
                 </div>
+
+                {/* Last result */}
+                {job.last_result && (
+                  <p className={`font-hud-mono text-[10px] mt-2 line-clamp-3 ${
+                    job.last_status === 'failed' ? 'text-red-400/70' : 'text-[#4a7fa0]'
+                  }`}>
+                    {job.last_result}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col items-end gap-3 shrink-0">
