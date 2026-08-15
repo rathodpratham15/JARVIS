@@ -77,6 +77,8 @@ class ReActAgent:
         actions: "ActionEngine",
         tools: "list[dict] | None" = None,
         max_steps: int = _MAX_STEPS,
+        tool_client=None,
+        tool_model: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.actions = actions
@@ -85,6 +87,11 @@ class ReActAgent:
             from jarvis.core.tool_definitions import TOOLS
             tools = TOOLS
         self.tools = tools
+        # Separate client/model used only for tool-calling steps.
+        # Allows routing agent tool calls through Gemini (reliable JSON args)
+        # while keeping Groq for regular chat.
+        self.tool_client = tool_client or llm.client
+        self.tool_model = tool_model or llm.model
 
     def run(self, goal: str, memory_context: Optional[str] = None) -> AgentResult:
         """Execute the agent loop for `goal` and return a structured result."""
@@ -97,8 +104,8 @@ class ReActAgent:
 
         for i in range(self.max_steps):
             try:
-                response = self.llm.client.chat.completions.create(
-                    model=self.llm.model,
+                response = self.tool_client.chat.completions.create(
+                    model=self.tool_model,
                     messages=messages,
                     tools=self.tools,
                     tool_choice="auto",
@@ -176,8 +183,8 @@ class ReActAgent:
             ),
         })
         try:
-            resp = self.llm.client.chat.completions.create(
-                model=self.llm.model,
+            resp = self.tool_client.chat.completions.create(
+                model=self.tool_model,
                 messages=messages,
                 temperature=self.llm.temperature,
                 max_tokens=self.llm.max_tokens,

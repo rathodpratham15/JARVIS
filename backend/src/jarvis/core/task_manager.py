@@ -284,14 +284,14 @@ class TaskManager:
                 )
 
             try:
-                response = agent.llm.client.chat.completions.create(
-                    model=agent.llm.model,
+                response = agent.tool_client.chat.completions.create(
+                    model=agent.tool_model,
                     messages=messages,
                     tools=agent.tools,
                     tool_choice="auto",
                     temperature=agent.llm.temperature,
                     max_tokens=agent.llm.max_tokens,
-                ) if agent.llm.client else None
+                ) if agent.tool_client else None
             except Exception as exc:
                 # Groq rejects malformed tool calls at API level with 400;
                 # recover by parsing the failed_generation from the error body.
@@ -365,8 +365,8 @@ class TaskManager:
         # Hit step limit
         messages.append({"role": "user", "content": "Summarise what you have found so far."})
         try:
-            resp = agent.llm.client.chat.completions.create(
-                model=agent.llm.model, messages=messages,
+            resp = agent.tool_client.chat.completions.create(
+                model=agent.tool_model, messages=messages,
                 temperature=agent.llm.temperature, max_tokens=agent.llm.max_tokens,
             )
             final = resp.choices[0].message.content or "Step limit reached."
