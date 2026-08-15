@@ -99,6 +99,10 @@ def create_app() -> Flask:
     agent = ReActAgent(llm=llm, actions=actions)
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
+    from jarvis.core.computer_use import ComputerUseManager
+    vision_model = os.getenv("JARVIS_VISION_MODEL", "llama-3.2-11b-vision-preview")
+    cu_mgr = ComputerUseManager(llm_client=llm.client, vision_model=vision_model)
+
     from jarvis.core.scheduler import Scheduler
     sched = Scheduler(
         task_manager=task_mgr,
@@ -1004,6 +1008,44 @@ def create_app() -> Flask:
         kwargs = {k: v for k, v in payload.items() if k != "action"}
         result = perform_action(action, **kwargs)
         return {"result": result}, 200
+
+    # ── Computer Use ──────────────────────────────────────────────────────
+
+    @app.post("/api/computer-use")
+    def cu_start() -> tuple[dict, int]:
+        """Start a computer use task. Returns task_id immediately."""
+        payload = request.get_json(silent=True) or {}
+        goal = (payload.get("goal") or "").strip()
+        if not goal:
+            return {"error": "goal is required"}, 400
+        task_id = cu_mgr.submit(goal)
+        return {"task_id": task_id, "status": "pending"}, 202
+
+    @app.get("/api/computer-use")
+    def cu_list() -> tuple[dict, int]:
+        """List all computer use tasks (without screenshot data)."""
+        return {"tasks": cu_mgr.list_all()}, 200
+
+    @app.get("/api/computer-use/<task_id>")
+    def cu_get(task_id: str) -> tuple[dict, int]:
+        """Get full task status + steps. Latest step includes screenshot."""
+        task = cu_mgr.get(task_id)
+        if task is None:
+            return {"error": "task not found"}, 404
+        # Return all steps but only include screenshot for the latest one
+        d = task.to_dict(include_screenshots=False)
+        if task.steps:
+            last = task.steps[-1].to_dict()
+            if d["steps"]:
+                d["steps"][-1]["screenshot"] = last["screenshot"]
+        return d, 200
+
+    @app.delete("/api/computer-use/<task_id>")
+    def cu_cancel(task_id: str) -> tuple[dict, int]:
+        """Cancel a running computer use task."""
+        if cu_mgr.cancel(task_id):
+            return {"status": "cancelled"}, 200
+        return {"error": "task not found"}, 404
 
     return app
 
