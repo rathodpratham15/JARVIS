@@ -311,6 +311,61 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_schedule",
+            "description": (
+                "Create a recurring scheduled job that JARVIS will run autonomously. "
+                "Use when the user asks to schedule a recurring task, e.g. "
+                "'every morning check the news and save a summary', 'remind me daily at 9am to review my calendar'."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string", "description": "Short job name, e.g. 'Morning Briefing'"},
+                    "goal": {"type": "string", "description": "Full description of what JARVIS should do each time the job runs"},
+                    "schedule_expr": {
+                        "type": "string",
+                        "description": (
+                            "Schedule expression. Examples: 'every 30 minutes', 'every 2 hours', "
+                            "'every day at 09:00', 'every monday at 08:00', 'every friday at 17:00'"
+                        ),
+                    },
+                },
+                "required": ["name", "goal", "schedule_expr"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_schedules",
+            "description": "List all currently configured scheduled jobs, their status, and last run info.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_schedule",
+            "description": "Delete a scheduled job by its ID. Use after listing schedules to find the ID.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "job_id": {"type": "string", "description": "The UUID of the scheduled job to delete"},
+                },
+                "required": ["job_id"],
+            },
+        },
+    },
 ]
 
 # Map tool function names → intent dicts that ActionEngine understands
@@ -392,5 +447,20 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
             "button": args.get("button", "left"),
             "clicks": args.get("clicks"),
         }
+
+    if name == "create_schedule":
+        return {
+            **base,
+            "type": "create_schedule",
+            "name": args.get("name", ""),
+            "goal": args.get("goal", ""),
+            "schedule_expr": args.get("schedule_expr", ""),
+        }
+
+    if name == "list_schedules":
+        return {**base, "type": "list_schedules"}
+
+    if name == "delete_schedule":
+        return {**base, "type": "delete_schedule", "job_id": args.get("job_id", "")}
 
     return {**base, "type": "conversation"}

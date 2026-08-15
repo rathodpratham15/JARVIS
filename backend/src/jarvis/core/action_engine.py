@@ -21,7 +21,9 @@ from jarvis.services.web_search import search_and_summarize as _web_search
 
 
 if TYPE_CHECKING:
+    from jarvis.core.permissions import Permission, PermissionsManager
     from jarvis.core.reminders import RemindersStore
+    from jarvis.core.scheduler import Scheduler
     from jarvis.dashboard.notes import NotesStore
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,8 @@ class ActionEngine:
         reminders_store: "Optional[RemindersStore]" = None,
         settings_store=None,
         llm=None,
+        scheduler: "Optional[Scheduler]" = None,
+        permissions: "Optional[PermissionsManager]" = None,
     ) -> None:
         if notes_store is None:
             from jarvis.dashboard.notes import NotesStore
@@ -160,6 +164,8 @@ class ActionEngine:
         self._reminders = reminders_store
         self._settings = settings_store
         self._llm = llm
+        self._scheduler = scheduler
+        self._permissions = permissions
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -188,8 +194,24 @@ class ActionEngine:
             "research_company": self._research_company,
             "os_control": self._os_control,
             "control_app": self._control_app,
+            "create_schedule": self._create_schedule,
+            "list_schedules": self._list_schedules,
+            "delete_schedule": self._delete_schedule,
             "conversation": self._conversation,
         }
+
+    def _require(self, perm_name: str, label: str) -> Optional[str]:
+        """Return an error string if `perm_name` is denied, else None."""
+        if self._permissions is None:
+            return None
+        from jarvis.core.permissions import Permission
+        try:
+            perm = Permission(perm_name)
+        except ValueError:
+            return None
+        if not self._permissions.is_granted(perm):
+            return f"Permission denied: {label} is not enabled. Enable it in the Permissions settings."
+        return None
 
     def execute_action(self, intent: dict) -> str:
         """Run the handler for `intent['type']`. Falls back to conversation."""
@@ -272,6 +294,9 @@ class ActionEngine:
         return random.choice(JOKES)
 
     def _reminder(self, intent: dict) -> str:
+        err = self._require("reminders", "Reminders & Calendar")
+        if err:
+            return err
         text = (intent.get("reminder_text") or "").strip()
         if not text:
             return "What would you like me to remind you about?"
@@ -283,6 +308,9 @@ class ActionEngine:
         return f"Reminder saved: '{text}'."
 
     def _note(self, intent: dict) -> str:
+        err = self._require("file_access", "File & Data Access")
+        if err:
+            return err
         text = (intent.get("note_text") or "").strip()
         if not text:
             return "What would you like me to note down?"
@@ -401,6 +429,9 @@ class ActionEngine:
         )
 
     def _research_person(self, intent: dict) -> str:
+        err = self._require("web_access", "Web & Research")
+        if err:
+            return err
         name = (intent.get("name") or "").strip()
         if not name:
             return "Who would you like me to research?"
@@ -419,6 +450,9 @@ class ActionEngine:
         return profile.summary
 
     def _research_company(self, intent: dict) -> str:
+        err = self._require("web_access", "Web & Research")
+        if err:
+            return err
         name = (intent.get("name") or "").strip()
         if not name:
             return "Which company would you like me to research?"
@@ -433,13 +467,17 @@ class ActionEngine:
             return "\n".join(parts).strip()
         return profile.summary
 
-    @staticmethod
-    def _control_app(intent: dict) -> str:
+    def _control_app(self, intent: dict) -> str:
+        err = self._require("system_control", "System Control")
+        if err:
+            return err
         from jarvis.services.app_control import handle_control_app
         return handle_control_app(intent)
 
-    @staticmethod
-    def _os_control(intent: dict) -> str:
+    def _os_control(self, intent: dict) -> str:
+        err = self._require("computer_use", "Computer Use")
+        if err:
+            return err
         from jarvis.services.os_control import perform_action, screenshot_b64
         action = (intent.get("os_action") or "").strip()
         if not action:
@@ -456,11 +494,65 @@ class ActionEngine:
         return perform_action(action, **kwargs)
 
     def _web_search(self, intent: dict) -> str:
+        err = self._require("web_access", "Web & Research")
+        if err:
+            return err
         query = (intent.get("query") or "").strip()
         if not query:
             return "What would you like me to search for?"
         limit = int(intent.get("limit") or 5)
         return _web_search(query, llm=self._llm, limit=limit)
+
+    def _create_schedule(self, intent: dict) -> str:
+        err = self._require("scheduler", "Autonomous Scheduler")
+        if err:
+            return err
+        if self._scheduler is None:
+            return "Scheduler is not available."
+        name = (intent.get("name") or "").strip()
+        goal = (intent.get("goal") or "").strip()
+        expr = (intent.get("schedule_expr") or "").strip()
+        if not name or not goal or not expr:
+            return "Please provide a name, goal, and schedule expression for the job."
+        try:
+            job_id = self._scheduler.add(name=name, goal=goal, schedule_expr=expr, enabled=True)
+            return f"Scheduled job '{name}' created (ID: {job_id[:8]}…). It will run {expr}."
+        except ValueError as exc:
+            return f"Invalid schedule expression: {exc}"
+
+    def _list_schedules(self, intent: dict) -> str:
+        err = self._require("scheduler", "Autonomous Scheduler")
+        if err:
+            return err
+        if self._scheduler is None:
+            return "Scheduler is not available."
+        jobs = self._scheduler.list_all()
+        if not jobs:
+            return "No scheduled jobs configured yet."
+        lines = [f"Found {len(jobs)} scheduled job(s):"]
+        for j in jobs:
+            status = "enabled" if j["enabled"] else "paused"
+            runs = j["run_count"]
+            lines.append(f"• [{j['id'][:8]}] {j['name']} — {j['schedule_expr']} ({status}, {runs} runs)")
+        return "\n".join(lines)
+
+    def _delete_schedule(self, intent: dict) -> str:
+        err = self._require("scheduler", "Autonomous Scheduler")
+        if err:
+            return err
+        if self._scheduler is None:
+            return "Scheduler is not available."
+        job_id = (intent.get("job_id") or "").strip()
+        if not job_id:
+            return "Please provide the job ID to delete. Use list_schedules to find it."
+        if self._scheduler.remove(job_id):
+            return f"Scheduled job {job_id[:8]}… has been deleted."
+        # Try prefix match for short IDs the LLM may pass
+        jobs = self._scheduler.list_all()
+        matches = [j for j in jobs if j["id"].startswith(job_id)]
+        if len(matches) == 1 and self._scheduler.remove(matches[0]["id"]):
+            return f"Scheduled job '{matches[0]['name']}' has been deleted."
+        return f"No job found with ID starting with '{job_id}'."
 
     @staticmethod
     def _conversation(intent: dict) -> str:
