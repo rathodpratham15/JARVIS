@@ -10,6 +10,7 @@ import {
   Clock,
   Monitor,
   Settings,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/data',          name: 'Data',           desc: 'Memory · Notes',        icon: Database        },
   { path: '/plugins',       name: 'Plugins',        desc: 'Manage modules',        icon: Plug            },
   { path: '/schedules',     name: 'Schedules',      desc: 'Autonomous jobs',       icon: Clock           },
+  { path: '/permissions',   name: 'Permissions',    desc: 'Capabilities & access', icon: Shield          },
   { path: '/computer-use', name: 'Computer Use',   desc: 'Screen control · Vision', icon: Monitor         },
   { path: '/system-control',name: 'System Control', desc: 'Action center',         icon: Cpu             },
   { path: '/settings',      name: 'Settings',       desc: 'Configuration',         icon: Settings        },

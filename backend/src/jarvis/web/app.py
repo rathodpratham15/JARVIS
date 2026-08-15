@@ -33,6 +33,7 @@ from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
 from jarvis.core.semantic_memory import SemanticMemory
 from jarvis.dashboard import NotesStore, SettingsStore
+from jarvis.core.permissions import Permission, PermissionsManager
 from jarvis.plugins import PluginManager
 
 # Hardware/platform-dependent — may not be available in cloud deployments
@@ -95,7 +96,15 @@ def create_app() -> Flask:
 
     parser = IntentParser()
     llm = LLMCore()
-    actions = ActionEngine(notes_store=notes, reminders_store=reminders, settings_store=settings, llm=llm)
+    permissions = PermissionsManager(settings_path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
+
+    actions = ActionEngine(
+        notes_store=notes,
+        reminders_store=reminders,
+        settings_store=settings,
+        llm=llm,
+        permissions=permissions,
+    )
     from openai import OpenAI as _OpenAI
     _gemini_key = os.getenv("GEMINI_API_KEY")
     _gemini_client = None
@@ -129,6 +138,11 @@ def create_app() -> Flask:
         db_path=os.getenv("JARVIS_SCHEDULER_DB", "data/scheduler.db"),
     )
     sched.start()
+    # Wire scheduler into action engine now that it exists
+    actions._scheduler = sched
+
+    # Append permissions summary to system prompt so JARVIS knows its capabilities
+    llm.system_prompt = llm.system_prompt + "\n\n" + permissions.capability_summary()
 
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
@@ -150,6 +164,38 @@ def create_app() -> Flask:
     synthesizer = Synthesizer() if _speech_available else None
 
     _start_reminder_poller(reminders)
+
+    @app.get("/api/permissions")
+    def get_permissions() -> tuple[dict, int]:
+        return {"permissions": permissions.to_api()}, 200
+
+    @app.patch("/api/permissions")
+    def update_permission() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        perm_id = (payload.get("id") or "").strip()
+        granted = payload.get("granted")
+        if not perm_id or granted is None:
+            return {"error": "id and granted are required"}, 400
+        try:
+            perm = Permission(perm_id)
+        except ValueError:
+            return {"error": f"Unknown permission: {perm_id}"}, 400
+        permissions.set(perm, bool(granted))
+        # Refresh capability summary in system prompt
+        llm.system_prompt = llm.system_prompt.split("\n\n## Your active capabilities")[0] + "\n\n" + permissions.capability_summary()
+        return {"permissions": permissions.to_api()}, 200
+
+    @app.post("/api/permissions/grant-all")
+    def grant_all_permissions() -> tuple[dict, int]:
+        permissions.grant_all()
+        llm.system_prompt = llm.system_prompt.split("\n\n## Your active capabilities")[0] + "\n\n" + permissions.capability_summary()
+        return {"permissions": permissions.to_api()}, 200
+
+    @app.post("/api/permissions/revoke-all")
+    def revoke_all_permissions() -> tuple[dict, int]:
+        permissions.revoke_all()
+        llm.system_prompt = llm.system_prompt.split("\n\n## Your active capabilities")[0] + "\n\n" + permissions.capability_summary()
+        return {"permissions": permissions.to_api()}, 200
 
     @app.get("/api/health")
     def health() -> tuple[dict, int]:
