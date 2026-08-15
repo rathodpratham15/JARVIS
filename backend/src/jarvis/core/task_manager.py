@@ -177,6 +177,8 @@ class TaskManager:
                     actions=self._agent.actions,
                     tools=self._agent.tools,
                     max_steps=min(max(1, max_steps), 15),
+                    tool_client=self._agent.tool_client,
+                    tool_model=self._agent.tool_model,
                 )
 
                 # Check for cancellation between steps by monkey-patching the run
