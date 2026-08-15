@@ -435,7 +435,7 @@ class ActionEngine:
 
     @staticmethod
     def _control_app(intent: dict) -> str:
-        from jarvis.services.applescript import handle_control_app
+        from jarvis.services.app_control import handle_control_app
         return handle_control_app(intent)
 
     @staticmethod
