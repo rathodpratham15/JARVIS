@@ -295,24 +295,39 @@ class TaskManager:
                     max_tokens=agent.llm.max_tokens,
                 ) if agent.tool_client else None
             except Exception as exc:
-                # Groq rejects malformed tool calls at API level with 400;
-                # recover by parsing the failed_generation from the error body.
-                xml_name, xml_args = self._extract_groq_failed_call(exc)
-                if xml_name:
-                    logger.info("Recovered Groq XML tool call: %s %s", xml_name, xml_args)
-                    tool_intent = tool_call_to_intent(xml_name, xml_args)
-                    tool_result = agent.actions.execute_action(tool_intent)
-                    steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
-                    messages.append({
-                        "role": "user",
-                        "content": f"Tool result for {xml_name}: {tool_result}\n\nContinue with the task or provide a final answer.",
-                    })
-                    continue
-                return AgentResult(
-                    final_answer=f"Task failed on step {i + 1}: {exc}",
-                    steps=steps,
-                    stopped_early=True,
-                )
+                # Gemini free-tier rate limit: fall back to main LLM for this step
+                if "429" in str(exc) and agent.tool_client is not agent.llm.client and agent.llm.client:
+                    logger.warning("Step %d: tool client rate-limited, falling back to Groq", i + 1)
+                    try:
+                        response = agent.llm.client.chat.completions.create(
+                            model=agent.llm.model, messages=messages,
+                            tools=agent.tools, tool_choice="auto",
+                            temperature=agent.llm.temperature, max_tokens=agent.llm.max_tokens,
+                        )
+                    except Exception as fallback_exc:
+                        return AgentResult(
+                            final_answer=f"Task failed on step {i + 1}: {fallback_exc}",
+                            steps=steps, stopped_early=True,
+                        )
+                else:
+                    # Groq rejects malformed tool calls at API level with 400;
+                    # recover by parsing the failed_generation from the error body.
+                    xml_name, xml_args = self._extract_groq_failed_call(exc)
+                    if xml_name:
+                        logger.info("Recovered Groq XML tool call: %s %s", xml_name, xml_args)
+                        tool_intent = tool_call_to_intent(xml_name, xml_args)
+                        tool_result = agent.actions.execute_action(tool_intent)
+                        steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
+                        messages.append({
+                            "role": "user",
+                            "content": f"Tool result for {xml_name}: {tool_result}\n\nContinue with the task or provide a final answer.",
+                        })
+                        continue
+                    return AgentResult(
+                        final_answer=f"Task failed on step {i + 1}: {exc}",
+                        steps=steps,
+                        stopped_early=True,
+                    )
 
             # No LLM — fall back to single-turn
             if response is None:

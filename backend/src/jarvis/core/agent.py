@@ -113,12 +113,27 @@ class ReActAgent:
                     max_tokens=self.llm.max_tokens,
                 )
             except Exception as exc:
-                logger.error("AgentLoop step %d failed: %s", i, exc)
-                return AgentResult(
-                    final_answer=f"I ran into an error on step {i + 1}: {exc}",
-                    steps=steps,
-                    stopped_early=True,
-                )
+                # Gemini free-tier rate limit: fall back to main LLM for this step
+                if "429" in str(exc) and self.tool_client is not self.llm.client and self.llm.client:
+                    logger.warning("Tool client rate-limited on step %d, retrying with main LLM", i + 1)
+                    try:
+                        response = self.llm.client.chat.completions.create(
+                            model=self.llm.model, messages=messages,
+                            tools=self.tools, tool_choice="auto",
+                            temperature=self.llm.temperature, max_tokens=self.llm.max_tokens,
+                        )
+                    except Exception as fallback_exc:
+                        return AgentResult(
+                            final_answer=f"I ran into an error on step {i + 1}: {fallback_exc}",
+                            steps=steps, stopped_early=True,
+                        )
+                else:
+                    logger.error("AgentLoop step %d failed: %s", i, exc)
+                    return AgentResult(
+                        final_answer=f"I ran into an error on step {i + 1}: {exc}",
+                        steps=steps,
+                        stopped_early=True,
+                    )
 
             choice = response.choices[0]
 
