@@ -11,8 +11,6 @@ import {
   Settings,
   Mic,
   Eye,
-  Cpu,
-  Zap,
 } from "lucide-react";
 import { PageId } from "../types";
 
@@ -20,11 +18,19 @@ interface SidebarProps {
   currentPage: PageId;
   onSelectPage: (page: PageId) => void;
   accentColor?: string;
+  runningTasksCount?: number;
+  activeSchedulesCount?: number;
+  permissionsCount?: number;
+  dueRemindersCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentPage,
   onSelectPage,
+  runningTasksCount = 0,
+  activeSchedulesCount = 0,
+  permissionsCount = 0,
+  dueRemindersCount = 0,
 }) => {
   const navItems: Array<{
     id: PageId;
@@ -33,33 +39,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
     code: string;
     badge?: string;
   }> = [
-    { id: "dashboard", label: "Dashboard", code: "00", icon: <LayoutDashboard className="w-4 h-4" />, badge: "LIVE" },
-    { id: "chat", label: "Chat Core", code: "01", icon: <MessageSquare className="w-4 h-4" />, badge: "AI" },
+    { id: "dashboard", label: "Dashboard", code: "00", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: "chat", label: "Chat Core", code: "01", icon: <MessageSquare className="w-4 h-4" /> },
     { id: "voice", label: "Voice Mode", code: "02", icon: <Mic className="w-4 h-4" /> },
-    { id: "vision", label: "Vision Matrix", code: "03", icon: <Eye className="w-4 h-4" />, badge: "CAM" },
-    { id: "tasks", label: "Tasks", code: "04", icon: <CheckSquare className="w-4 h-4" />, badge: "1 RUN" },
-    { id: "schedules", label: "Schedules", code: "05", icon: <Clock className="w-4 h-4" />, badge: "4 ACT" },
-    { id: "permissions", label: "Permissions", code: "06", icon: <ShieldCheck className="w-4 h-4" />, badge: "7 CAP" },
+    { id: "vision", label: "Vision Matrix", code: "03", icon: <Eye className="w-4 h-4" /> },
+    { id: "tasks", label: "Tasks", code: "04", icon: <CheckSquare className="w-4 h-4" />, badge: runningTasksCount > 0 ? `${runningTasksCount} RUN` : undefined },
+    { id: "schedules", label: "Schedules", code: "05", icon: <Clock className="w-4 h-4" />, badge: activeSchedulesCount > 0 ? `${activeSchedulesCount} ACT` : undefined },
+    { id: "permissions", label: "Permissions", code: "06", icon: <ShieldCheck className="w-4 h-4" />, badge: permissionsCount > 0 ? `${permissionsCount} CAP` : undefined },
     { id: "computer", label: "Computer Use", code: "07", icon: <Monitor className="w-4 h-4" /> },
     { id: "notes", label: "Directives", code: "08", icon: <FileText className="w-4 h-4" /> },
-    { id: "reminders", label: "Reminders", code: "09", icon: <Bell className="w-4 h-4" />, badge: "1 DUE" },
+    { id: "reminders", label: "Reminders", code: "09", icon: <Bell className="w-4 h-4" />, badge: dueRemindersCount > 0 ? `${dueRemindersCount} DUE` : undefined },
     { id: "settings", label: "Settings", code: "10", icon: <Settings className="w-4 h-4" /> },
   ];
 
   return (
     <>
-      {/* Desktop Sidebar (Editorial Minimalist) */}
+      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-64 bg-[#F2F2EF] border-r border-[#1a1a1a] select-none shrink-0">
         {/* Brand Banner */}
-        <div className="p-5 border-b border-[#1a1a1a] bg-[#EBEBEA] flex items-center justify-between">
-          <div>
-            <div className="overline-cyan">OPERATIONAL OS</div>
-            <div className="font-serif text-2xl font-bold tracking-tight text-[#1a1a1a]">
-              J.A.R.V.I.S.
-            </div>
-          </div>
-          <div className="w-6 h-6 border border-[#1a1a1a] bg-[#00E5FF] flex items-center justify-center font-mono text-[10px] font-bold">
-            4.2
+        <div className="p-5 border-b border-[#1a1a1a] bg-[#EBEBEA]">
+          <div className="overline-cyan">OPERATIONAL OS</div>
+          <div className="font-serif text-2xl font-bold tracking-tight text-[#1a1a1a]">
+            J.A.R.V.I.S.
           </div>
         </div>
 
@@ -101,21 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
         </nav>
-
-        {/* Footer Hardware Indicator */}
-        <div className="p-4 border-t border-[#1a1a1a] bg-[#EBEBEA] space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className="text-[#555] uppercase font-bold">ARC CORE</span>
-            <span className="font-bold text-[#1a1a1a]">98.7% PWR</span>
-          </div>
-          <div className="w-full h-1.5 bg-[#ccc] border border-[#1a1a1a]">
-            <div className="h-full bg-[#00E5FF] w-[98%]" />
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono text-[#555] pt-1">
-            <span>TEMP: 38.2°C</span>
-            <span>MEM: 1.4GB</span>
-          </div>
-        </div>
       </aside>
 
       {/* Mobile Bottom Tab Bar */}

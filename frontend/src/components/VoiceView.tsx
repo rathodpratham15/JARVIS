@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Mic, MicOff, Volume2, Sparkles, Radio, Play, RefreshCw, CheckCircle2 } from "lucide-react";
-import { ArcReactorWidget } from "./ArcReactorWidget";
 import { speakJarvisText, playUiSound } from "../utils/audio";
 
 interface VoiceViewProps {
@@ -157,34 +156,17 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           <div className="absolute inset-0 border-2 border-black animate-ping pointer-events-none opacity-20" />
         )}
 
-        {/* Center Arc Reactor Orb Button */}
-        <div className="relative cursor-pointer group" onClick={handleStartListening}>
-          <ArcReactorWidget
-            size="lg"
-            accentColor={
-              voiceState === "listening"
-                ? "cyan"
-                : voiceState === "thinking"
-                ? "gold"
-                : voiceState === "speaking"
-                ? "emerald"
-                : accentColor
-            }
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            {voiceState === "idle" && (
-              <Mic className="w-10 h-10 text-black group-hover:scale-110 transition" />
-            )}
-            {voiceState === "listening" && (
-              <Radio className="w-10 h-10 text-black animate-pulse" />
-            )}
-            {voiceState === "thinking" && (
-              <RefreshCw className="w-10 h-10 text-black animate-spin" />
-            )}
-            {voiceState === "speaking" && (
-              <Volume2 className="w-10 h-10 text-black animate-bounce" />
-            )}
-          </div>
+        {/* Center Mic Button */}
+        <div
+          className={`relative cursor-pointer group w-32 h-32 border-2 border-[#1a1a1a] flex items-center justify-center transition ${
+            voiceState === "listening" ? "bg-[#00E5FF]" : voiceState === "thinking" ? "bg-amber-300" : voiceState === "speaking" ? "bg-emerald-300" : "bg-[#EBEBEA] hover:bg-[#00E5FF]"
+          }`}
+          onClick={handleStartListening}
+        >
+          {voiceState === "idle" && <Mic className="w-10 h-10 text-[#1a1a1a] group-hover:scale-110 transition" />}
+          {voiceState === "listening" && <Radio className="w-10 h-10 text-[#1a1a1a] animate-pulse" />}
+          {voiceState === "thinking" && <RefreshCw className="w-10 h-10 text-[#1a1a1a] animate-spin" />}
+          {voiceState === "speaking" && <Volume2 className="w-10 h-10 text-[#1a1a1a] animate-bounce" />}
         </div>
 
         {/* Audio Spectrum Waveform Visualizer */}

@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
                 J.A.R.V.I.S.
               </span>
               <span className="font-mono text-[10px] text-[#555] uppercase tracking-widest hidden sm:inline">
-                // STARK INDUSTRIES OS
+                // PERSONAL AI OS
               </span>
             </div>
           </button>

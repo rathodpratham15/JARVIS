@@ -17,15 +17,6 @@ import {
   CapabilityPermission,
   ReminderItem,
 } from "./types";
-import {
-  initialServices,
-  initialMemories,
-  initialPlugins,
-  initialFaces,
-  initialSnapshots,
-  initialLogs,
-  initialChatMessages,
-} from "./data/initialData";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
 import { StatusBar } from "./components/StatusBar";
@@ -112,23 +103,56 @@ export default function App() {
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
   const [wakeWord] = useState<string>("Hey Jarvis");
 
-  const [services] = useState<ServiceHealth[]>(initialServices);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [schedules, setSchedules] = useState<ScheduleJob[]>([]);
   const [permissions, setPermissions] = useState<CapabilityPermission[]>([]);
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
-  const [memories, setMemories] = useState<MemoryEntry[]>(initialMemories);
-  const [plugins, setPlugins] = useState<PluginItem[]>(initialPlugins);
-  const [faces] = useState<DetectedFace[]>(initialFaces);
-  const [snapshots] = useState<VisionSnapshot[]>(initialSnapshots);
-  const [logs, setLogs] = useState<ActivityLog[]>(initialLogs);
+  const [memories, setMemories] = useState<MemoryEntry[]>([]);
+  const [plugins] = useState<PluginItem[]>([]);
+  const [faces] = useState<DetectedFace[]>([]);
+  const [snapshots] = useState<VisionSnapshot[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [activeAgentTask, setActiveAgentTask] = useState<AgentTask | undefined>();
   const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isAgentTaskOpen, setIsAgentTaskOpen] = useState(false);
 
   // ── bootstrap from backend ───────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch("/api/health")
+      .then(r => r.json())
+      .then(d => {
+        const svcMap = d.services ?? {};
+        setServices([
+          { id: "llm", name: "LLM Core", status: svcMap.llm?.status ?? "online", latencyMs: svcMap.llm?.latencyMs ?? 0, loadPercent: svcMap.llm?.loadPercent ?? 0, details: "", iconName: "Cpu" },
+          { id: "voice", name: "Voice Engine", status: svcMap.voice?.status ?? "online", latencyMs: svcMap.voice?.latencyMs ?? 0, loadPercent: 0, details: "", iconName: "Mic" },
+          { id: "vision", name: "Vision", status: svcMap.vision?.status ?? "online", latencyMs: svcMap.vision?.latencyMs ?? 0, loadPercent: 0, details: "", iconName: "Eye" },
+          { id: "memory", name: "Memory", status: svcMap.memory?.status ?? "online", latencyMs: svcMap.memory?.latencyMs ?? 0, loadPercent: 0, details: "", iconName: "Database" },
+        ]);
+      })
+      .catch(() => {
+        setServices([{ id: "llm", name: "LLM Core", status: "offline", latencyMs: 0, loadPercent: 0, details: "", iconName: "Cpu" }]);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/history?limit=50")
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) {
+          setChatMessages(d.map((m: any) => ({
+            id: m.id ?? String(m.created_at ?? Date.now()),
+            sender: m.role === "user" ? "user" : "jarvis",
+            text: m.content ?? m.text ?? "",
+            timestamp: new Date(m.created_at ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          })));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/schedules").then(r => r.json()).then(d => {
@@ -474,7 +498,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-col md:flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
-      <Sidebar currentPage={currentPage} onSelectPage={setCurrentPage} accentColor={accentColor} />
+      <Sidebar
+        currentPage={currentPage}
+        onSelectPage={setCurrentPage}
+        accentColor={accentColor}
+        runningTasksCount={tasks.filter(t => t.status === "running").length}
+        activeSchedulesCount={schedules.filter(s => s.enabled).length}
+        permissionsCount={permissions.length}
+        dueRemindersCount={reminders.filter(r => !r.isDismissed).length}
+      />
 
       <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
         <Header
@@ -495,6 +527,8 @@ export default function App() {
           services={services}
           activeTasksCount={tasks.filter(t => t.status === "running").length}
           activeJobsCount={schedules.filter(s => s.enabled).length}
+          permissionsGranted={permissions.filter(p => p.enabled).length}
+          permissionsTotal={permissions.length}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -512,6 +546,11 @@ export default function App() {
               onToggleSpeech={() => setSpeechEnabled(v => !v)}
               accentColor={accentColor}
               onChangeAccentColor={setAccentColor}
+              messagesCount={chatMessages.length}
+              notesCount={notes.length}
+              schedulesCount={schedules.length}
+              tasksCompletedCount={tasks.filter(t => t.status === "completed").length}
+              remindersCount={reminders.filter(r => !r.isDismissed).length}
             />
           )}
 
@@ -613,7 +652,7 @@ export default function App() {
           {currentPage === "plugins" && (
             <PluginsView
               plugins={plugins}
-              onTogglePlugin={id => setPlugins(prev => prev.map(p => p.id === id ? { ...p, enabled: !p.enabled } : p))}
+              onTogglePlugin={() => {}}
             />
           )}
         </main>
