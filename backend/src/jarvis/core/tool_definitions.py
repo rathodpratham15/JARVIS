@@ -218,6 +218,60 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "control_app",
+            "description": (
+                "Control a macOS application using AppleScript — media playback, "
+                "volume, track info, app activation/quit, system notifications, "
+                "or run a custom AppleScript snippet. "
+                "Use for: 'play Spotify', 'pause music', 'next song', 'previous track', "
+                "'set volume to 50', 'mute', 'quit Safari', 'switch to Chrome', "
+                "'what song is playing', 'send me a notification'."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "app_action": {
+                        "type": "string",
+                        "enum": [
+                            "play", "pause", "play_pause",
+                            "next_track", "previous_track",
+                            "get_track",
+                            "set_volume", "system_volume",
+                            "mute", "unmute",
+                            "activate", "quit", "frontmost",
+                            "notify", "run_script",
+                        ],
+                        "description": "Action to perform",
+                    },
+                    "app": {
+                        "type": "string",
+                        "description": "App name to target (default: Spotify). E.g. 'Spotify', 'Music', 'Safari', 'Chrome'.",
+                    },
+                    "volume": {
+                        "type": "integer",
+                        "description": "Volume level 0–100 (for set_volume / system_volume actions)",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Notification title (for notify action)",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Notification body (for notify action)",
+                    },
+                    "script": {
+                        "type": "string",
+                        "description": "Raw AppleScript to execute (for run_script action)",
+                    },
+                },
+                "required": ["app_action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "os_control",
             "description": (
                 "Control the desktop: move the mouse, click, double-click, type text, "
@@ -299,6 +353,18 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
             "device": args.get("device", ""),
             "smart_home_action": args.get("action", "toggle"),
             "temperature": args.get("temperature"),
+        }
+
+    if name == "control_app":
+        return {
+            **base,
+            "type": "control_app",
+            "app_action": args.get("app_action", ""),
+            "app": args.get("app", "Spotify"),
+            "volume": args.get("volume"),
+            "title": args.get("title"),
+            "message": args.get("message"),
+            "script": args.get("script"),
         }
 
     if name == "research_person":
