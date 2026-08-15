@@ -147,10 +147,13 @@ class ReActAgent:
                     tool_result=tool_result,
                 ))
 
-                # Append the assistant tool-call + tool result to the thread
+                # Append the assistant tool-call + tool result to the thread.
+                # Gemini rejects content:null; use "" instead.
+                # Truncate large tool results so Gemini step-2 context fits.
+                _capped = tool_result[:4000] + ("…[truncated]" if len(tool_result) > 4000 else "")
                 messages.append({
                     "role": "assistant",
-                    "content": None,
+                    "content": "",
                     "tool_calls": [{
                         "id": call_id,
                         "type": "function",
@@ -163,7 +166,7 @@ class ReActAgent:
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call_id,
-                    "content": tool_result,
+                    "content": _capped,
                 })
                 continue
 
