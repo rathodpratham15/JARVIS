@@ -237,6 +237,9 @@ class Scheduler:
             time.sleep(1)
 
     def _submit(self, job: ScheduledJob) -> str:
+        with self._lock:
+            if not job.enabled:
+                return ""   # guard against race where job fires after being disabled
         task_id = self._tm.submit(job.goal, max_steps=self._max_steps)
         now = datetime.now(timezone.utc).isoformat()
         with self._lock:
@@ -244,7 +247,9 @@ class Scheduler:
             job.run_count += 1
             job.last_result = None
             job.last_status = "running"
-        self._save(job)
+        # Only update run-tracking columns — never touch 'enabled' here so
+        # a concurrent toggle cannot be overwritten by a racing _submit call.
+        self._save_run_start(job)
         logger.info("Scheduler fired job %r → task %s", job.name, task_id)
 
         # Watch the task in the background and update job status when it finishes
@@ -277,7 +282,9 @@ class Scheduler:
                 with self._lock:
                     job.last_status = status_text
                     job.last_result = result_text[:1000]
-                self._save(job)
+                # Only update result columns — never touch 'enabled' to avoid
+                # overwriting a concurrent toggle with a stale in-memory value.
+                self._save_result(job)
                 logger.info("Job %r finished: status=%s result=%s",
                             job.name, status_text, result_text[:80])
                 return
@@ -285,7 +292,7 @@ class Scheduler:
         with self._lock:
             if job.last_status == "running":
                 job.last_status = "timeout"
-        self._save(job)
+        self._save_result(job)
 
     def _attach(self, job: ScheduledJob) -> None:
         """Register job on the schedule lib scheduler."""
@@ -332,6 +339,7 @@ class Scheduler:
                 self._attach(job)
 
     def _save(self, job: ScheduledJob) -> None:
+        """Full upsert — includes enabled. Only call from add() / set_enabled()."""
         with self._connect() as conn:
             conn.execute(
                 """
@@ -345,6 +353,22 @@ class Scheduler:
                     int(job.enabled), job.created_at, job.last_run,
                     job.run_count, job.last_result, job.last_status,
                 ),
+            )
+
+    def _save_run_start(self, job: ScheduledJob) -> None:
+        """Update run-tracking columns only — never touches enabled."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE scheduled_jobs SET last_run=?, run_count=?, last_result=NULL, last_status='running' WHERE id=?",
+                (job.last_run, job.run_count, job.id),
+            )
+
+    def _save_result(self, job: ScheduledJob) -> None:
+        """Update result columns only — never touches enabled."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE scheduled_jobs SET last_status=?, last_result=? WHERE id=?",
+                (job.last_status, job.last_result, job.id),
             )
 
     def _delete(self, job_id: str) -> None:
