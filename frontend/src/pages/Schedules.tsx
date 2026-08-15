@@ -24,7 +24,7 @@ function formatDate(iso: string | null) {
 
 interface CreateFormProps {
   onClose: () => void
-  onCreate: (payload: { name: string; goal: string; schedule_expr: string; enabled: boolean }) => Promise<void>
+  onCreate: (payload: { name: string; goal: string; schedule_expr: string; enabled: boolean }) => Promise<unknown>
 }
 
 function CreateForm({ onClose, onCreate }: CreateFormProps) {
