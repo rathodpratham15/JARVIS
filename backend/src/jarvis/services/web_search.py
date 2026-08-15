@@ -1,17 +1,13 @@
 """Web search service with provider fallback chain.
 
 Provider priority:
-  1. Brave Search API  (BRAVE_API_KEY)   — 2k free queries/month
-  2. Serper.dev        (SERPER_API_KEY)  — 2.5k free queries/month
-  3. DuckDuckGo        (no key)          — HTML scrape, always available
+  1. Tavily      (TAVILY_API_KEY)  — 1k free queries/month, AI-native, returns clean answer
+  2. Brave       (BRAVE_API_KEY)   — 2k free queries/month
+  3. Serper      (SERPER_API_KEY)  — 2.5k free queries/month
+  4. DuckDuckGo  (no key)          — Instant Answer API, always available
 
-Each provider returns a list of SearchResult dicts:
-    {"title": str, "url": str, "snippet": str}
-
-The public entry point is `search(query, limit)` which tries providers
-in order and returns results as soon as one succeeds.
-`search_and_summarize(query, llm, limit)` additionally asks the LLM to
-synthesize the snippets into a concise answer.
+Tavily is the preferred provider: it returns a pre-synthesized `answer` field
+alongside individual results, so the LLM summarization step is optional.
 """
 
 from __future__ import annotations
@@ -27,10 +23,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = 8  # seconds per request
+_TIMEOUT = 8
 
 
-# ── result type ────────────────────────────────────────────────────────────
+# ── result type ───────────────────────────────────────────────────────────────
 
 class SearchResult:
     __slots__ = ("title", "url", "snippet")
@@ -44,9 +40,42 @@ class SearchResult:
         return {"title": self.title, "url": self.url, "snippet": self.snippet}
 
 
-# ── providers ──────────────────────────────────────────────────────────────
+# ── providers ─────────────────────────────────────────────────────────────────
 
-def _brave(query: str, limit: int) -> list[SearchResult]:
+def _tavily(query: str, limit: int) -> tuple[list[SearchResult], str]:
+    """Tavily Search — returns (results, direct_answer).
+
+    direct_answer is a pre-synthesized one-paragraph answer from Tavily;
+    it's non-empty when Tavily is confident enough to answer directly.
+    """
+    api_key = os.getenv("TAVILY_API_KEY", "")
+    if not api_key:
+        raise ValueError("TAVILY_API_KEY not set")
+    resp = requests.post(
+        "https://api.tavily.com/search",
+        json={
+            "api_key": api_key,
+            "query": query,
+            "max_results": min(limit, 10),
+            "search_depth": "basic",
+            "include_answer": True,
+        },
+        timeout=_TIMEOUT,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    direct_answer = data.get("answer") or ""
+    results = []
+    for item in data.get("results", [])[:limit]:
+        results.append(SearchResult(
+            title=item.get("title", ""),
+            url=item.get("url", ""),
+            snippet=item.get("content", ""),
+        ))
+    return results, direct_answer
+
+
+def _brave(query: str, limit: int) -> tuple[list[SearchResult], str]:
     api_key = os.getenv("BRAVE_API_KEY", "")
     if not api_key:
         raise ValueError("BRAVE_API_KEY not set")
@@ -65,10 +94,10 @@ def _brave(query: str, limit: int) -> list[SearchResult]:
             url=item.get("url", ""),
             snippet=item.get("description", ""),
         ))
-    return results
+    return results, ""
 
 
-def _serper(query: str, limit: int) -> list[SearchResult]:
+def _serper(query: str, limit: int) -> tuple[list[SearchResult], str]:
     api_key = os.getenv("SERPER_API_KEY", "")
     if not api_key:
         raise ValueError("SERPER_API_KEY not set")
@@ -87,11 +116,10 @@ def _serper(query: str, limit: int) -> list[SearchResult]:
             url=item.get("link", ""),
             snippet=item.get("snippet", ""),
         ))
-    return results
+    return results, ""
 
 
-def _duckduckgo(query: str, limit: int) -> list[SearchResult]:
-    """DuckDuckGo Instant Answer API — no key, limited but always available."""
+def _duckduckgo(query: str, limit: int) -> tuple[list[SearchResult], str]:
     resp = requests.get(
         "https://api.duckduckgo.com/",
         params={"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"},
@@ -101,7 +129,6 @@ def _duckduckgo(query: str, limit: int) -> list[SearchResult]:
     data = resp.json()
     results: list[SearchResult] = []
 
-    # Abstract (Wikipedia-style summary)
     if data.get("AbstractText"):
         results.append(SearchResult(
             title=data.get("Heading", query),
@@ -109,7 +136,6 @@ def _duckduckgo(query: str, limit: int) -> list[SearchResult]:
             snippet=data["AbstractText"],
         ))
 
-    # Related topics
     for topic in data.get("RelatedTopics", [])[:limit]:
         if isinstance(topic, dict) and topic.get("Text"):
             results.append(SearchResult(
@@ -120,23 +146,24 @@ def _duckduckgo(query: str, limit: int) -> list[SearchResult]:
         if len(results) >= limit:
             break
 
-    return results
+    return results, ""
 
 
 _PROVIDERS = [
-    ("brave", _brave),
-    ("serper", _serper),
+    ("tavily",     _tavily),
+    ("brave",      _brave),
+    ("serper",     _serper),
     ("duckduckgo", _duckduckgo),
 ]
 
 
-# ── public API ─────────────────────────────────────────────────────────────
+# ── public API ────────────────────────────────────────────────────────────────
 
 def search(query: str, limit: int = 5) -> list[dict]:
     """Try providers in order; return results from the first that succeeds."""
     for name, fn in _PROVIDERS:
         try:
-            results = fn(query, limit)
+            results, _ = fn(query, limit)
             if results:
                 logger.info("web_search: provider=%s query=%r results=%d", name, query, len(results))
                 return [r.to_dict() for r in results]
@@ -151,29 +178,46 @@ def search_and_summarize(
     llm: "Optional[LLMCore]" = None,
     limit: int = 5,
 ) -> str:
-    """Search the web and return a summarized answer.
+    """Search and return a summarized answer.
 
-    If an LLM is provided the snippets are synthesized into a concise reply.
-    Otherwise the top snippet is returned verbatim.
+    When Tavily is the active provider its pre-synthesized `answer` is used
+    directly, skipping the LLM summarization step entirely for faster responses.
+    For other providers the LLM synthesizes the snippets, or the top snippet
+    is returned verbatim if no LLM is available.
     """
-    results = search(query, limit=limit)
+    direct_answer = ""
+    results: list[dict] = []
+
+    for name, fn in _PROVIDERS:
+        try:
+            raw, direct_answer = fn(query, limit)
+            if raw:
+                results = [r.to_dict() for r in raw]
+                logger.info("web_search: provider=%s query=%r results=%d", name, query, len(results))
+                break
+        except Exception as exc:
+            logger.debug("web_search: provider=%s failed: %s", name, exc)
+
     if not results:
         return f"I couldn't find any web results for '{query}'."
 
+    # Tavily gives us a ready-made answer — use it directly
+    if direct_answer:
+        sources = "  \n".join(f"• [{r['title']}]({r['url']})" for r in results[:3])
+        return f"{direct_answer}\n\n{sources}"
+
     if llm is None or not llm.client:
-        # No LLM — return structured list of top results
         lines = [f"Here's what I found for '{query}':"]
         for i, r in enumerate(results, 1):
             lines.append(f"{i}. **{r['title']}** — {r['snippet']}")
         return "\n".join(lines)
 
-    # Build a summarization prompt from the snippets
     snippets = "\n\n".join(
         f"[{i+1}] {r['title']}\n{r['snippet']}\nSource: {r['url']}"
         for i, r in enumerate(results)
     )
     prompt = (
-        f"Based on the following web search results for the query '{query}', "
+        f"Based on the following web search results for '{query}', "
         f"provide a concise, accurate answer. Cite sources where relevant.\n\n"
         f"{snippets}"
     )
