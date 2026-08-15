@@ -77,6 +77,8 @@ class ReActAgent:
         actions: "ActionEngine",
         tools: "list[dict] | None" = None,
         max_steps: int = _MAX_STEPS,
+        tool_client=None,
+        tool_model: Optional[str] = None,
     ) -> None:
         self.llm = llm
         self.actions = actions
@@ -85,6 +87,11 @@ class ReActAgent:
             from jarvis.core.tool_definitions import TOOLS
             tools = TOOLS
         self.tools = tools
+        # Separate client/model used only for tool-calling steps.
+        # Allows routing agent tool calls through Gemini (reliable JSON args)
+        # while keeping Groq for regular chat.
+        self.tool_client = tool_client or llm.client
+        self.tool_model = tool_model or llm.model
 
     def run(self, goal: str, memory_context: Optional[str] = None) -> AgentResult:
         """Execute the agent loop for `goal` and return a structured result."""
@@ -97,8 +104,8 @@ class ReActAgent:
 
         for i in range(self.max_steps):
             try:
-                response = self.llm.client.chat.completions.create(
-                    model=self.llm.model,
+                response = self.tool_client.chat.completions.create(
+                    model=self.tool_model,
                     messages=messages,
                     tools=self.tools,
                     tool_choice="auto",
@@ -106,12 +113,27 @@ class ReActAgent:
                     max_tokens=self.llm.max_tokens,
                 )
             except Exception as exc:
-                logger.error("AgentLoop step %d failed: %s", i, exc)
-                return AgentResult(
-                    final_answer=f"I ran into an error on step {i + 1}: {exc}",
-                    steps=steps,
-                    stopped_early=True,
-                )
+                # Gemini free-tier rate limit: fall back to main LLM for this step
+                if "429" in str(exc) and self.tool_client is not self.llm.client and self.llm.client:
+                    logger.warning("Tool client rate-limited on step %d, retrying with main LLM", i + 1)
+                    try:
+                        response = self.llm.client.chat.completions.create(
+                            model=self.llm.model, messages=messages,
+                            tools=self.tools, tool_choice="auto",
+                            temperature=self.llm.temperature, max_tokens=self.llm.max_tokens,
+                        )
+                    except Exception as fallback_exc:
+                        return AgentResult(
+                            final_answer=f"I ran into an error on step {i + 1}: {fallback_exc}",
+                            steps=steps, stopped_early=True,
+                        )
+                else:
+                    logger.error("AgentLoop step %d failed: %s", i, exc)
+                    return AgentResult(
+                        final_answer=f"I ran into an error on step {i + 1}: {exc}",
+                        steps=steps,
+                        stopped_early=True,
+                    )
 
             choice = response.choices[0]
 
@@ -140,23 +162,18 @@ class ReActAgent:
                     tool_result=tool_result,
                 ))
 
-                # Append the assistant tool-call + tool result to the thread
+                # Use plain text messages for tool results rather than the
+                # tool_calls/role:"tool" protocol. Gemini's OAI-compat layer
+                # fails to match tool_call_ids on step 2+, causing 400 errors.
+                # Plain user messages are universally compatible.
+                _capped = tool_result[:4000] + ("…[truncated]" if len(tool_result) > 4000 else "")
                 messages.append({
                     "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": call_id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_name,
-                            "arguments": tc.function.arguments or "{}",
-                        },
-                    }],
+                    "content": f"I called {tool_name}({tc.function.arguments or '{}'}).",
                 })
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": call_id,
-                    "content": tool_result,
+                    "role": "user",
+                    "content": f"[{tool_name} result]:\n{_capped}\n\nContinue with the task or provide a final answer.",
                 })
                 continue
 
@@ -176,8 +193,8 @@ class ReActAgent:
             ),
         })
         try:
-            resp = self.llm.client.chat.completions.create(
-                model=self.llm.model,
+            resp = self.tool_client.chat.completions.create(
+                model=self.tool_model,
                 messages=messages,
                 temperature=self.llm.temperature,
                 max_tokens=self.llm.max_tokens,
