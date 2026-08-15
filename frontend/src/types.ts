@@ -43,7 +43,7 @@ export interface MemoryEntry {
   id: string;
   title: string;
   content: string;
-  category: "Personal" | "Project" | "Security" | "Stark Industries" | "System";
+  category: "Personal" | "Project" | "Security" | "Work" | "System";
   importance: "High" | "Medium" | "Low";
   tags: string[];
   createdAt: string;
@@ -140,7 +140,7 @@ export interface ScheduleJob {
   title: string;
   description: string;
   cronExpression: string;
-  targetModule: "Security" | "Intelligence" | "Arc Reactor" | "Communications" | "Backups" | "Diagnostics";
+  targetModule: "Security" | "Intelligence" | "Research" | "Communications" | "Backups" | "Diagnostics";
   enabled: boolean;
   lastRun?: string;
   nextRun: string;

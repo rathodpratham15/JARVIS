@@ -40,7 +40,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   const [newImportance, setNewImportance] = useState<MemoryEntry["importance"]>("Medium");
   const [newTagInput, setNewTagInput] = useState("");
 
-  const categories = ["All", "Project", "Personal", "Security", "Stark Industries", "System"];
+  const categories = ["All", "Project", "Personal", "Security", "Work", "System"];
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -130,7 +130,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="Search semantic memory index... (e.g. 'vibranium', 'Pepper birthday', 'arc reactor')"
+            placeholder="Search memory... (e.g. 'project ideas', 'meeting notes', 'research')"
             className="flex-1 bg-transparent border-none text-black placeholder-black/40 text-xs sm:text-sm font-mono font-bold focus:outline-none"
           />
           <button
@@ -277,7 +277,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                     <option value="Project">Project</option>
                     <option value="Personal">Personal</option>
                     <option value="Security">Security</option>
-                    <option value="Stark Industries">Stark Industries</option>
+                    <option value="Work">Work</option>
                     <option value="System">System</option>
                   </select>
                 </div>

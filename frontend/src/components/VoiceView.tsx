@@ -75,10 +75,10 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
   const simulateVoiceInput = () => {
     const sampleQueries = [
-      "Jarvis, status on arc reactor power levels.",
-      "Scan workshop bay 3 for threats.",
-      "Summarize priority directives for today.",
-      "Initiate StarkNet orbital satellite link.",
+      "What's the weather like today?",
+      "Summarize my notes from this week.",
+      "Search for the latest AI news and save a summary.",
+      "Set a reminder for my meeting at 3pm.",
     ];
     const query = sampleQueries[Math.floor(Math.random() * sampleQueries.length)];
 

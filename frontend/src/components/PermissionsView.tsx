@@ -198,7 +198,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                 </span>
               </div>
               <p className="font-mono text-[11px] text-[#555]">
-                All privileged capability executions are verified against Tony Stark's biometric signature and logged into immutable memory.
+                All capability changes are logged. Revoked permissions block the corresponding actions immediately.
               </p>
             </div>
 

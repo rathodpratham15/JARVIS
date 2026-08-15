@@ -44,7 +44,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
   const targetModules: ScheduleJob["targetModule"][] = [
     "Security",
-    "Arc Reactor",
+    "Research",
     "Intelligence",
     "Backups",
     "Diagnostics",
@@ -113,7 +113,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                   Configured Cron Jobs
                 </h2>
                 <p className="text-xs text-[#555] font-sans mt-0.5">
-                  Autonomous background routines scheduled across StarkNet
+                  Autonomous background routines running on a schedule
                 </p>
               </div>
             </div>

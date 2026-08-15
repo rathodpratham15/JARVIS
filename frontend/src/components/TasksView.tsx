@@ -33,10 +33,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
   const templates = [
-    "Run full orbital satellite defense telemetry sweep across all sectors",
-    "Synthesize global regulatory and SEC filings on Hammer Dynamics",
-    "Benchmark quantum compiler and simulate thermal flux under 1.4 GW load",
-    "Execute automated daily diagnostics on Malibu workshop robotic arm actuators",
+    "Search the web for today's top AI news and save a summary note",
+    "Research the latest developments in quantum computing and summarize findings",
+    "Find the top 5 trending GitHub repositories this week and save a note",
+    "Search for recent news about a company and write a brief report",
   ];
 
   const filteredTasks = tasks.filter((t) => {
@@ -293,7 +293,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               <textarea
                 value={newTaskInput}
                 onChange={(e) => setNewTaskInput(e.target.value)}
-                placeholder="Describe mission objective for J.A.R.V.I.S. (e.g. 'Audit orbital satellite telemetry & defense grid')..."
+                placeholder="Describe a goal for J.A.R.V.I.S. (e.g. 'Search for today's AI news and save a summary note')..."
                 rows={4}
                 className="editorial-input resize-none"
               />

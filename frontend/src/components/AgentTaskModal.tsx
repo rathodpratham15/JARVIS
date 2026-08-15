@@ -71,7 +71,7 @@ export const AgentTaskModal: React.FC<AgentTaskModalProps> = ({
               rows={3}
               value={taskDescription}
               onChange={(e) => setTaskDescription(e.target.value)}
-              placeholder="e.g. Scan repulsor thruster telemetry, verify thermal dissipation limits across Mark 85 armor, and generate executive report."
+              placeholder="e.g. Search for today's AI news, summarize the top 5 stories, and save a note."
               className="w-full p-3 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
             />
           </div>

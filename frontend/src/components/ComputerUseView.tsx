@@ -35,23 +35,23 @@ export const ComputerUseView: React.FC = () => {
       timestamp: "03:40:12",
       actionType: "click",
       coordinates: { x: 540, y: 280 },
-      details: "Dispatched left mouse click on [StarkNet Terminal Search Input]",
+      details: "Dispatched left mouse click on [Terminal Search Input]",
       status: "success",
     },
     {
       id: "act-3",
       timestamp: "03:40:15",
       actionType: "type",
-      inputPayload: "grep -i 'repulsor' /telemetry/grid.log",
+      inputPayload: "grep -i 'error' /var/log/system.log",
       details: "Synthesized 38 keystrokes into active terminal buffer",
       status: "success",
     },
   ]);
 
   const presetInstructions = [
-    "Open StarkNet Terminal, query arc reactor harmonics, and export CSV",
-    "Navigate to Satellite Defense radar portal and take a full-screen capture",
-    "Inspect Hammer Dynamics patent applications on US Defense registry",
+    "Open terminal, run system diagnostics, and export results",
+    "Navigate to a website and take a full-screen capture",
+    "Open a browser and search for recent AI news",
   ];
 
   const handleExecuteLoop = async (customPrompt?: string) => {

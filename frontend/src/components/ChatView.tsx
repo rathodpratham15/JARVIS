@@ -53,9 +53,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const suggestedPrompts = [
     "Summarize today's priority directives, alarms, and schedule.",
-    "Run diagnostic sweep on Mark 85 armor repulsor thrusters.",
-    "Verify clean energy output metrics from the Stark Tower arc reactor.",
-    "Prepare competitive intelligence dossier on Hammer Dynamics.",
+    "What's the latest news in AI today?",
+    "Summarize my recent notes and reminders.",
+    "Search the web for top productivity tools in 2026.",
   ];
 
   useEffect(() => {

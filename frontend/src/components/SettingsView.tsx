@@ -49,12 +49,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     playUiSound("beep");
     const data = {
       timestamp: new Date().toISOString(),
-      system: "J.A.R.V.I.S. Operations Core v4.2",
+      system: "J.A.R.V.I.S. Operations Core",
       model: selectedModel,
       voice: selectedVoice,
       personality: personalityMode,
       theme: accentColor,
-      status: "OPERATIONAL 99.8%",
+      status: "OPERATIONAL",
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);

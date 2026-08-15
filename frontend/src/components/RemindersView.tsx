@@ -85,7 +85,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           <button
             onClick={() => {
               playUiSound("beep");
-              speakJarvisText("Testing Stark Industries audio notification subroutine. All audio channels clear.");
+              speakJarvisText("Audio notification test. All audio channels clear.");
             }}
             className="editorial-btn-outline"
           >
