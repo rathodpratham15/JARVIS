@@ -194,7 +194,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       {/* Message Meta Header */}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-mono text-[10px] uppercase font-bold text-[#555]">
-                          {isUser ? "OPERATOR (A. STARK)" : "J.A.R.V.I.S."}
+                          {isUser ? "YOU" : "J.A.R.V.I.S."}
                         </span>
                         <span className="text-[#555] text-[10px]">•</span>
                         <span className="font-mono text-[10px] text-[#555]">

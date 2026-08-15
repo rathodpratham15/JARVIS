@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   PageId,
   PersonalityMode,
@@ -96,8 +97,40 @@ function mapBackendTask(t: any): AgentTask {
 
 // ── component ──────────────────────────────────────────────────────────────
 
+// Map URL path ↔ PageId
+const PATH_TO_PAGE: Record<string, PageId> = {
+  "/": "dashboard", "/dashboard": "dashboard", "/chat": "chat",
+  "/voice": "voice", "/vision": "vision", "/tasks": "tasks",
+  "/schedules": "schedules", "/permissions": "permissions",
+  "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
+  "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
+};
+const PAGE_TO_PATH: Record<PageId, string> = {
+  dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
+  tasks: "/tasks", schedules: "/schedules", permissions: "/permissions",
+  computer: "/computer", notes: "/notes", reminders: "/reminders",
+  settings: "/settings", memory: "/memory", plugins: "/plugins",
+};
+
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageId>("dashboard");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [currentPage, setCurrentPageState] = useState<PageId>(
+    PATH_TO_PAGE[location.pathname] ?? "dashboard"
+  );
+
+  // Sync URL → state when user navigates with browser back/forward
+  useEffect(() => {
+    const page = PATH_TO_PAGE[location.pathname] ?? "dashboard";
+    setCurrentPageState(page);
+  }, [location.pathname]);
+
+  // Sync state → URL when app navigates internally
+  const setCurrentPage = useCallback((page: PageId) => {
+    setCurrentPageState(page);
+    navigate(PAGE_TO_PATH[page] ?? "/dashboard");
+  }, [navigate]);
   const [personalityMode, setPersonalityMode] = useState<PersonalityMode>("Stark Protocol");
   const [accentColor, setAccentColor] = useState<ThemeAccent>("brutalist");
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
@@ -139,17 +172,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/history?limit=50")
+    // Backend returns {interactions: [{id, user_input, response, timestamp, ...}]}
+    // Each interaction expands into 2 chat messages: user + jarvis
+    fetch("/api/history?limit=30")
       .then(r => r.json())
       .then(d => {
-        if (Array.isArray(d)) {
-          setChatMessages(d.map((m: any) => ({
-            id: m.id ?? String(m.created_at ?? Date.now()),
-            sender: m.role === "user" ? "user" : "jarvis",
-            text: m.content ?? m.text ?? "",
-            timestamp: new Date(m.created_at ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          })));
-        }
+        const interactions: any[] = d.interactions ?? [];
+        const msgs: ChatMessage[] = [];
+        interactions.forEach((m: any) => {
+          const ts = m.timestamp
+            ? new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "";
+          if (m.user_input) {
+            msgs.push({ id: `${m.id}-u`, sender: "user", text: m.user_input, timestamp: ts });
+          }
+          if (m.response) {
+            msgs.push({ id: `${m.id}-j`, sender: "jarvis", text: m.response, timestamp: ts });
+          }
+        });
+        setChatMessages(msgs);
       })
       .catch(() => {});
   }, []);
