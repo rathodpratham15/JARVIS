@@ -187,6 +187,7 @@ class ActionEngine:
             "research_person": self._research_person,
             "research_company": self._research_company,
             "os_control": self._os_control,
+            "control_app": self._control_app,
             "conversation": self._conversation,
         }
 
@@ -431,6 +432,11 @@ class ActionEngine:
                     parts.append(f"**{section}**: {content}")
             return "\n".join(parts).strip()
         return profile.summary
+
+    @staticmethod
+    def _control_app(intent: dict) -> str:
+        from jarvis.services.applescript import handle_control_app
+        return handle_control_app(intent)
 
     @staticmethod
     def _os_control(intent: dict) -> str:
