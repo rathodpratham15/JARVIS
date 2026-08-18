@@ -580,7 +580,7 @@ export default function App() {
           onToggleSpeech={() => setSpeechEnabled(v => !v)}
           accentColor={accentColor}
           onChangeAccentColor={setAccentColor}
-          onToggleMobileSidebar={() => setMobileSidebarOpen(true)}
+          onToggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)}
         />
 
         <StatusBar
