@@ -120,7 +120,7 @@ def create_app() -> Flask:
     # Agent tool calls go through Gemini when available — it produces reliable
     # JSON function arguments unlike Groq (which emits bare <function=name> for
     # long-text tools). Regular chat still uses the configured Groq/OpenAI LLM.
-    _agent_tool_model = os.getenv("JARVIS_AGENT_MODEL", "models/gemini-3.5-flash")
+    _agent_tool_model = os.getenv("JARVIS_AGENT_MODEL", "models/gemini-3.6-flash")
     agent = ReActAgent(
         llm=llm,
         actions=actions,
@@ -131,7 +131,7 @@ def create_app() -> Flask:
 
     from jarvis.core.computer_use import ComputerUseManager
     _vision_client = _gemini_client or llm.client
-    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.5-flash" if _gemini_client else "llama-3.2-11b-vision-preview")
+    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_client else "llama-3.2-11b-vision-preview")
     cu_mgr = ComputerUseManager(llm_client=_vision_client, vision_model=vision_model)
 
     from jarvis.core.scheduler import Scheduler

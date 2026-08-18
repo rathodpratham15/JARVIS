@@ -295,8 +295,9 @@ class TaskManager:
                     max_tokens=agent.llm.max_tokens,
                 ) if agent.tool_client else None
             except Exception as exc:
-                # Gemini free-tier rate limit: fall back to main LLM for this step
-                if "429" in str(exc) and agent.tool_client is not agent.llm.client and agent.llm.client:
+                # Gemini rate-limit (429) or model-not-found (404): fall back to main LLM
+                _exc_s = str(exc)
+                if ("429" in _exc_s or "404" in _exc_s) and agent.tool_client is not agent.llm.client and agent.llm.client:
                     logger.warning("Step %d: tool client rate-limited, falling back to Groq", i + 1)
                     try:
                         response = agent.llm.client.chat.completions.create(
