@@ -34,7 +34,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
         name="groq",
         api_key_env=("GROQ_API_KEY",),
         base_url="https://api.groq.com/openai/v1",
-        default_chat_model="llama-3.3-70b-versatile",
+        default_chat_model="openai/gpt-oss-120b",
         default_stt_model="whisper-large-v3",
     ),
     "gemini": ProviderConfig(
