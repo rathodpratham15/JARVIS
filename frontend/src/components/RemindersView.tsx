@@ -223,7 +223,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="E.G. MARK 85 ARMOR FLIGHT TRIAL RUN..."
+                  placeholder="E.G. TEAM STANDUP, TAKE MEDICATION, REVIEW REPORT..."
                   className="editorial-input"
                   required
                 />

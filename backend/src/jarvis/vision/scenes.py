@@ -93,7 +93,7 @@ class SceneAnalyzer:
             logger.warning("No API key found for vision provider %r", self.provider)
             return None
 
-        kwargs: dict = {"api_key": api_key}
+        kwargs: dict = {"api_key": api_key, "max_retries": 1, "timeout": 30.0}
         if self.provider in _BASE_URLS:
             kwargs["base_url"] = _BASE_URLS[self.provider]
         return OpenAI(**kwargs)
