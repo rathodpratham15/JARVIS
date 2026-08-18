@@ -243,7 +243,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               {/* Quick Offset Buttons */}
               <div className="space-y-1.5">
                 <label className="label-secondary">QUICK PRESETS</label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {quickPresets.map((qp) => (
                     <button
                       key={qp.label}

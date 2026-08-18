@@ -138,7 +138,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </div>
 
               {/* Status Filter Tabs */}
-              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5">
+              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
                 {(["all", "running", "completed", "idle"] as const).map((f) => (
                   <button
                     key={f}
