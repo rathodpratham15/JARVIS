@@ -162,6 +162,22 @@ def create_app() -> Flask:
         data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
         tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
     ) if _face_available else None
+
+    # Fallback: if dlib/face_recognition is unavailable, use Gemini Vision.
+    # This activates on Railway (where dlib can't compile) as long as
+    # GEMINI_API_KEY is set.
+    _dlib_missing = face_engine is None or getattr(face_engine, "_face_recognition", None) is None
+    if _dlib_missing and (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+        try:
+            from jarvis.vision.gemini_face import GeminiFaceEngine
+            face_engine = GeminiFaceEngine(
+                data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
+                tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
+            )
+            logger.info("GeminiFaceEngine active as face recognition backend")
+        except Exception:
+            logger.exception("GeminiFaceEngine init failed — face recognition unavailable")
+
     scene_analyzer = SceneAnalyzer() if _scene_available else None
     scene_history = SceneHistoryStore(
         db_path=os.getenv("JARVIS_VISION_HISTORY_DB", "data/vision_history.db"),
@@ -918,7 +934,7 @@ def create_app() -> Flask:
             "interactions": memory.count(),
             "notes": notes.count(),
             "plugins": len(plugins.list()),
-            "people": face_engine.get_statistics()["total_people"],
+            "people": face_engine.get_statistics()["total_people"] if face_engine else 0,
         }, 200
 
     @app.route("/api/dashboard/notes", methods=["GET", "POST", "DELETE"])
