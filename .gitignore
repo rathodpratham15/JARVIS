@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Generated/source UI folder (migrated into frontend/)
+j.a.r.v.i.s-*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Data (local SQLite DBs)
+data/*.db
+data/settings.json
+data/captures/
+
+# Logs
+logs/
+*.log

@@ -1,9 +1,8 @@
-"""Scene analysis via Gemini Vision or GPT-4 Vision.
+"""Scene analysis via any OpenAI-compatible vision API.
 
-Replaces the legacy `visual_recognition.py` (941 lines) with ~150 lines.
-Drops the OpenCV Haar-cascade face detector duplication, the dominant-color
-fallback, and the unused `capture_image_from_camera` helper (the camera
-route in `web_server.py` does its own cv2 capture and never called this).
+Supports Groq (llama-4-scout), Gemini (OAI-compat endpoint), and OpenAI.
+Provider is auto-detected from env vars, or forced via JARVIS_VISION_PROVIDER.
+Model is overridable via JARVIS_VISION_MODEL.
 """
 
 from __future__ import annotations
@@ -25,6 +24,17 @@ DEFAULT_PROMPT = (
     "\"colors\": [str], \"mood\": str}."
 )
 
+_DEFAULT_MODELS = {
+    "gemini": "gemini-3.6-flash",
+    "groq": "llama-4-scout-17b-16e-instruct",
+    "openai": "gpt-4o-mini",
+}
+
+_BASE_URLS = {
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "groq": "https://api.groq.com/openai/v1",
+}
+
 
 @dataclass
 class SceneDescription:
@@ -39,41 +49,57 @@ class SceneDescription:
 
 
 class SceneAnalyzer:
-    """Calls a vision LLM to describe an image. Lazily initializes a client.
+    """Calls a vision LLM to describe an image via an OAI-compatible API.
 
-    Provider precedence: explicit `provider` kwarg → `GEMINI_API_KEY` →
-    `OPENAI_API_KEY` → fallback (returns a stub description).
+    Provider auto-detection order: JARVIS_VISION_PROVIDER env var →
+    GEMINI_API_KEY → GROQ_API_KEY → OPENAI_API_KEY → disabled.
     """
 
     def __init__(self, provider: Optional[str] = None) -> None:
-        self.provider = provider or self._auto_provider()
+        self.provider = (
+            provider
+            or os.getenv("JARVIS_VISION_PROVIDER")
+            or self._auto_provider()
+        )
         self._client = self._make_client()
 
     @staticmethod
     def _auto_provider() -> Optional[str]:
         if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
             return "gemini"
+        if os.getenv("GROQ_API_KEY"):
+            return "groq"
         if os.getenv("OPENAI_API_KEY"):
             return "openai"
         return None
 
     def _make_client(self):
+        if not self.provider:
+            return None
+        try:
+            from openai import OpenAI  # type: ignore
+        except ImportError:
+            logger.warning("openai package not installed; scene analysis disabled")
+            return None
+
         if self.provider == "gemini":
-            try:
-                import google.generativeai as genai  # type: ignore
-            except ImportError:
-                logger.warning("google-generativeai not installed; scene analysis disabled")
-                return None
             api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            genai.configure(api_key=api_key)
-            return genai.GenerativeModel("gemini-1.5-flash")
-        if self.provider == "openai":
-            try:
-                from openai import OpenAI  # type: ignore
-            except ImportError:
-                return None
-            return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        return None
+        elif self.provider == "groq":
+            api_key = os.getenv("GROQ_API_KEY")
+        else:
+            api_key = os.getenv("OPENAI_API_KEY")
+
+        if not api_key:
+            logger.warning("No API key found for vision provider %r", self.provider)
+            return None
+
+        kwargs: dict = {"api_key": api_key, "max_retries": 1, "timeout": 30.0}
+        if self.provider in _BASE_URLS:
+            kwargs["base_url"] = _BASE_URLS[self.provider]
+        return OpenAI(**kwargs)
+
+    def _effective_model(self) -> str:
+        return os.getenv("JARVIS_VISION_MODEL") or _DEFAULT_MODELS.get(self.provider or "", "gemini-2.0-flash")
 
     def describe_scene(self, image_path: str) -> SceneDescription:
         start = time.monotonic()
@@ -81,21 +107,19 @@ class SceneAnalyzer:
             return SceneDescription(description="Image file not found", processing_time=0.0)
         if self._client is None:
             return SceneDescription(
-                description="Scene analysis is not configured (set GEMINI_API_KEY or OPENAI_API_KEY).",
+                description="Scene analysis not configured (set GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY).",
                 model_used="none",
                 processing_time=time.monotonic() - start,
             )
 
+        model = self._effective_model()
         try:
-            if self.provider == "gemini":
-                payload = self._gemini_describe(image_path)
-            else:
-                payload = self._openai_describe(image_path)
+            payload = self._oai_describe(image_path, model)
         except Exception as exc:
             logger.exception("Scene analysis failed")
             return SceneDescription(
                 description=f"Scene analysis failed: {exc}",
-                model_used=self.provider or "none",
+                model_used=model,
                 processing_time=time.monotonic() - start,
             )
 
@@ -107,40 +131,29 @@ class SceneAnalyzer:
             colors=list(payload.get("colors", [])),
             mood=payload.get("mood", "neutral"),
             processing_time=time.monotonic() - start,
-            model_used="gemini-1.5-flash" if self.provider == "gemini" else "gpt-4o-mini",
+            model_used=model,
         )
 
-    def _gemini_describe(self, image_path: str) -> dict:
-        with open(image_path, "rb") as fh:
-            image_bytes = fh.read()
-        response = self._client.generate_content(
-            [DEFAULT_PROMPT, {"mime_type": "image/jpeg", "data": image_bytes}]
-        )
-        text = (response.text or "").strip()
-        return _coerce_json(text)
-
-    def _openai_describe(self, image_path: str) -> dict:
+    def _oai_describe(self, image_path: str, model: str) -> dict:
         with open(image_path, "rb") as fh:
             b64 = base64.b64encode(fh.read()).decode()
         response = self._client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": DEFAULT_PROMPT},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                    ],
-                }
-            ],
-            max_tokens=600,
+            model=model,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": DEFAULT_PROMPT},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                ],
+            }],
+            max_tokens=1024,
         )
-        text = response.choices[0].message.content or ""
-        return _coerce_json(text)
+        return _coerce_json(response.choices[0].message.content or "")
 
 
 def _coerce_json(text: str) -> dict:
-    """Vision models often wrap JSON in markdown fences. Be tolerant."""
+    """Vision models often wrap JSON in markdown fences or truncate mid-token."""
+    import re
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -149,4 +162,8 @@ def _coerce_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # Truncated response: try to extract the description field with regex
+        m = re.search(r'"description"\s*:\s*"((?:[^"\\]|\\.)*)', text)
+        if m:
+            return {"description": m.group(1).rstrip("\\"), "confidence": 0.5}
         return {"description": text, "confidence": 0.5}

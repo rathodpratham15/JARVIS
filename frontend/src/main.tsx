@@ -1,14 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
-import { setupNativeApi } from './lib/setupNativeApi'
-
-// Native APK calls hit the deployed Render backend directly
-setupNativeApi('https://jarvis-backend-production-e737.up.railway.app')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 )
