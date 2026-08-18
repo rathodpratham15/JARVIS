@@ -117,10 +117,12 @@ def create_app() -> Flask:
         permissions=permissions,
     )
     from jarvis.core.gemini_pool import GeminiKeyPool
+    from jarvis.core.vision_provider import VisionProviderChain
     _gemini_pool = GeminiKeyPool.from_env()
+    _vision_chain = VisionProviderChain.from_env(gemini_pool=_gemini_pool)
 
     # Agent tool calls use the main LLM (Groq/openai-gpt-oss-120b) which supports
-    # proper JSON function calling. Gemini pool is reserved for vision-only tasks.
+    # proper JSON function calling. Vision chain is reserved for image tasks only.
     agent = ReActAgent(
         llm=llm,
         actions=actions,
@@ -130,9 +132,9 @@ def create_app() -> Flask:
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
     from jarvis.core.computer_use import ComputerUseManager
-    _vision_client = _gemini_pool or llm.client
+    _cu_client = _gemini_pool or llm.client
     vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_pool else "openai/gpt-oss-120b")
-    cu_mgr = ComputerUseManager(llm_client=_vision_client, vision_model=vision_model)
+    cu_mgr = ComputerUseManager(llm_client=_cu_client, vision_model=vision_model)
 
     from jarvis.core.scheduler import Scheduler
     sched = Scheduler(
@@ -158,19 +160,19 @@ def create_app() -> Flask:
     # This activates on Railway (where dlib can't compile) as long as
     # GEMINI_API_KEY is set.
     _dlib_missing = face_engine is None or getattr(face_engine, "_face_recognition", None) is None
-    if _dlib_missing and _gemini_pool:
+    if _dlib_missing and _vision_chain:
         try:
             from jarvis.vision.gemini_face import GeminiFaceEngine
             face_engine = GeminiFaceEngine(
                 data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
                 tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
-                gemini_pool=_gemini_pool,
+                vision_chain=_vision_chain,
             )
-            logger.info("GeminiFaceEngine active as face recognition backend")
+            logger.info("GeminiFaceEngine active with provider chain: %s", " → ".join(_vision_chain.providers))
         except Exception:
             logger.exception("GeminiFaceEngine init failed — face recognition unavailable")
 
-    scene_analyzer = SceneAnalyzer(gemini_pool=_gemini_pool) if _scene_available and _gemini_pool else (SceneAnalyzer() if _scene_available else None)
+    scene_analyzer = SceneAnalyzer(vision_chain=_vision_chain) if _scene_available and _vision_chain else (SceneAnalyzer() if _scene_available else None)
     scene_history = SceneHistoryStore(
         db_path=os.getenv("JARVIS_VISION_HISTORY_DB", "data/vision_history.db"),
     ) if _scene_available else None
