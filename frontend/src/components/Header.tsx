@@ -7,6 +7,7 @@ import {
   Sparkles,
   ChevronDown,
   Cpu,
+  Menu,
 } from "lucide-react";
 import { PageId, PersonalityMode, ServiceHealth, ThemeAccent } from "../types";
 import { stopJarvisSpeech } from "../utils/audio";
@@ -23,6 +24,7 @@ interface HeaderProps {
   onToggleSpeech: () => void;
   accentColor: ThemeAccent;
   onChangeAccentColor: (color: ThemeAccent) => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAgentTask,
   speechEnabled,
   onToggleSpeech,
+  onToggleMobileSidebar,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>("");
   const [personalityDropdownOpen, setPersonalityDropdownOpen] = useState(false);
@@ -67,7 +70,16 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Top Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
         {/* Left: Brand Identity */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Mobile sidebar trigger */}
+          <button
+            onClick={onToggleMobileSidebar}
+            className="lg:hidden h-8 w-8 flex items-center justify-center border border-[#1a1a1a] bg-[#EBEBEA] hover:bg-black/10 transition shrink-0"
+            title="Open menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => onSelectPage("dashboard")}
             className="flex items-center gap-2.5 text-left group"

@@ -137,6 +137,19 @@ export default function App() {
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
   const [wakeWord] = useState<string>("Hey Jarvis");
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
+    () => localStorage.getItem("jarvis-sidebar-collapsed") === "true"
+  );
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const handleToggleSidebarCollapse = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("jarvis-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
   const [services, setServices] = useState<ServiceHealth[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
@@ -539,7 +552,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-col lg:flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
+    <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
       <Sidebar
         currentPage={currentPage}
         onSelectPage={setCurrentPage}
@@ -548,9 +561,13 @@ export default function App() {
         activeSchedulesCount={schedules.filter(s => s.enabled).length}
         permissionsCount={permissions.length}
         dueRemindersCount={reminders.filter(r => !r.isDismissed).length}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebarCollapse}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 pb-12 lg:pb-0">
+      <div className="flex-1 flex flex-col min-w-0">
         <Header
           currentPage={currentPage}
           onSelectPage={setCurrentPage}
@@ -563,6 +580,7 @@ export default function App() {
           onToggleSpeech={() => setSpeechEnabled(v => !v)}
           accentColor={accentColor}
           onChangeAccentColor={setAccentColor}
+          onToggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)}
         />
 
         <StatusBar
