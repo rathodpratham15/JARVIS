@@ -145,7 +145,7 @@ export default function App() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [plugins] = useState<PluginItem[]>([]);
-  const [faces] = useState<DetectedFace[]>([]);
+  const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [snapshots] = useState<VisionSnapshot[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [activeAgentTask, setActiveAgentTask] = useState<AgentTask | undefined>();
@@ -672,11 +672,55 @@ export default function App() {
             <VisionView
               faces={faces}
               snapshots={snapshots}
-              onAnalyzeOpticalFeed={async () => ({
-                sceneDescription: "Optical frame analyzed.",
-                threatLevel: "Nominal (0%)",
-                environmentDetails: "Local environment.",
-              })}
+              onAnalyzeOpticalFeed={async (imageBase64?: string) => {
+                if (!imageBase64) return { sceneDescription: "No image captured.", threatLevel: "Unknown", environmentDetails: "" };
+
+                // Convert base64 data URL to a Blob for multipart upload
+                const [, b64] = imageBase64.split(",");
+                const bytes = atob(b64);
+                const arr = new Uint8Array(bytes.length);
+                for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+                const blob = new Blob([arr], { type: "image/jpeg" });
+
+                // Run scene analysis + face recognition in parallel
+                const sceneForm = new FormData();
+                sceneForm.append("image", blob, "frame.jpg");
+                const faceForm = new FormData();
+                faceForm.append("image", blob, "frame.jpg");
+
+                const [sceneRes, faceRes] = await Promise.allSettled([
+                  fetch("/api/vision/analyze", { method: "POST", body: sceneForm }).then(r => r.json()),
+                  fetch("/api/face/identify", { method: "POST", body: faceForm }).then(r => r.json()),
+                ]);
+
+                const scene = sceneRes.status === "fulfilled" ? sceneRes.value : {};
+                const face = faceRes.status === "fulfilled" ? faceRes.value : {};
+
+                // Update faces state if a person was matched
+                if (face.matched && face.person) {
+                  const p = face.person;
+                  setFaces([{
+                    id: p.id ?? "match-1",
+                    name: p.name ?? "Unknown",
+                    role: p.role ?? p.title ?? "",
+                    clearanceLevel: 1,
+                    status: "Authorized",
+                    confidence: Math.round((face.confidence ?? 0) * 100),
+                    lastSeen: new Date().toLocaleTimeString(),
+                    avatarUrl: p.image_path ?? undefined,
+                  }]);
+                } else {
+                  setFaces([]);
+                }
+
+                return {
+                  sceneDescription: scene.results?.description ?? scene.results?.scene_description ?? "Scene analyzed.",
+                  threatLevel: "Nominal (0%)",
+                  environmentDetails: scene.results?.scene_type ?? "",
+                  imageUrl: scene.image_url,
+                  faceMatch: face.matched ? face.person?.name : null,
+                };
+              }}
               accentColor={accentColor}
             />
           )}

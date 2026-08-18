@@ -225,10 +225,17 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 <UserCheck className="w-4 h-4 text-black" />
                 <span>BIOMETRIC MATCHES</span>
               </h3>
-              <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">4 PROFILES</span>
+              <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">
+                {faces.length > 0 ? `${faces.length} PROFILES` : "NO MATCHES"}
+              </span>
             </div>
 
             <div className="space-y-3">
+              {faces.length === 0 && (
+                <div className="py-6 text-center text-[11px] font-mono text-[#555]">
+                  Capture a scan to identify faces.
+                </div>
+              )}
               {faces.map((face) => (
                 <div
                   key={face.id}
