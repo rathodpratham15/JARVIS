@@ -98,6 +98,11 @@ def create_app() -> Flask:
 
     parser = IntentParser()
     llm = LLMCore()
+    # Override model from persisted user settings (takes precedence over env default,
+    # but not over JARVIS_LLM_MODEL env var which LLMCore already applied).
+    _saved_model = settings.get("llm_model", "")
+    if _saved_model and not os.getenv("JARVIS_LLM_MODEL"):
+        llm.model = _saved_model
     permissions = PermissionsManager(settings_path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
 
     actions = ActionEngine(
@@ -938,6 +943,21 @@ def create_app() -> Flask:
         if not isinstance(payload, dict):
             return {"error": "settings payload must be an object"}, 400
         return {"settings": settings.update(**payload)}, 200
+
+    @app.route("/api/settings", methods=["GET", "POST"])
+    def api_settings() -> tuple[dict, int]:
+        if request.method == "GET":
+            data = settings.get_all()
+            data.setdefault("llm_model", llm.model)
+            data["llm_provider"] = llm.provider.name
+            return {"settings": data}, 200
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            return {"error": "settings payload must be an object"}, 400
+        saved = settings.update(**payload)
+        if "llm_model" in payload and payload["llm_model"]:
+            llm.model = payload["llm_model"]
+        return {"settings": saved}, 200
 
     @app.post("/api/dashboard/quick-commands")
     def dashboard_quick_commands() -> tuple[dict, int]:

@@ -14,6 +14,7 @@ _DEFAULTS: dict[str, Any] = {
     "default_language": "en",
     "ha_url": "",
     "ha_token": "",
+    "llm_model": "",
 }
 
 
