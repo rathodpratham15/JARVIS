@@ -104,22 +104,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </aside>
 
-      {/* Mobile Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#F2F2EF] border-t border-[#1a1a1a] px-2 py-1.5 flex items-center justify-around overflow-x-auto">
+      {/* Mobile / Tablet Bottom Tab Bar (visible below lg) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#F2F2EF] border-t border-[#1a1a1a] flex items-stretch overflow-x-auto">
         {navItems.map((item) => {
           const isActive = currentPage === item.id;
           return (
             <button
               key={item.id}
               onClick={() => onSelectPage(item.id)}
-              className={`flex flex-col items-center justify-center p-1.5 text-[10px] font-mono transition min-w-[54px] ${
+              title={item.label}
+              className={`relative flex flex-col items-center justify-center px-3 py-2 font-mono transition flex-1 min-w-[44px] ${
                 isActive
-                  ? "text-black font-bold bg-[#00E5FF] border border-[#1a1a1a]"
-                  : "text-[#555] hover:text-[#1a1a1a]"
+                  ? "text-black bg-[#00E5FF] border-r border-[#1a1a1a]"
+                  : "text-[#555] hover:text-[#1a1a1a] hover:bg-black/5 border-r border-[#1a1a1a]/20"
               }`}
             >
-              <span>{item.icon}</span>
-              <span className="truncate max-w-[48px] mt-0.5">{item.label}</span>
+              <span className="w-5 h-5 flex items-center justify-center">{item.icon}</span>
+              {item.badge && (
+                <span className="absolute top-1 right-1 text-[8px] font-mono font-black bg-black text-[#00E5FF] px-0.5 leading-none">
+                  {item.badge.split(" ")[0]}
+                </span>
+              )}
             </button>
           );
         })}

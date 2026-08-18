@@ -162,8 +162,8 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                     {perm.description}
                   </p>
 
-                  <div className="pt-2.5 border-t border-[#1a1a1a]/20 flex items-center justify-between font-mono text-[10px] text-[#555]">
-                    <span>LAST AUDITED: {perm.lastAudited}</span>
+                  <div className="pt-2.5 border-t border-[#1a1a1a]/20 flex flex-wrap items-center justify-between gap-1 font-mono text-[10px] text-[#555]">
+                    <span className="truncate">LAST AUDITED: {new Date(perm.lastAudited).toLocaleDateString()}</span>
                     <span>24H CALLS: <strong>{perm.callsCount24h}</strong></span>
                   </div>
                 </div>

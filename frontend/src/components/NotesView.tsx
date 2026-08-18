@@ -110,7 +110,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5">
+              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
                 {(["All", "Critical", "High", "Completed"] as const).map((tab) => (
                   <button
                     key={tab}

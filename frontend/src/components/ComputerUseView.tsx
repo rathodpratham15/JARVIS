@@ -183,7 +183,7 @@ export const ComputerUseView: React.FC = () => {
               </div>
 
               {/* Simulated Desktop Content */}
-              <div className="bg-[#0f172a] text-cyan-400 p-4 font-mono text-xs min-h-[320px] relative overflow-hidden flex flex-col justify-between">
+              <div className="bg-[#0f172a] text-cyan-400 p-4 font-mono text-xs min-h-[280px] sm:min-h-[320px] relative overflow-x-auto flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="text-slate-400 text-[11px]">
                     $ stark-agent --session-id=opt-892 --sandbox=secure

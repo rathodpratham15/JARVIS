@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Settings,
   Cpu,
@@ -35,11 +35,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   wakeWord,
   onChangeWakeWord,
 }) => {
-  const [selectedModel, setSelectedModel] = useState("gemini-2.0-flash");
+  const [selectedModel, setSelectedModel] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("Kore (British Male - J.A.R.V.I.S.)");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [providerName, setProviderName] = useState("—");
 
-  const handleSave = () => {
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        const s = data.settings ?? {};
+        if (s.llm_model) setSelectedModel(s.llm_model);
+        if (s.llm_provider) setProviderName(s.llm_provider.toUpperCase());
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llm_model: selectedModel }),
+      });
+    } catch (_) {}
     playUiSound("success");
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
@@ -123,7 +142,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="space-y-1.5">
                 <label className="label-secondary">AI INFERENCE PROVIDER</label>
                 <div className="p-3 bg-[#EBEBEA] border border-[#1a1a1a] flex items-center justify-between font-mono text-xs">
-                  <span className="font-bold text-[#1a1a1a]">Google Gemini API (Server-Side Proxy)</span>
+                  <span className="font-bold text-[#1a1a1a]">{providerName} (Server-Side Proxy)</span>
                   <span className="px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a] text-[10px]">
                     CONNECTED
                   </span>
@@ -138,9 +157,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onChange={(e) => setSelectedModel(e.target.value)}
                   className="editorial-input"
                 >
-                  <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended Default)</option>
-                  <option value="gemini-2.5-pro">gemini-2.5-pro (Advanced Reasoning)</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced Speed)</option>
+                  <optgroup label="Groq (Fast)">
+                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended)</option>
+                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Ultra Fast)</option>
+                    <option value="llama-4-scout-17b-16e-instruct">llama-4-scout-17b-16e-instruct</option>
+                  </optgroup>
+                  <optgroup label="Gemini">
+                    <option value="models/gemini-3.6-flash">gemini-3.6-flash (Recommended)</option>
+                    <option value="models/gemini-2.5-pro">gemini-2.5-pro (Advanced Reasoning)</option>
+                    <option value="models/gemini-2.5-flash">gemini-2.5-flash (Balanced Speed)</option>
+                  </optgroup>
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4o-mini">gpt-4o-mini (Efficient)</option>
+                  </optgroup>
                 </select>
               </div>
 

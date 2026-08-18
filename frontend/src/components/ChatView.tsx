@@ -147,7 +147,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Primary Column: Chat Stream Panel (8 cols) */}
         <div className="lg:col-span-8 flex flex-col space-y-6">
-          <div className="editorial-panel flex flex-col min-h-[560px] h-[640px]">
+          <div className="editorial-panel flex flex-col h-[50vh] min-h-[340px] sm:h-[640px]">
             {/* Panel Overline & Title */}
             <div className="flex items-center justify-between">
               <div>
