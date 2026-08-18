@@ -645,6 +645,54 @@ def create_app() -> Flask:
     # Frontend dashboard expects this name; we keep the route as an alias.
     app.add_url_rule("/api/camera/recognize", view_func=identify_face, methods=["POST"])
 
+    @app.post("/api/face/add-person")
+    def face_add_person() -> tuple[dict, int]:
+        """Upload one or more face images for a named person.
+
+        Form fields:
+          name  — person's display name (required)
+          image — one or more image files (required)
+        """
+        if face_engine is None:
+            return {"success": False, "error": "Face recognition unavailable"}, 503
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            return {"success": False, "error": "name is required"}, 400
+        uploads = request.files.getlist("image")
+        uploads = [f for f in uploads if f and f.filename]
+        if not uploads:
+            return {"success": False, "error": "at least one image file is required"}, 400
+
+        tmp_paths: list[str] = []
+        try:
+            for upload in uploads:
+                original = secure_filename(upload.filename or "face.jpg")
+                suffix = Path(original).suffix or ".jpg"
+                fd, tmp = tempfile.mkstemp(suffix=suffix)
+                os.close(fd)
+                upload.save(tmp)
+                # Rename so add_person stores the file with its original name
+                named = os.path.join(os.path.dirname(tmp), original)
+                os.replace(tmp, named)
+                tmp_paths.append(named)
+
+            person = face_engine.add_person(name=name, image_paths=tmp_paths)
+            if person is None:
+                return {"success": False, "error": "No valid face images processed"}, 422
+
+            return {
+                "success": True,
+                "name": person.name,
+                "images_added": len(tmp_paths),
+                "statistics": face_engine.get_statistics(),
+            }, 200
+        finally:
+            for p in tmp_paths:
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+
     @app.post("/api/face/process-excel")
     def face_process_excel() -> tuple[dict, int]:
         excel = request.files.get("excel_file")
