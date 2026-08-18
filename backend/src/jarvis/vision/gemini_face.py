@@ -43,7 +43,7 @@ class GeminiFaceEngine:
     def __init__(
         self,
         data_dir: str | Path = "data/faces",
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-3.6-flash",
         tolerance: float = 0.5,
         gemini_pool=None,
     ) -> None:
