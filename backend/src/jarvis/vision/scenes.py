@@ -67,10 +67,10 @@ class SceneAnalyzer:
     def _auto_provider() -> Optional[str]:
         if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
             return "gemini"
-        if os.getenv("GROQ_API_KEY"):
-            return "groq"
         if os.getenv("OPENAI_API_KEY"):
             return "openai"
+        if os.getenv("GROQ_API_KEY"):
+            return "groq"
         return None
 
     def _make_client(self):
