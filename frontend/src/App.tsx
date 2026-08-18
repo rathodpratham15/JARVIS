@@ -707,7 +707,7 @@ export default function App() {
                     status: "Authorized",
                     confidence: Math.round((face.confidence ?? 0) * 100),
                     lastSeen: new Date().toLocaleTimeString(),
-                    avatarUrl: p.image_path ?? undefined,
+                    avatarUrl: p.image_url ?? undefined,
                   }]);
                 } else {
                   setFaces([]);

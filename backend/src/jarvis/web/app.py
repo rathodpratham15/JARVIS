@@ -18,7 +18,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, request
+import urllib.parse
+
+from flask import Flask, request, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -643,6 +645,24 @@ def create_app() -> Flask:
     def face_statistics() -> tuple[dict, int]:
         return {"statistics": face_engine.get_statistics()}, 200
 
+    @app.get("/api/face/image")
+    def face_image():
+        """Serve a person's primary face photo by name."""
+        name = request.args.get("name", "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        person = next(
+            (p for p in face_engine.known_faces if p.name.lower() == name.lower()),
+            None,
+        )
+        if not person or not person.primary_image_path:
+            return {"error": "person or image not found"}, 404
+        img_path = Path(person.primary_image_path)
+        if not img_path.exists():
+            return {"error": "image file not found on disk"}, 404
+        mime = "image/png" if img_path.suffix.lower() == ".png" else "image/jpeg"
+        return send_file(str(img_path), mimetype=mime)
+
     @app.post("/api/vision/analyze")
     def vision_analyze() -> tuple[dict, int]:
         image = request.files.get("image")
@@ -1132,12 +1152,18 @@ def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30) 
 
 
 def _person_to_dict(person) -> dict:
+    image_url = (
+        f"/api/face/image?name={urllib.parse.quote(person.name)}"
+        if person.primary_image_path
+        else None
+    )
     return {
         "name": person.name,
         "age": person.age,
         "gender": person.gender,
         "profession": person.profession,
         "image_path": person.primary_image_path,
+        "image_url": image_url,
         "additional_data": person.additional_data,
     }
 
