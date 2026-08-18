@@ -105,7 +105,7 @@ class GeminiKeyPool:
         )
 
     def _create(self, **kwargs):
-        from openai import RateLimitError
+        from openai import BadRequestError, RateLimitError
 
         last_exc: Exception | None = None
         tried: set[str] = set()
@@ -129,3 +129,13 @@ class GeminiKeyPool:
                 )
                 self._exhausted[active_key] = time.time() + _EXHAUSTED_TTL
                 last_exc = exc
+            except BadRequestError as exc:
+                if "valid API key" in str(exc) or "INVALID_ARGUMENT" in str(exc):
+                    logger.warning(
+                        "Gemini key …%s is invalid (400) — skipping permanently",
+                        active_key[-6:],
+                    )
+                    self._exhausted[active_key] = time.time() + 365 * 86_400
+                    last_exc = exc
+                else:
+                    raise
