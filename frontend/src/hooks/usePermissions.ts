@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { API_BASE } from '../utils/api'
 
 export interface PermissionItem {
   id: string
@@ -7,8 +8,6 @@ export interface PermissionItem {
   risk: 'low' | 'medium' | 'high'
   granted: boolean
 }
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState<PermissionItem[]>([])

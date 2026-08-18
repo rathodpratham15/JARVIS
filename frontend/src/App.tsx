@@ -37,6 +37,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound } from "./utils/audio";
+import { API_BASE } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export default function App() {
   // ── bootstrap from backend ───────────────────────────────────────────────
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(`${API_BASE}/api/health`)
       .then(r => r.json())
       .then(d => {
         const svcMap = d.services ?? {};
@@ -174,7 +175,7 @@ export default function App() {
   useEffect(() => {
     // Backend returns {interactions: [{id, user_input, response, timestamp, ...}]}
     // Each interaction expands into 2 chat messages: user + jarvis
-    fetch("/api/history?limit=30")
+    fetch(`${API_BASE}/api/history?limit=30`)
       .then(r => r.json())
       .then(d => {
         const interactions: any[] = d.interactions ?? [];
@@ -196,19 +197,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/schedules").then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
       if (d.jobs) setSchedules(d.jobs.map(mapBackendSchedule));
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch("/api/permissions").then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/permissions`).then(r => r.json()).then(d => {
       if (d.permissions) setPermissions(d.permissions.map(mapBackendPermission));
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch("/api/notes").then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/notes`).then(r => r.json()).then(d => {
       if (d.notes) setNotes(d.notes.map((n: any): NoteEntry => ({
         id: n.id, title: n.title, content: n.content,
         priority: "High", isReminder: false, completed: false,
@@ -218,7 +219,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/reminders").then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/reminders`).then(r => r.json()).then(d => {
       if (d.reminders) setReminders(d.reminders.map((r: any): ReminderItem => ({
         id: r.id, title: r.title,
         targetTime: r.target_time ?? r.targetTime ?? new Date().toISOString(),
@@ -230,7 +231,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/tasks").then(r => r.json()).then(d => {
+    fetch(`${API_BASE}/api/tasks`).then(r => r.json()).then(d => {
       if (Array.isArray(d)) setTasks(d.map(mapBackendTask));
     }).catch(() => {});
   }, []);
@@ -274,7 +275,7 @@ export default function App() {
 
     let finalText = "";
     try {
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -323,7 +324,7 @@ export default function App() {
   const handleExecuteAgentTask = async (taskDescription: string): Promise<AgentTask> => {
     addLog("AGENT", "Autonomous Task Launched", taskDescription.slice(0, 40));
     try {
-      const res = await fetch("/api/agent", {
+      const res = await fetch(`${API_BASE}/api/agent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: taskDescription }),
@@ -368,7 +369,7 @@ export default function App() {
     const job = schedules.find(s => s.id === id);
     const newEnabled = !job?.enabled;
     try {
-      await fetch(`/api/schedules/${id}`, {
+      await fetch(`${API_BASE}/api/schedules/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: newEnabled }),
@@ -381,7 +382,7 @@ export default function App() {
   const handleRunScheduleNow = async (id: string) => {
     const job = schedules.find(s => s.id === id);
     try {
-      await fetch(`/api/schedules/${id}/run`, { method: "POST" });
+      await fetch(`${API_BASE}/api/schedules/${id}/run`, { method: "POST" });
     } catch {}
     setSchedules(prev => prev.map(s => s.id === id ? { ...s, lastRun: "Just now", status: "success" } : s));
     addLog("SCHEDULE", `Job Run: ${job?.title ?? id}`, "Autonomous routine executed.");
@@ -389,14 +390,14 @@ export default function App() {
 
   const handleDeleteSchedule = async (id: string) => {
     try {
-      await fetch(`/api/schedules/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/schedules/${id}`, { method: "DELETE" });
     } catch {}
     setSchedules(prev => prev.filter(s => s.id !== id));
   };
 
   const handleCreateSchedule = async (job: Omit<ScheduleJob, "id" | "lastRun" | "status">) => {
     try {
-      const res = await fetch("/api/schedules", {
+      const res = await fetch(`${API_BASE}/api/schedules`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -422,7 +423,7 @@ export default function App() {
     const perm = permissions.find(p => p.id === id);
     const newVal = !perm?.enabled;
     try {
-      await fetch("/api/permissions", {
+      await fetch(`${API_BASE}/api/permissions`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ permissions: { [id]: newVal } }),
@@ -436,7 +437,7 @@ export default function App() {
 
   const handleAddReminder = async (item: Omit<ReminderItem, "id" | "isTriggered">) => {
     try {
-      const res = await fetch("/api/reminders", {
+      const res = await fetch(`${API_BASE}/api/reminders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: item.title, target_time: item.targetTime, priority: item.priority }),
@@ -465,7 +466,7 @@ export default function App() {
   };
 
   const handleDeleteReminder = async (id: string) => {
-    try { await fetch(`/api/reminders/${id}`, { method: "DELETE" }); } catch {}
+    try { await fetch(`${API_BASE}/api/reminders/${id}`, { method: "DELETE" }); } catch {}
     setReminders(prev => prev.filter(r => r.id !== id));
   };
 
@@ -473,7 +474,7 @@ export default function App() {
 
   const handleAddNote = async (note: Omit<NoteEntry, "id" | "createdAt">) => {
     try {
-      const res = await fetch("/api/notes", {
+      const res = await fetch(`${API_BASE}/api/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: note.title, content: note.content }),
@@ -492,7 +493,7 @@ export default function App() {
   };
 
   const handleDeleteNote = async (id: string) => {
-    try { await fetch(`/api/notes/${id}`, { method: "DELETE" }); } catch {}
+    try { await fetch(`${API_BASE}/api/notes/${id}`, { method: "DELETE" }); } catch {}
     setNotes(prev => prev.filter(n => n.id !== id));
   };
 
@@ -513,7 +514,7 @@ export default function App() {
 
   const handleSearchSemanticMemory = async (query: string): Promise<string> => {
     try {
-      const res = await fetch("/api/memory/search", {
+      const res = await fetch(`${API_BASE}/api/memory/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
@@ -529,7 +530,7 @@ export default function App() {
 
   const handleRunResearch = async (targetName: string, targetType: "person" | "company"): Promise<ResearchDossier> => {
     addLog("AGENT", "Intelligence Crawler Initiated", `Target: ${targetName}`);
-    const res = await fetch("/api/research/pipeline", {
+    const res = await fetch(`${API_BASE}/api/research/pipeline`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetName, targetType }),
@@ -685,7 +686,7 @@ export default function App() {
                 // ① Face recognition — await it (fast, ~200ms)
                 const faceForm = new FormData();
                 faceForm.append("image", blob, "frame.jpg");
-                const face = await fetch("/api/face/identify", { method: "POST", body: faceForm })
+                const face = await fetch(`${API_BASE}/api/face/identify`, { method: "POST", body: faceForm })
                   .then(r => r.json()).catch(() => ({}));
 
                 if (face.matched && face.person) {
@@ -707,7 +708,7 @@ export default function App() {
                 // ② Scene analysis — fire in background, don't block (slow, ~10-25s)
                 const sceneForm = new FormData();
                 sceneForm.append("image", blob, "frame.jpg");
-                fetch("/api/vision/analyze", { method: "POST", body: sceneForm })
+                fetch(`${API_BASE}/api/vision/analyze`, { method: "POST", body: sceneForm })
                   .then(r => r.json())
                   .then(scene => {
                     onSceneUpdate?.({

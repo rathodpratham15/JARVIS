@@ -13,6 +13,7 @@ import {
 import { PersonalityMode, ThemeAccent } from "../types";
 import { THEME_CONFIGS } from "../utils/theme";
 import { playUiSound } from "../utils/audio";
+import { API_BASE } from "../utils/api";
 
 interface SettingsViewProps {
   personalityMode: PersonalityMode;
@@ -41,7 +42,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [providerName, setProviderName] = useState("—");
 
   useEffect(() => {
-    fetch("/api/settings")
+    fetch(`${API_BASE}/api/settings`)
       .then((r) => r.json())
       .then((data) => {
         const s = data.settings ?? {};
@@ -53,7 +54,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSave = async () => {
     try {
-      await fetch("/api/settings", {
+      await fetch(`${API_BASE}/api/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ llm_model: selectedModel }),

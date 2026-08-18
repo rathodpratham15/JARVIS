@@ -40,6 +40,8 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_API_BASE: https://jarvis-backend-production-e737.up.railway.app
         run: pnpm run build
 
       - name: Sync Capacitor
