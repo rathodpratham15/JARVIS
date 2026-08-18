@@ -116,18 +116,11 @@ def create_app() -> Flask:
         llm=llm,
         permissions=permissions,
     )
-    from openai import OpenAI as _OpenAI
-    _gemini_key = os.getenv("GEMINI_API_KEY")
-    _gemini_client = None
-    if _gemini_key:
-        _gemini_client = _OpenAI(
-            api_key=_gemini_key,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
-        logger.info("Gemini client initialised for vision tasks")
+    from jarvis.core.gemini_pool import GeminiKeyPool
+    _gemini_pool = GeminiKeyPool.from_env()
 
     # Agent tool calls use the main LLM (Groq/openai-gpt-oss-120b) which supports
-    # proper JSON function calling. Gemini is reserved for vision-only tasks.
+    # proper JSON function calling. Gemini pool is reserved for vision-only tasks.
     agent = ReActAgent(
         llm=llm,
         actions=actions,
@@ -137,8 +130,8 @@ def create_app() -> Flask:
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
     from jarvis.core.computer_use import ComputerUseManager
-    _vision_client = _gemini_client or llm.client
-    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_client else "openai/gpt-oss-120b")
+    _vision_client = _gemini_pool or llm.client
+    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_pool else "openai/gpt-oss-120b")
     cu_mgr = ComputerUseManager(llm_client=_vision_client, vision_model=vision_model)
 
     from jarvis.core.scheduler import Scheduler
@@ -165,18 +158,19 @@ def create_app() -> Flask:
     # This activates on Railway (where dlib can't compile) as long as
     # GEMINI_API_KEY is set.
     _dlib_missing = face_engine is None or getattr(face_engine, "_face_recognition", None) is None
-    if _dlib_missing and (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")):
+    if _dlib_missing and _gemini_pool:
         try:
             from jarvis.vision.gemini_face import GeminiFaceEngine
             face_engine = GeminiFaceEngine(
                 data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
                 tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
+                gemini_pool=_gemini_pool,
             )
             logger.info("GeminiFaceEngine active as face recognition backend")
         except Exception:
             logger.exception("GeminiFaceEngine init failed — face recognition unavailable")
 
-    scene_analyzer = SceneAnalyzer() if _scene_available else None
+    scene_analyzer = SceneAnalyzer(gemini_pool=_gemini_pool) if _scene_available and _gemini_pool else (SceneAnalyzer() if _scene_available else None)
     scene_history = SceneHistoryStore(
         db_path=os.getenv("JARVIS_VISION_HISTORY_DB", "data/vision_history.db"),
     ) if _scene_available else None

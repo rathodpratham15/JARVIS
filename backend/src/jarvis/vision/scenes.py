@@ -55,7 +55,11 @@ class SceneAnalyzer:
     GEMINI_API_KEY → GROQ_API_KEY → OPENAI_API_KEY → disabled.
     """
 
-    def __init__(self, provider: Optional[str] = None) -> None:
+    def __init__(self, provider: Optional[str] = None, gemini_pool=None) -> None:
+        if gemini_pool is not None:
+            self.provider = "gemini"
+            self._client = gemini_pool
+            return
         self.provider = (
             provider
             or os.getenv("JARVIS_VISION_PROVIDER")
