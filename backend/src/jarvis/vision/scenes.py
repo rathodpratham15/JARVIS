@@ -26,7 +26,7 @@ DEFAULT_PROMPT = (
 
 _DEFAULT_MODELS = {
     "gemini": "gemini-3.6-flash",
-    "groq": "llama-4-scout-17b-16e-instruct",
+    "groq": "llama-3.2-11b-vision-preview",
     "openai": "gpt-4o-mini",
 }
 
