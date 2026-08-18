@@ -657,11 +657,28 @@ def create_app() -> Flask:
         )
         if not person or not person.primary_image_path:
             return {"error": "person or image not found"}, 404
-        img_path = Path(person.primary_image_path)
-        if not img_path.exists():
+
+        stored = person.primary_image_path
+        p = Path(stored)
+
+        # Resolve relative paths: stored as "data/faces/images/..." relative
+        # to the backend root (two levels above face_engine.data_dir).
+        # Try multiple bases so the endpoint works regardless of CWD.
+        candidates = [p]
+        if not p.is_absolute():
+            candidates = [
+                Path.cwd() / stored,
+                face_engine.data_dir.parent.parent / stored,
+                face_engine.data_dir.parent / stored,
+                face_engine.data_dir / stored,
+            ]
+
+        img_path = next((c for c in candidates if c.exists()), None)
+        if img_path is None:
             return {"error": "image file not found on disk"}, 404
+
         mime = "image/png" if img_path.suffix.lower() == ".png" else "image/jpeg"
-        return send_file(str(img_path), mimetype=mime)
+        return send_file(str(img_path.resolve()), mimetype=mime)
 
     @app.post("/api/vision/analyze")
     def vision_analyze() -> tuple[dict, int]:
