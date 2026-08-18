@@ -124,23 +124,21 @@ def create_app() -> Flask:
             api_key=_gemini_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
-        logger.info("Gemini client initialised for agent tool-calling")
+        logger.info("Gemini client initialised for vision tasks")
 
-    # Agent tool calls go through Gemini when available — it produces reliable
-    # JSON function arguments unlike Groq (which emits bare <function=name> for
-    # long-text tools). Regular chat still uses the configured Groq/OpenAI LLM.
-    _agent_tool_model = os.getenv("JARVIS_AGENT_MODEL", "models/gemini-3.6-flash")
+    # Agent tool calls use the main LLM (Groq/openai-gpt-oss-120b) which supports
+    # proper JSON function calling. Gemini is reserved for vision-only tasks.
     agent = ReActAgent(
         llm=llm,
         actions=actions,
-        tool_client=_gemini_client,
-        tool_model=_agent_tool_model if _gemini_client else None,
+        tool_client=llm.client,
+        tool_model=llm.model,
     )
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
     from jarvis.core.computer_use import ComputerUseManager
     _vision_client = _gemini_client or llm.client
-    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_client else "llama-3.2-11b-vision-preview")
+    vision_model = os.getenv("JARVIS_VISION_MODEL", "models/gemini-3.6-flash" if _gemini_client else "openai/gpt-oss-120b")
     cu_mgr = ComputerUseManager(llm_client=_vision_client, vision_model=vision_model)
 
     from jarvis.core.scheduler import Scheduler
