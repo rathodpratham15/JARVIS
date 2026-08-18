@@ -46,6 +46,7 @@ class GeminiFaceEngine:
         model: str = "gemini-3.6-flash",
         tolerance: float = 0.5,
         gemini_pool=None,
+        vision_chain=None,
     ) -> None:
         self.data_dir = Path(data_dir)
         self.images_root = self.data_dir / "images"
@@ -59,7 +60,10 @@ class GeminiFaceEngine:
             "processing_times": [],
         }
         self.images_root.mkdir(parents=True, exist_ok=True)
-        if gemini_pool is not None:
+        self._vision_chain = vision_chain
+        if vision_chain is not None:
+            self._client = None
+        elif gemini_pool is not None:
             self._client = gemini_pool
         else:
             self._setup_client()
@@ -160,24 +164,20 @@ class GeminiFaceEngine:
         return RecognitionResult(None, confidence, False, elapsed, reason)
 
     def _call_gemini(self, image_path: str) -> dict:
-        content: list[dict] = []
         refs_added = 0
+        content_oai: list[dict] = []
+        content_anthropic: list[dict] = []
 
         for person in self.known_faces:
-            refs = person.image_paths[:_MAX_REFS_PER_PERSON]
-            for ref_path in refs:
+            for ref_path in person.image_paths[:_MAX_REFS_PER_PERSON]:
                 if refs_added >= _MAX_TOTAL_REFS:
                     break
                 b64 = _b64_image(ref_path)
                 if b64 is None:
                     continue
-                content += [
-                    {"type": "text", "text": f"REFERENCE — {person.name}:"},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
-                    },
-                ]
+                label = {"type": "text", "text": f"REFERENCE — {person.name}:"}
+                content_oai += [label, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}]
+                content_anthropic += [label, {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}}]
                 refs_added += 1
             if refs_added >= _MAX_TOTAL_REFS:
                 break
@@ -186,16 +186,8 @@ class GeminiFaceEngine:
         if target_b64 is None:
             raise ValueError("Could not read target image")
 
-        content += [
-            {"type": "text", "text": "TARGET (identify this person):"},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{target_b64}"},
-            },
-        ]
-
         names = ", ".join(p.name for p in self.known_faces)
-        content.append({
+        prompt_block = {
             "type": "text",
             "text": (
                 f"You have reference photos of: {names}. "
@@ -204,15 +196,24 @@ class GeminiFaceEngine:
                 "{\"matched\": true/false, \"name\": \"<name or null>\", "
                 "\"confidence\": <0.0-1.0>, \"reasoning\": \"<one sentence>\"}"
             ),
-        })
+        }
+        target_label = {"type": "text", "text": "TARGET (identify this person):"}
+        target_oai = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{target_b64}"}}
+        target_anthropic = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": target_b64}}
+        content_oai += [target_label, target_oai, prompt_block]
+        content_anthropic += [target_label, target_anthropic, prompt_block]
 
-        resp = self._client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": content}],
-            max_tokens=200,
-        )
-        raw = (resp.choices[0].message.content or "").strip()
-        logger.debug("GeminiFaceEngine raw: %s", raw)
+        if self._vision_chain is not None:
+            raw = self._vision_chain.call_content(content_oai, content_anthropic, max_tokens=200)
+        else:
+            resp = self._client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": content_oai}],
+                max_tokens=200,
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+
+        logger.debug("FaceEngine raw: %s", raw)
         return _parse_json(raw)
 
     # ── management ────────────────────────────────────────────────────

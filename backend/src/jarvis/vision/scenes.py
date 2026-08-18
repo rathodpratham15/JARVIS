@@ -49,23 +49,24 @@ class SceneDescription:
 
 
 class SceneAnalyzer:
-    """Calls a vision LLM to describe an image via an OAI-compatible API.
+    """Calls a vision LLM to describe an image.
 
-    Provider auto-detection order: JARVIS_VISION_PROVIDER env var →
-    GEMINI_API_KEY → GROQ_API_KEY → OPENAI_API_KEY → disabled.
+    Accepts a VisionProviderChain (preferred) or falls back to a single
+    legacy client for backwards compatibility.
     """
 
-    def __init__(self, provider: Optional[str] = None, gemini_pool=None) -> None:
-        if gemini_pool is not None:
-            self.provider = "gemini"
-            self._client = gemini_pool
-            return
-        self.provider = (
-            provider
-            or os.getenv("JARVIS_VISION_PROVIDER")
-            or self._auto_provider()
-        )
-        self._client = self._make_client()
+    def __init__(self, vision_chain=None, gemini_pool=None) -> None:
+        self._chain = vision_chain
+        # Legacy single-client fallback (used when chain not provided)
+        self._client = None
+        self.provider = "none"
+        if vision_chain is None:
+            if gemini_pool is not None:
+                self.provider = "gemini"
+                self._client = gemini_pool
+            else:
+                self.provider = self._auto_provider()
+                self._client = self._make_client()
 
     @staticmethod
     def _auto_provider() -> Optional[str]:
@@ -83,47 +84,44 @@ class SceneAnalyzer:
         try:
             from openai import OpenAI  # type: ignore
         except ImportError:
-            logger.warning("openai package not installed; scene analysis disabled")
             return None
-
         if self.provider == "gemini":
             api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         elif self.provider == "groq":
             api_key = os.getenv("GROQ_API_KEY")
         else:
             api_key = os.getenv("OPENAI_API_KEY")
-
         if not api_key:
-            logger.warning("No API key found for vision provider %r", self.provider)
             return None
-
         kwargs: dict = {"api_key": api_key, "max_retries": 1, "timeout": 30.0}
         if self.provider in _BASE_URLS:
             kwargs["base_url"] = _BASE_URLS[self.provider]
         return OpenAI(**kwargs)
 
-    def _effective_model(self) -> str:
-        return os.getenv("JARVIS_VISION_MODEL") or _DEFAULT_MODELS.get(self.provider or "", "gemini-2.0-flash")
-
     def describe_scene(self, image_path: str) -> SceneDescription:
         start = time.monotonic()
         if not os.path.exists(image_path):
             return SceneDescription(description="Image file not found", processing_time=0.0)
-        if self._client is None:
-            return SceneDescription(
-                description="Scene analysis not configured (set GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY).",
-                model_used="none",
-                processing_time=time.monotonic() - start,
-            )
 
-        model = self._effective_model()
         try:
-            payload = self._oai_describe(image_path, model)
+            if self._chain is not None:
+                raw = self._chain.call([image_path], DEFAULT_PROMPT, max_tokens=1024)
+                payload = _coerce_json(raw)
+                provider_label = "/".join(self._chain.providers)
+            elif self._client is not None:
+                payload = self._legacy_describe(image_path)
+                provider_label = self.provider
+            else:
+                return SceneDescription(
+                    description="Scene analysis not configured — set GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.",
+                    model_used="none",
+                    processing_time=time.monotonic() - start,
+                )
         except Exception as exc:
             logger.exception("Scene analysis failed")
             return SceneDescription(
                 description=f"Scene analysis failed: {exc}",
-                model_used=model,
+                model_used="unknown",
                 processing_time=time.monotonic() - start,
             )
 
@@ -135,21 +133,19 @@ class SceneAnalyzer:
             colors=list(payload.get("colors", [])),
             mood=payload.get("mood", "neutral"),
             processing_time=time.monotonic() - start,
-            model_used=model,
+            model_used=provider_label,
         )
 
-    def _oai_describe(self, image_path: str, model: str) -> dict:
+    def _legacy_describe(self, image_path: str) -> dict:
         with open(image_path, "rb") as fh:
             b64 = base64.b64encode(fh.read()).decode()
+        model = os.getenv("JARVIS_VISION_MODEL") or _DEFAULT_MODELS.get(self.provider or "", "models/gemini-3.6-flash")
         response = self._client.chat.completions.create(
             model=model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": DEFAULT_PROMPT},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                ],
-            }],
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": DEFAULT_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+            ]}],
             max_tokens=1024,
         )
         return _coerce_json(response.choices[0].message.content or "")
