@@ -146,13 +146,14 @@ class SceneAnalyzer:
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                 ],
             }],
-            max_tokens=600,
+            max_tokens=1024,
         )
         return _coerce_json(response.choices[0].message.content or "")
 
 
 def _coerce_json(text: str) -> dict:
-    """Vision models often wrap JSON in markdown fences. Be tolerant."""
+    """Vision models often wrap JSON in markdown fences or truncate mid-token."""
+    import re
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -161,4 +162,8 @@ def _coerce_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        # Truncated response: try to extract the description field with regex
+        m = re.search(r'"description"\s*:\s*"((?:[^"\\]|\\.)*)', text)
+        if m:
+            return {"description": m.group(1).rstrip("\\"), "confidence": 0.5}
         return {"description": text, "confidence": 0.5}

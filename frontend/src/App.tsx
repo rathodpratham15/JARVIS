@@ -672,37 +672,28 @@ export default function App() {
             <VisionView
               faces={faces}
               snapshots={snapshots}
-              onAnalyzeOpticalFeed={async (imageBase64?: string) => {
+              onAnalyzeOpticalFeed={async (imageBase64?: string, onSceneUpdate?: (r: any) => void) => {
                 if (!imageBase64) return { sceneDescription: "No image captured.", threatLevel: "Unknown", environmentDetails: "" };
 
-                // Convert base64 data URL to a Blob for multipart upload
+                // Convert base64 data URL to Blob
                 const [, b64] = imageBase64.split(",");
                 const bytes = atob(b64);
                 const arr = new Uint8Array(bytes.length);
                 for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
                 const blob = new Blob([arr], { type: "image/jpeg" });
 
-                // Run scene analysis + face recognition in parallel
-                const sceneForm = new FormData();
-                sceneForm.append("image", blob, "frame.jpg");
+                // ① Face recognition — await it (fast, ~200ms)
                 const faceForm = new FormData();
                 faceForm.append("image", blob, "frame.jpg");
+                const face = await fetch("/api/face/identify", { method: "POST", body: faceForm })
+                  .then(r => r.json()).catch(() => ({}));
 
-                const [sceneRes, faceRes] = await Promise.allSettled([
-                  fetch("/api/vision/analyze", { method: "POST", body: sceneForm }).then(r => r.json()),
-                  fetch("/api/face/identify", { method: "POST", body: faceForm }).then(r => r.json()),
-                ]);
-
-                const scene = sceneRes.status === "fulfilled" ? sceneRes.value : {};
-                const face = faceRes.status === "fulfilled" ? faceRes.value : {};
-
-                // Update faces state if a person was matched
                 if (face.matched && face.person) {
                   const p = face.person;
                   setFaces([{
                     id: p.id ?? "match-1",
                     name: p.name ?? "Unknown",
-                    role: p.role ?? p.title ?? "",
+                    role: p.role ?? p.profession ?? "",
                     clearanceLevel: 1,
                     status: "Authorized",
                     confidence: Math.round((face.confidence ?? 0) * 100),
@@ -713,11 +704,27 @@ export default function App() {
                   setFaces([]);
                 }
 
+                // ② Scene analysis — fire in background, don't block (slow, ~10-25s)
+                const sceneForm = new FormData();
+                sceneForm.append("image", blob, "frame.jpg");
+                fetch("/api/vision/analyze", { method: "POST", body: sceneForm })
+                  .then(r => r.json())
+                  .then(scene => {
+                    onSceneUpdate?.({
+                      sceneDescription: scene.results?.description ?? scene.results?.scene_description ?? scene.description ?? "Scene analyzed.",
+                      threatLevel: "Nominal (0%)",
+                      environmentDetails: scene.results?.scene_type ?? scene.scene_type ?? "general",
+                    });
+                  })
+                  .catch(err => {
+                    onSceneUpdate?.({ sceneDescription: `Scene analysis failed: ${err.message}` });
+                  });
+
+                // Return immediately with face result; scene arrives via callback
                 return {
-                  sceneDescription: scene.results?.description ?? scene.results?.scene_description ?? "Scene analyzed.",
+                  sceneDescription: "",
                   threatLevel: "Nominal (0%)",
-                  environmentDetails: scene.results?.scene_type ?? "",
-                  imageUrl: scene.image_url,
+                  environmentDetails: "",
                   faceMatch: face.matched ? face.person?.name : null,
                 };
               }}

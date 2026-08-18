@@ -16,7 +16,7 @@ import { playUiSound } from "../utils/audio";
 interface VisionViewProps {
   faces: DetectedFace[];
   snapshots: VisionSnapshot[];
-  onAnalyzeOpticalFeed: (imageBase64?: string) => Promise<any>;
+  onAnalyzeOpticalFeed: (imageBase64?: string, onSceneUpdate?: (r: any) => void) => Promise<any>;
   accentColor?: string;
 }
 
@@ -29,6 +29,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isAnalyzingScene, setIsAnalyzingScene] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [snapshots, setSnapshots] = useState<VisionSnapshot[]>(initialSnapshots);
 
@@ -83,24 +84,31 @@ export const VisionView: React.FC<VisionViewProps> = ({
     }
 
     try {
-      const res = await onAnalyzeOpticalFeed(imageBase64);
+      // Face recognition returns fast; scene analysis fires in background via callback
+      const res = await onAnalyzeOpticalFeed(imageBase64, (sceneResult: any) => {
+        setAnalysisResult((prev: any) => ({ ...prev, ...sceneResult }));
+        setIsAnalyzingScene(false);
+      });
+
+      // Unlock UI immediately after face ID
       setAnalysisResult(res);
+      setIsAnalyzingScene(true);  // scene is still loading in background
       playUiSound("success");
 
-      // Save new snapshot
       const newSnap: VisionSnapshot = {
         id: Date.now().toString(),
         timestamp: new Date().toLocaleTimeString(),
         imageUrl:
           imageBase64 ||
           "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80",
-        sceneDescription: res.sceneDescription || "Optical feed scan completed.",
-        facesCount: res.facesDetected ? res.facesDetected.length : 1,
+        sceneDescription: "Analyzing scene...",
+        facesCount: 1,
         threatLevel: res.threatLevel || "Nominal (0%)",
       };
       setSnapshots([newSnap, ...snapshots]);
     } catch (err) {
       console.error(err);
+      setIsAnalyzingScene(false);
     } finally {
       setIsScanning(false);
     }
@@ -266,11 +274,12 @@ export const VisionView: React.FC<VisionViewProps> = ({
       </div>
 
       {/* AI Scene Analysis Result Card */}
-      {analysisResult && (
+      {(analysisResult || isAnalyzingScene) && (
         <div className="p-5 bg-white border-2 border-black space-y-3 shadow-[5px_5px_0px_#000000]">
           <div className="flex items-center gap-2 text-sm font-heading font-black text-black border-b-2 border-black pb-2">
             <Sparkles className="w-4 h-4 text-[#00a8bb]" />
             <span>OPTICAL ANALYSIS BREAKDOWN</span>
+            {isAnalyzingScene && <RefreshCw className="w-3 h-3 animate-spin text-[#00a8bb] ml-auto" />}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono text-black">
@@ -278,8 +287,11 @@ export const VisionView: React.FC<VisionViewProps> = ({
               <span className="font-mono font-black text-black text-[10px] uppercase block mb-1">
                 SCENE DESCRIPTION:
               </span>
-              <p className="bg-[#f3f3ee] p-3 border-2 border-black leading-relaxed font-bold">
-                {analysisResult.sceneDescription || JSON.stringify(analysisResult)}
+              <p className="bg-[#f3f3ee] p-3 border-2 border-black leading-relaxed font-bold min-h-[48px]">
+                {isAnalyzingScene && !analysisResult?.sceneDescription
+                  ? <span className="text-[#555]">Analyzing scene...</span>
+                  : (analysisResult?.sceneDescription || <span className="text-[#555]">Analyzing scene...</span>)
+                }
               </p>
             </div>
             <div className="space-y-2">
@@ -287,8 +299,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 TACTICAL READOUTS:
               </span>
               <div className="bg-[#f3f3ee] p-3 border-2 border-black space-y-1 font-mono text-[11px] font-bold">
-                <div>THREAT LEVEL: <strong className="text-emerald-700 font-black">{analysisResult.threatLevel || "0% (Nominal)"}</strong></div>
-                <div>ENVIRONMENT: <strong className="text-black">{analysisResult.environmentDetails || "Stark Workshop / Command Suite"}</strong></div>
+                <div>THREAT LEVEL: <strong className="text-emerald-700 font-black">{analysisResult?.threatLevel || "Nominal (0%)"}</strong></div>
+                <div>ENVIRONMENT: <strong className="text-black">{analysisResult?.environmentDetails || "—"}</strong></div>
               </div>
             </div>
           </div>
