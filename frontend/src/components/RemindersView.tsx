@@ -31,7 +31,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   const [title, setTitle] = useState("");
   const [targetTime, setTargetTime] = useState("");
   const [priority, setPriority] = useState<ReminderItem["priority"]>("HIGH");
-  const [selectedSound, setSelectedSound] = useState("Stark Chime");
+  const [selectedSound, setSelectedSound] = useState("Default Chime");
 
   const quickPresets = [
     { label: "+15m", mins: 15 },
@@ -65,7 +65,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
 
   const handleTestAlarm = (r: ReminderItem) => {
     playUiSound("beep");
-    speakJarvisText(`Sir, priority alarm for ${r.title}.`);
+    speakJarvisText(`Priority alarm for ${r.title}.`);
   };
 
   return (
@@ -174,7 +174,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     {/* Action Row */}
                     <div className="pt-3 border-t border-[#1a1a1a]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
                       <div className="text-[11px] text-[#555]">
-                        CHIME: <strong className="text-[#1a1a1a]">{reminder.soundAlert || "Stark Chime"}</strong>
+                        CHIME: <strong className="text-[#1a1a1a]">{reminder.soundAlert || "Default Chime"}</strong>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -278,8 +278,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                     onChange={(e) => setSelectedSound(e.target.value)}
                     className="editorial-input"
                   >
-                    <option value="Stark Chime">Stark Chime</option>
-                    <option value="Tactical Siren">Tactical Siren</option>
+                    <option value="Default Chime">Default Chime</option>
+                    <option value="Alert Siren">Alert Siren</option>
                     <option value="Subtle Pulse">Subtle Pulse</option>
                   </select>
                 </div>

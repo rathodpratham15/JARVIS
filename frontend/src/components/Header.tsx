@@ -56,10 +56,10 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const personalities: PersonalityMode[] = [
-    "Stark Protocol",
+    "Standard",
     "Tactical",
     "Formal",
-    "Protocol Zero",
+    "Concise",
   ];
 
   return (

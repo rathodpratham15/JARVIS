@@ -8,7 +8,7 @@ export interface PermissionItem {
   granted: boolean
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5050'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState<PermissionItem[]>([])

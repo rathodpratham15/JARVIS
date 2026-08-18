@@ -13,7 +13,7 @@ export type PageId =
   | "memory"
   | "plugins";
 
-export type PersonalityMode = "Stark Protocol" | "Tactical" | "Formal" | "Protocol Zero";
+export type PersonalityMode = "Standard" | "Tactical" | "Formal" | "Concise";
 
 export type ThemeAccent = "cyan" | "gold" | "crimson" | "emerald" | "cobalt" | "purple" | "light" | "brutalist";
 

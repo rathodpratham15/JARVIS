@@ -60,13 +60,17 @@ class SceneAnalyzer:
     def _make_client(self):
         if self.provider == "gemini":
             try:
-                import google.generativeai as genai  # type: ignore
+                from openai import OpenAI  # type: ignore
             except ImportError:
-                logger.warning("google-generativeai not installed; scene analysis disabled")
+                logger.warning("openai package not installed; Gemini vision disabled")
                 return None
             api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            genai.configure(api_key=api_key)
-            return genai.GenerativeModel("gemini-1.5-flash")
+            if not api_key:
+                return None
+            return OpenAI(
+                api_key=api_key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            )
         if self.provider == "openai":
             try:
                 from openai import OpenAI  # type: ignore
@@ -107,16 +111,25 @@ class SceneAnalyzer:
             colors=list(payload.get("colors", [])),
             mood=payload.get("mood", "neutral"),
             processing_time=time.monotonic() - start,
-            model_used="gemini-1.5-flash" if self.provider == "gemini" else "gpt-4o-mini",
+            model_used=os.getenv("JARVIS_VISION_MODEL", "gemini-2.0-flash") if self.provider == "gemini" else "gpt-4o-mini",
         )
 
     def _gemini_describe(self, image_path: str) -> dict:
         with open(image_path, "rb") as fh:
-            image_bytes = fh.read()
-        response = self._client.generate_content(
-            [DEFAULT_PROMPT, {"mime_type": "image/jpeg", "data": image_bytes}]
+            b64 = base64.b64encode(fh.read()).decode()
+        model = os.getenv("JARVIS_VISION_MODEL", "gemini-2.0-flash")
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": DEFAULT_PROMPT},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                ],
+            }],
+            max_tokens=600,
         )
-        text = (response.text or "").strip()
+        text = response.choices[0].message.content or ""
         return _coerce_json(text)
 
     def _openai_describe(self, image_path: str) -> dict:

@@ -131,7 +131,7 @@ export default function App() {
     setCurrentPageState(page);
     navigate(PAGE_TO_PATH[page] ?? "/dashboard");
   }, [navigate]);
-  const [personalityMode, setPersonalityMode] = useState<PersonalityMode>("Stark Protocol");
+  const [personalityMode, setPersonalityMode] = useState<PersonalityMode>("Standard");
   const [accentColor, setAccentColor] = useState<ThemeAccent>("brutalist");
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
   const [wakeWord] = useState<string>("Hey Jarvis");

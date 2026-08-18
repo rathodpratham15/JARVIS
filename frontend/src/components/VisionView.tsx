@@ -119,7 +119,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               OPTICAL VISION MATRIX & BIOMETRICS
             </h2>
             <p className="text-xs font-mono font-bold text-black/70">
-              1080p Optical Feed • Facial Recognition • Thermal & Spatial Environment Mapping
+              Live Camera Feed • Facial Recognition • AI Scene Analysis
             </p>
           </div>
         </div>
@@ -170,19 +170,10 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
             {/* HUD Target Overlay Crosshairs */}
             <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between border-2 border-[#00e5ff]/50">
-              <div className="flex justify-between items-start text-[10px] font-mono text-black font-black">
-                <span className="bg-[#00e5ff] px-2 py-0.5 border border-black shadow-[1px_1px_0px_#000000]">
-                  CAMERA: 1080P @ 60FPS
-                </span>
-                <span className="bg-[#00e5ff] px-2 py-0.5 border border-black shadow-[1px_1px_0px_#000000]">
-                  FOV: 110° • THERMAL: 36.6°C
-                </span>
-              </div>
-
               {/* Target Bounding Box Overlay */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border-2 border-dashed border-[#00e5ff] flex items-center justify-center animate-pulse">
                 <div className="absolute -top-3 px-2 py-0.5 bg-black text-[#00e5ff] border border-white text-[10px] font-mono font-black shadow-[2px_2px_0px_#000000]">
-                  FACE DETECTED
+                  {cameraActive ? "CAMERA ACTIVE" : "SIMULATED FEED"}
                 </div>
                 <div className="w-4 h-4 border-t-2 border-l-2 border-[#00e5ff] absolute top-0 left-0" />
                 <div className="w-4 h-4 border-t-2 border-r-2 border-[#00e5ff] absolute top-0 right-0" />
@@ -190,10 +181,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 <div className="w-4 h-4 border-b-2 border-r-2 border-[#00e5ff] absolute bottom-0 right-0" />
               </div>
 
-              <div className="flex justify-between items-end text-[10px] font-mono text-black font-black">
-                <span className="bg-[#00e5ff] px-2 py-0.5 border border-black shadow-[1px_1px_0px_#000000]">
-                  GRID SEC 04 • SCANNER ONLINE
-                </span>
+              <div className="flex justify-end items-end text-[10px] font-mono text-black font-black mt-auto">
                 <span className="bg-emerald-400 px-2 py-0.5 border border-black shadow-[1px_1px_0px_#000000] text-black font-black">
                   THREAT LEVEL: 0%
                 </span>
@@ -258,9 +246,6 @@ export const VisionView: React.FC<VisionViewProps> = ({
                         {face.name}
                       </span>
                       <span className="text-[10px] text-black/70 font-mono block">{face.role}</span>
-                      <span className="text-[9px] font-mono font-black text-[#008f9e] block">
-                        CLEARANCE: LEVEL {face.clearanceLevel}
-                      </span>
                     </div>
                   </div>
 

@@ -249,7 +249,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Mark 85 Nanotech Shield Frequency"
+                  placeholder="e.g. Preferred summarization style or key context"
                   className="w-full p-2.5 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
                 />
               </div>

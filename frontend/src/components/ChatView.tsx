@@ -156,7 +156,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   Dialogue Stream
                 </h2>
                 <p className="text-xs text-[#555] font-sans mt-0.5">
-                  Direct cognitive exchange with J.A.R.V.I.S. LLM subroutines
+                  Real-time LLM dialogue with semantic memory and context recall
                 </p>
               </div>
               <div className="flex items-center gap-2">

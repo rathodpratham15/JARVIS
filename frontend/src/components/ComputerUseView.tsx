@@ -220,7 +220,6 @@ export const ComputerUseView: React.FC = () => {
 
                 {/* Bottom Status Ribbon */}
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>OCR GROUNDING: 99.4%</span>
                   <span>LATENCY: 18ms</span>
                   <span>STATUS: {isExecuting ? "AGENT DISPATCHING" : "IDLE"}</span>
                 </div>
@@ -235,7 +234,7 @@ export const ComputerUseView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="label-secondary">PERCEPTION MODEL</span>
-                <span className="font-bold text-[#1a1a1a]">GEMINI 3.6 FLASH</span>
+                <span className="font-bold text-[#1a1a1a]">GEMINI 2.0 FLASH</span>
               </div>
             </div>
           </div>

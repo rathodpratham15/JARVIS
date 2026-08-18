@@ -35,7 +35,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   wakeWord,
   onChangeWakeWord,
 }) => {
-  const [selectedModel, setSelectedModel] = useState("gemini-3.6-flash");
+  const [selectedModel, setSelectedModel] = useState("gemini-2.0-flash");
   const [selectedVoice, setSelectedVoice] = useState("Kore (British Male - J.A.R.V.I.S.)");
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -138,9 +138,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onChange={(e) => setSelectedModel(e.target.value)}
                   className="editorial-input"
                 >
-                  <option value="gemini-3.6-flash">gemini-3.6-flash (Recommended Default)</option>
-                  <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Complex Tactical Synthesis)</option>
-                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Ultra Fast Latency)</option>
+                  <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended Default)</option>
+                  <option value="gemini-2.5-pro">gemini-2.5-pro (Advanced Reasoning)</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced Speed)</option>
                 </select>
               </div>
 
@@ -168,7 +168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <option value="Kore (British Male - J.A.R.V.I.S.)">Kore (British Male - J.A.R.V.I.S.)</option>
                     <option value="Zephyr (Smooth Baritone)">Zephyr (Smooth Baritone)</option>
                     <option value="Puck (Crisp Tenor)">Puck (Crisp Tenor)</option>
-                    <option value="Fenrir (Deep Tactical)">Fenrir (Deep Tactical)</option>
+                    <option value="Aoede (Soft Alto)">Aoede (Soft Alto)</option>
                   </select>
                 </div>
               </div>

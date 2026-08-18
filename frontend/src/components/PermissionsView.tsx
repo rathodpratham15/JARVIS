@@ -246,7 +246,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
               </div>
               <div className="flex justify-between text-[#555]">
                 <span>BIOMETRIC ENFORCEMENT</span>
-                <span className="font-bold text-[#1a1a1a]">STARK LEVEL 5</span>
+                <span className="font-bold text-[#1a1a1a]">MULTI-FACTOR</span>
               </div>
               <div className="flex justify-between text-[#555]">
                 <span>HARDWARE ISOLATION</span>

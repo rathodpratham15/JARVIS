@@ -18,14 +18,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const [aiReply, setAiReply] = useState("");
   const [voiceHistory, setVoiceHistory] = useState<
     { id: string; time: string; input: string; reply: string }[]
-  >([
-    {
-      id: "v-1",
-      time: "15:35:18",
-      input: "Jarvis, review Mark 85 armor diagnostics",
-      reply: "At your service, Sir. Repulsor thruster efficiency is at 99.4%.",
-    },
-  ]);
+  >([]);
 
   // Handle Voice Command
   const handleStartListening = () => {
