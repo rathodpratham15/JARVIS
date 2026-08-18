@@ -686,10 +686,15 @@ export default function App() {
                 // ① Face recognition — await it (fast, ~200ms)
                 const faceForm = new FormData();
                 faceForm.append("image", blob, "frame.jpg");
-                const face = await fetch(`${API_BASE}/api/face/identify`, { method: "POST", body: faceForm })
-                  .then(r => r.json()).catch(() => ({}));
+                const faceRes = await fetch(`${API_BASE}/api/face/identify`, { method: "POST", body: faceForm })
+                  .then(async r => ({ ok: r.ok, status: r.status, data: await r.json() }))
+                  .catch(() => ({ ok: false, status: 0, data: {} }));
+                const face = faceRes.data;
 
-                if (face.matched && face.person) {
+                if (faceRes.status === 503) {
+                  // Face recognition not available on this server (e.g. dlib not installed)
+                  setFaces([]);
+                } else if (face.matched && face.person) {
                   const p = face.person;
                   setFaces([{
                     id: p.id ?? "match-1",
@@ -709,7 +714,11 @@ export default function App() {
                 const sceneForm = new FormData();
                 sceneForm.append("image", blob, "frame.jpg");
                 fetch(`${API_BASE}/api/vision/analyze`, { method: "POST", body: sceneForm })
-                  .then(r => r.json())
+                  .then(async r => {
+                    if (r.status === 503) throw new Error("Scene analysis not available on this server");
+                    if (!r.ok) throw new Error(`Server error ${r.status}`);
+                    return r.json();
+                  })
                   .then(scene => {
                     onSceneUpdate?.({
                       sceneDescription: scene.results?.description ?? scene.results?.scene_description ?? scene.description ?? "Scene analyzed.",
@@ -718,7 +727,7 @@ export default function App() {
                     });
                   })
                   .catch(err => {
-                    onSceneUpdate?.({ sceneDescription: `Scene analysis failed: ${err.message}` });
+                    onSceneUpdate?.({ sceneDescription: err.message });
                   });
 
                 // Return immediately with face result; scene arrives via callback

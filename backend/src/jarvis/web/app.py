@@ -55,19 +55,23 @@ except Exception:
     _system_available = False
 
 try:
-    from jarvis.vision import (
-        FaceRecognitionEngine,
-        SceneAnalyzer,
-        SceneHistoryStore,
-        format_recognition_result,
-    )
-    _vision_available = True
+    from jarvis.vision.faces import FaceRecognitionEngine, format_recognition_result
+    _face_available = True
 except Exception:
     FaceRecognitionEngine = None  # type: ignore[assignment,misc]
+    format_recognition_result = None  # type: ignore[assignment]
+    _face_available = False
+
+try:
+    from jarvis.vision.scenes import SceneAnalyzer
+    from jarvis.vision.history import SceneHistoryStore
+    _scene_available = True
+except Exception:
     SceneAnalyzer = None  # type: ignore[assignment,misc]
     SceneHistoryStore = None  # type: ignore[assignment,misc]
-    format_recognition_result = None  # type: ignore[assignment]
-    _vision_available = False
+    _scene_available = False
+
+_vision_available = _face_available or _scene_available
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +161,11 @@ def create_app() -> Flask:
     face_engine = FaceRecognitionEngine(
         data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
         tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
-    ) if _vision_available else None
-    scene_analyzer = SceneAnalyzer() if _vision_available else None
+    ) if _face_available else None
+    scene_analyzer = SceneAnalyzer() if _scene_available else None
     scene_history = SceneHistoryStore(
         db_path=os.getenv("JARVIS_VISION_HISTORY_DB", "data/vision_history.db"),
-    ) if _vision_available else None
+    ) if _scene_available else None
     captures_dir = Path(os.getenv("JARVIS_CAPTURES_DIR", "data/captures"))
     captures_dir.mkdir(parents=True, exist_ok=True)
     system_controller = ActionController(
@@ -605,6 +609,8 @@ def create_app() -> Flask:
     @app.post("/api/face/identify")
     def identify_face() -> tuple[dict, int]:
         """Match an uploaded image against the known-faces DB."""
+        if face_engine is None:
+            return {"success": False, "matched": False, "error": "Face recognition unavailable on this server"}, 503
         image = request.files.get("image")
         if image is None or not image.filename:
             return {"success": False, "error": "image file is required"}, 400
@@ -687,6 +693,8 @@ def create_app() -> Flask:
 
     @app.post("/api/vision/analyze")
     def vision_analyze() -> tuple[dict, int]:
+        if scene_analyzer is None:
+            return {"error": "Scene analysis unavailable on this server"}, 503
         image = request.files.get("image")
         if image is None or not image.filename:
             return {"error": "image file is required"}, 400
@@ -709,7 +717,7 @@ def create_app() -> Flask:
         entry_id = scene_history.record(
             {**results, "model_used": scene.model_used},
             image_url=f"/api/captures/{capture_name}",
-        )
+        ) if scene_history else None
         return {
             "id": entry_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
