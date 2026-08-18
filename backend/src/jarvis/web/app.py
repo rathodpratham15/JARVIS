@@ -906,6 +906,13 @@ def create_app() -> Flask:
             return {"error": "content is required"}, 400
         return {"note": notes.add(content=content, title=payload.get("title"))}, 201
 
+    # Alias for frontend which calls /api/notes directly
+    app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
+
+    @app.delete("/api/notes/<note_id>")
+    def delete_note_by_path(note_id: str) -> tuple[dict, int]:
+        return ({"deleted": True}, 200) if notes.delete(note_id) else ({"error": "not found"}, 404)
+
     @app.route("/api/dashboard/settings", methods=["GET", "POST"])
     def dashboard_settings() -> tuple[dict, int]:
         if request.method == "GET":
