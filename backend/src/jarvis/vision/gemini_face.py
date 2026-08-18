@@ -45,6 +45,7 @@ class GeminiFaceEngine:
         data_dir: str | Path = "data/faces",
         model: str = "gemini-2.0-flash",
         tolerance: float = 0.5,
+        gemini_pool=None,
     ) -> None:
         self.data_dir = Path(data_dir)
         self.images_root = self.data_dir / "images"
@@ -58,7 +59,10 @@ class GeminiFaceEngine:
             "processing_times": [],
         }
         self.images_root.mkdir(parents=True, exist_ok=True)
-        self._setup_client()
+        if gemini_pool is not None:
+            self._client = gemini_pool
+        else:
+            self._setup_client()
         self._load_known_faces()
 
     # ── setup ─────────────────────────────────────────────────────────
