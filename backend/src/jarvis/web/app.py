@@ -129,14 +129,16 @@ def create_app() -> Flask:
     _agent_prov = _sel("JARVIS_AGENT_PROVIDER")
     _agent_key = _res(_agent_prov)
     if _agent_key and _agent_prov.name != llm.provider.name:
-        from openai import OpenAI as _OAI
-        # GEMINI_API_KEY may be semicolon-separated (pool format) — use only the first key
-        _first_agent_key = _agent_key.split(";")[0].strip()
-        _akw: dict = {"api_key": _first_agent_key}
-        if _agent_prov.base_url:
-            _akw["base_url"] = _agent_prov.base_url
-        _agent_tool_client = _OAI(**_akw)
         _agent_tool_model = os.getenv("JARVIS_AGENT_MODEL") or _agent_prov.default_chat_model
+        if _agent_prov.name == "gemini" and _gemini_pool is not None:
+            # Reuse the rotating key pool so 429s auto-rotate to the next key
+            _agent_tool_client = _gemini_pool
+        else:
+            from openai import OpenAI as _OAI
+            _akw: dict = {"api_key": _agent_key}
+            if _agent_prov.base_url:
+                _akw["base_url"] = _agent_prov.base_url
+            _agent_tool_client = _OAI(**_akw)
         logger.info("Agent tool calls: provider=%s model=%s", _agent_prov.name, _agent_tool_model)
     else:
         _agent_tool_client = llm.client
