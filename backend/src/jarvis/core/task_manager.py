@@ -52,10 +52,12 @@ class Task:
     goal: str
     status: TaskStatus
     created_at: str
+    max_steps: int = 8
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     result: "Optional[AgentResult]" = None
     error: Optional[str] = None
+    live_steps: list = field(default_factory=list)
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
 
     def to_dict(self) -> dict:
@@ -67,6 +69,7 @@ class Task:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "error": self.error,
+            "max_steps": self.max_steps,
         }
         if self.result is not None:
             d["final_answer"] = self.result.final_answer
@@ -77,7 +80,7 @@ class Task:
             d["stopped_early"] = self.result.stopped_early
         else:
             d["final_answer"] = None
-            d["steps"] = []
+            d["steps"] = list(self.live_steps)  # snapshot of in-progress steps
             d["stopped_early"] = False
         return d
 
@@ -112,6 +115,7 @@ class TaskManager:
             goal=goal,
             status=TaskStatus.PENDING,
             created_at=datetime.now(timezone.utc).isoformat(),
+            max_steps=max_steps,
         )
         with self._lock:
             self._tasks[task_id] = task
@@ -303,6 +307,7 @@ class TaskManager:
                     tool_intent = tool_call_to_intent(xml_name, xml_args)
                     tool_result = agent.actions.execute_action(tool_intent)
                     steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
+                    task.live_steps.append({"step": i + 1, "tool": xml_name, "args": xml_args, "result": tool_result})
                     messages.append({
                         "role": "user",
                         "content": f"Tool result for {xml_name}: {tool_result}\n\nContinue with the task or provide a final answer.",
@@ -336,6 +341,7 @@ class TaskManager:
                 tool_result = agent.actions.execute_action(tool_intent)
 
                 steps.append(AgentStep(step=i + 1, tool_name=tool_name, tool_args=tool_args, tool_result=tool_result))
+                task.live_steps.append({"step": i + 1, "tool": tool_name, "args": tool_args, "result": tool_result})
                 _capped = tool_result[:4000] + ("…[truncated]" if len(tool_result) > 4000 else "")
                 messages.append({
                     "role": "assistant",
@@ -357,6 +363,7 @@ class TaskManager:
                 tool_intent = tool_call_to_intent(xml_name, xml_args)
                 tool_result = agent.actions.execute_action(tool_intent)
                 steps.append(AgentStep(step=i + 1, tool_name=xml_name, tool_args=xml_args, tool_result=tool_result))
+                task.live_steps.append({"step": i + 1, "tool": xml_name, "args": xml_args, "result": tool_result})
                 messages.append({"role": "assistant", "content": content})
                 messages.append({
                     "role": "user",

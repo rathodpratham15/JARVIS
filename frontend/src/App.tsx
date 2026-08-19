@@ -81,7 +81,15 @@ function mapBackendTask(t: any): AgentTask {
     id: t.id,
     title: t.goal ?? t.title ?? "Task",
     status: statusMap[t.status] ?? "idle",
-    progressPercent: t.status === "done" ? 100 : 0,
+    progressPercent: (() => {
+      if (t.status === "done") return 100;
+      if (t.status === "failed" || t.status === "cancelled") return 0;
+      const steps = t.steps?.length ?? 0;
+      const max = t.max_steps ?? 8;
+      if (t.status === "pending") return 10;
+      if (steps === 0) return 20;  // running but no step completed yet
+      return Math.min(30 + Math.round((steps / max) * 60), 90);
+    })(),
     priority: "High",
     category: "Agent",
     duration: "-",
