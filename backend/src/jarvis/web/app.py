@@ -803,6 +803,23 @@ def create_app() -> Flask:
 
         return send_from_directory(captures_dir.resolve(), filename)
 
+    @app.get("/api/face/list")
+    def face_list() -> tuple[dict, int]:
+        """Return all enrolled people with their metadata and avatar URLs."""
+        if face_engine is None:
+            return {"people": []}, 200
+        return {"people": [_person_to_dict(p) for p in face_engine.known_faces]}, 200
+
+    @app.delete("/api/face/person/<name>")
+    def face_delete_person(name: str) -> tuple[dict, int]:
+        """Remove an enrolled person by name."""
+        if face_engine is None:
+            return {"success": False, "error": "Face recognition unavailable"}, 503
+        removed = face_engine.remove_person(name)
+        if not removed:
+            return {"success": False, "error": f"Person '{name}' not found"}, 404
+        return {"success": True, "remaining": len(face_engine.known_faces)}, 200
+
     @app.post("/api/face/export")
     def face_export() -> tuple[dict, int]:
         """Dump the known-faces metadata (no encodings) to disk."""

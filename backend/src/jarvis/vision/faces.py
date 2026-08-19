@@ -235,6 +235,19 @@ class FaceRecognitionEngine:
             additional_data=extras,
         )
 
+    def remove_person(self, name: str) -> bool:
+        """Remove a person from the DB by name and save to disk."""
+        idx = next(
+            (i for i, p in enumerate(self.known_faces) if p.name.lower() == name.lower()),
+            None,
+        )
+        if idx is None:
+            return False
+        self.known_faces.pop(idx)
+        self.save()
+        logger.info("FaceRecognitionEngine: removed person %s", name)
+        return True
+
     def get_statistics(self) -> dict:
         times = self.stats["processing_times"]
         return {
