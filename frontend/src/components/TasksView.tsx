@@ -206,7 +206,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       <div className="w-full h-1 bg-[#ccc] border-y border-[#1a1a1a]">
                         <div
                           className="h-full bg-[#00E5FF] transition-all duration-500"
-                          style={{ width: `${task.progressPercent || (task.status === "completed" ? 100 : 30)}%` }}
+                          style={{ width: `${task.status === "completed" ? 100 : task.status === "running" ? (task.progressPercent || 10) : 0}%` }}
                         />
                       </div>
 

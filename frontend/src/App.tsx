@@ -81,7 +81,7 @@ function mapBackendTask(t: any): AgentTask {
     id: t.id,
     title: t.goal ?? t.title ?? "Task",
     status: statusMap[t.status] ?? "idle",
-    progressPercent: t.status === "done" ? 100 : t.status === "running" ? 50 : 0,
+    progressPercent: t.status === "done" ? 100 : 0,
     priority: "High",
     category: "Agent",
     duration: "-",
