@@ -244,9 +244,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/tasks`).then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setTasks(d.map(mapBackendTask));
-    }).catch(() => {});
+    const fetchTasks = () => {
+      fetch(`${API_BASE}/api/tasks`)
+        .then(r => r.json())
+        .then(d => {
+          const list: any[] = Array.isArray(d) ? d : (d.tasks ?? []);
+          setTasks(list.map(mapBackendTask));
+        })
+        .catch(() => {});
+    };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── log helper ──────────────────────────────────────────────────────────
@@ -337,7 +346,7 @@ export default function App() {
   const handleExecuteAgentTask = async (taskDescription: string): Promise<AgentTask> => {
     addLog("AGENT", "Autonomous Task Launched", taskDescription.slice(0, 40));
     try {
-      const res = await fetch(`${API_BASE}/api/agent`, {
+      const res = await fetch(`${API_BASE}/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: taskDescription }),
@@ -347,7 +356,7 @@ export default function App() {
         id: data.task_id ?? Date.now().toString(),
         title: taskDescription,
         status: "running",
-        progressPercent: 0,
+        progressPercent: 30,
         priority: "High",
         category: "Autonomous Agent",
         duration: "-",
