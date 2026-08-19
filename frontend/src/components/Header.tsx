@@ -19,7 +19,6 @@ interface HeaderProps {
   personalityMode: PersonalityMode;
   onSelectPersonality: (mode: PersonalityMode) => void;
   onOpenResearch: () => void;
-  onOpenAgentTask: () => void;
   speechEnabled: boolean;
   onToggleSpeech: () => void;
   accentColor: ThemeAccent;
@@ -33,7 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
   personalityMode,
   onSelectPersonality,
   onOpenResearch,
-  onOpenAgentTask,
   speechEnabled,
   onToggleSpeech,
   onToggleMobileSidebar,
@@ -167,14 +165,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Quick Task Trigger Button */}
-          <button
-            onClick={onOpenAgentTask}
-            className="editorial-btn-primary h-8 text-[10px] py-1 px-3"
-          >
-            <Play className="w-3 h-3 fill-current" />
-            <span className="hidden sm:inline">LAUNCH TASK</span>
-          </button>
         </div>
       </div>
     </header>
