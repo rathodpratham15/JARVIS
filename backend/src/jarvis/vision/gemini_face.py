@@ -203,6 +203,10 @@ class GeminiFaceEngine:
         content_oai += [target_label, target_oai, prompt_block]
         content_anthropic += [target_label, target_anthropic, prompt_block]
 
+        logger.info("FaceEngine: sending %d reference image(s) for %d people", refs_added, len(self.known_faces))
+        if refs_added == 0:
+            logger.warning("FaceEngine: no reference images could be read — check image paths on disk")
+
         if self._vision_chain is not None:
             raw = self._vision_chain.call_content(content_oai, content_anthropic, max_tokens=200)
         else:
@@ -213,7 +217,7 @@ class GeminiFaceEngine:
             )
             raw = (resp.choices[0].message.content or "").strip()
 
-        logger.debug("FaceEngine raw: %s", raw)
+        logger.info("FaceEngine raw response: %.500s", raw)
         return _parse_json(raw)
 
     # ── management ────────────────────────────────────────────────────
