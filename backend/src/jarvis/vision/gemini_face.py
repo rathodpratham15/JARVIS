@@ -124,8 +124,8 @@ class GeminiFaceEngine:
         start = time.monotonic()
         image_path = str(image_path)
 
-        if self._client is None:
-            return RecognitionResult(None, 0.0, False, 0.0, "Gemini API not configured")
+        if self._client is None and self._vision_chain is None:
+            return RecognitionResult(None, 0.0, False, 0.0, "Vision API not configured")
         if not self.known_faces:
             return RecognitionResult(
                 None, 0.0, False, 0.0,
