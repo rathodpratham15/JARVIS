@@ -30,9 +30,13 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   voiceStateRef.current = voiceState;
   const wakeActiveRef = useRef(wakeActive);
   wakeActiveRef.current = wakeActive;
+  const commandInProgressRef = useRef(false);
+  const onProcessVoiceCommandRef = useRef(onProcessVoiceCommand);
+  onProcessVoiceCommandRef.current = onProcessVoiceCommand;
 
   const wakeRecognitionRef = useRef<any>(null);
   const commandRecognitionRef = useRef<any>(null);
+  const startWakeListenerRef = useRef<(() => void) | null>(null);
 
   const wakeWordLower = wakeWord.toLowerCase();
 
@@ -40,8 +44,12 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const processQuery = useCallback(async (queryText: string) => {
     setVoiceState("thinking");
     playUiSound("scan");
+    const restoreWake = () => {
+      commandInProgressRef.current = false;
+      if (wakeActiveRef.current) startWakeListenerRef.current?.();
+    };
     try {
-      const reply = await onProcessVoiceCommand(queryText);
+      const reply = await onProcessVoiceCommandRef.current(queryText);
       setAiReply(reply);
       setVoiceState("speaking");
       playUiSound("success");
@@ -51,11 +59,12 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         input: queryText,
         reply,
       }, ...prev]);
-      speakJarvisText(reply, () => setVoiceState("idle"));
+      speakJarvisText(reply, () => { setVoiceState("idle"); restoreWake(); });
     } catch {
       setVoiceState("idle");
+      restoreWake();
     }
-  }, [onProcessVoiceCommand]);
+  }, []); // stable — uses refs for all external deps
 
   // ── command recognition (one-shot after wake word) ─────────────────────────
   const startCommandListening = useCallback(() => {
@@ -67,6 +76,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     rec.lang = "en-US";
 
     let finalText = "";
+    let lastInterim = "";
 
     rec.onresult = (e: any) => {
       let interim = "";
@@ -75,19 +85,26 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         if (e.results[i].isFinal) finalText += t;
         else interim += t;
       }
+      if (interim) lastInterim = interim;
       setTranscript(finalText || interim);
     };
 
     rec.onend = () => {
-      const query = finalText.trim();
+      const query = (finalText || lastInterim).trim();
       if (query) {
         processQuery(query);
       } else {
+        commandInProgressRef.current = false;
         setVoiceState("idle");
+        if (wakeActiveRef.current) startWakeListenerRef.current?.();
       }
     };
 
-    rec.onerror = () => setVoiceState("idle");
+    rec.onerror = () => {
+      commandInProgressRef.current = false;
+      setVoiceState("idle");
+      if (wakeActiveRef.current) startWakeListenerRef.current?.();
+    };
     rec.start();
   }, [processQuery]);
 
@@ -103,8 +120,10 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     rec.onresult = (e: any) => {
       if (voiceStateRef.current !== "idle") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript.toLowerCase();
+        // Normalize: lowercase + strip punctuation so "Hey, Jarvis" matches "hey jarvis"
+        const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
+          commandInProgressRef.current = true;
           rec.stop();
           playUiSound("beep");
           setTranscript("");
@@ -116,21 +135,25 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       }
     };
 
-    // Auto-restart so wake word is always listening (onresult guards non-idle states)
+    // Only restart when NOT mid-command (Chrome runs one recognition at a time)
     rec.onend = () => {
-      if (wakeActiveRef.current) {
+      if (wakeActiveRef.current && !commandInProgressRef.current) {
         try { rec.start(); } catch {}
       }
     };
 
     rec.onerror = (e: any) => {
-      if (e.error === "no-speech" || e.error === "aborted") {
-        if (wakeActiveRef.current) try { rec.start(); } catch {}
+      if ((e.error === "no-speech" || e.error === "aborted") &&
+          wakeActiveRef.current && !commandInProgressRef.current) {
+        try { rec.start(); } catch {}
       }
     };
 
     try { rec.start(); } catch {}
   }, [wakeWordLower, startCommandListening]);
+
+  // Keep ref current so processQuery can call it without circular deps
+  useEffect(() => { startWakeListenerRef.current = startWakeListener; }, [startWakeListener]);
 
   // ── toggle wake word listener ──────────────────────────────────────────────
   useEffect(() => {

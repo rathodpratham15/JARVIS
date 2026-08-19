@@ -301,7 +301,7 @@ export default function App() {
         .catch(() => {});
     };
     fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
+    const interval = setInterval(fetchTasks, 10000);
     return () => clearInterval(interval);
   }, []);
 
