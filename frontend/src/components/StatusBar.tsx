@@ -20,42 +20,45 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
   return (
     <div className="w-full bg-[#F2F2EF] border-b border-[#1a1a1a] select-none">
-      {/* Mobile: compact single row */}
-      <div className="md:hidden flex items-center justify-between px-4 py-2 gap-4">
-        <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full border border-[#1a1a1a] shrink-0 ${isOnline ? "bg-[#00E5FF] animate-pulse" : "bg-red-500"}`} />
-          <span className="font-mono text-[10px] font-bold text-[#1a1a1a] uppercase">
-            {isOnline ? "ONLINE" : "DEGRADED"}
+      <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-[#1a1a1a]">
+        {/* Cell 01: System Status */}
+        <div className="p-3 sm:px-6 sm:py-2.5">
+          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">
+            SYSTEM STATUS
           </span>
-        </div>
-        <div className="flex items-center gap-3 font-mono text-[10px] text-[#555]">
-          <span><strong className="text-[#1a1a1a]">{activeTasksCount}</strong> TASKS</span>
-          <span><strong className="text-[#1a1a1a]">{activeJobsCount}</strong> JOBS</span>
-          <span><strong className="text-[#1a1a1a]">{permissionsGranted}</strong>/{permissionsTotal || "—"} PERMS</span>
-        </div>
-      </div>
-
-      {/* Desktop: 4-column grid */}
-      <div className="hidden md:grid max-w-7xl mx-auto grid-cols-4 divide-x divide-[#1a1a1a]">
-        <div className="px-6 py-2.5">
-          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">SYSTEM STATUS</span>
           <div className="flex items-center gap-2 mt-0.5">
             <span className={`w-2 h-2 rounded-full border border-[#1a1a1a] ${isOnline ? "bg-[#00E5FF] animate-ping" : "bg-red-500"}`} />
-            <span className="font-mono text-xs font-bold text-[#1a1a1a]">{isOnline ? "ONLINE" : "DEGRADED"}</span>
+            <span className="font-mono text-xs font-bold text-[#1a1a1a]">
+              {isOnline ? "ONLINE" : "DEGRADED"}
+            </span>
           </div>
         </div>
-        <div className="px-6 py-2.5">
-          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">AGENT THREADS &amp; JOBS</span>
+
+        {/* Cell 02: Agent Threads & Jobs */}
+        <div className="p-3 sm:px-6 sm:py-2.5">
+          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">
+            AGENT THREADS &amp; JOBS
+          </span>
           <span className="font-mono text-xs font-bold text-[#1a1a1a] mt-0.5 block">
             {activeTasksCount} ACTIVE &bull; {activeJobsCount} SCHEDULED
           </span>
         </div>
-        <div className="px-6 py-2.5">
-          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">ACTIVE SCHEDULES</span>
-          <span className="font-mono text-xs font-bold text-[#1a1a1a] mt-0.5 block">{activeJobsCount} ENABLED</span>
+
+        {/* Cell 03: Active Schedules */}
+        <div className="p-3 sm:px-6 sm:py-2.5">
+          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">
+            ACTIVE SCHEDULES
+          </span>
+          <span className="font-mono text-xs font-bold text-[#1a1a1a] mt-0.5 block">
+            {activeJobsCount} ENABLED
+          </span>
         </div>
-        <div className="px-6 py-2.5">
-          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">PERMISSIONS</span>
+
+        {/* Cell 04: Permissions */}
+        <div className="p-3 sm:px-6 sm:py-2.5">
+          <span className="font-mono text-[10px] text-[#555] uppercase tracking-wider block">
+            PERMISSIONS
+          </span>
           <span className="font-mono text-xs font-bold text-[#1a1a1a] mt-0.5 block">
             {permissionsGranted} / {permissionsTotal > 0 ? permissionsTotal : "—"} GRANTED
           </span>

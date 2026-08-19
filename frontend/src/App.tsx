@@ -36,7 +36,6 @@ import { MemoryView } from "./components/MemoryView";
 import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
-import { BottomNav } from "./components/BottomNav";
 import { speakJarvisText, playUiSound } from "./utils/audio";
 import { API_BASE } from "./utils/api";
 
@@ -674,7 +673,7 @@ export default function App() {
           permissionsTotal={permissions.length}
         />
 
-        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
+        <main className="flex-1 overflow-y-auto">
           {currentPage === "dashboard" && (
             <DashboardView
               services={services}
@@ -868,12 +867,6 @@ export default function App() {
         </main>
       </div>
 
-      <BottomNav
-        currentPage={currentPage}
-        onSelectPage={setCurrentPage}
-        runningTasksCount={tasks.filter(t => t.status === "running").length}
-        dueRemindersCount={reminders.filter(r => !r.isDismissed).length}
-      />
       <ResearchModal isOpen={isResearchOpen} onClose={() => setIsResearchOpen(false)} onRunResearch={handleRunResearch} />
       <AgentTaskModal isOpen={isAgentTaskOpen} onClose={() => setIsAgentTaskOpen(false)} onExecuteAgentTask={handleExecuteAgentTask} />
     </div>
