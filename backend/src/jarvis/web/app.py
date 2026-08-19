@@ -121,13 +121,30 @@ def create_app() -> Flask:
     _gemini_pool = GeminiKeyPool.from_env()
     _vision_chain = VisionProviderChain.from_env(gemini_pool=_gemini_pool)
 
-    # Agent tool calls use the main LLM (Groq/openai-gpt-oss-120b) which supports
-    # proper JSON function calling. Vision chain is reserved for image tasks only.
+    # Agent/background-task tool calls need reliable JSON function calling.
+    # Groq's llama models emit bare <function=name> XML with no args for long-text
+    # tools (save_note, search), so we prefer OpenAI or Gemini for agent tasks.
+    # JARVIS_AGENT_PROVIDER overrides; without it, auto-detect picks OpenAI first.
+    from jarvis.core.providers import select_provider as _sel, resolve_api_key as _res
+    _agent_prov = _sel("JARVIS_AGENT_PROVIDER")
+    _agent_key = _res(_agent_prov)
+    if _agent_key and _agent_prov.name != llm.provider.name:
+        from openai import OpenAI as _OAI
+        _akw: dict = {"api_key": _agent_key}
+        if _agent_prov.base_url:
+            _akw["base_url"] = _agent_prov.base_url
+        _agent_tool_client = _OAI(**_akw)
+        _agent_tool_model = os.getenv("JARVIS_AGENT_MODEL") or _agent_prov.default_chat_model
+        logger.info("Agent tool calls: provider=%s model=%s", _agent_prov.name, _agent_tool_model)
+    else:
+        _agent_tool_client = llm.client
+        _agent_tool_model = llm.model
+
     agent = ReActAgent(
         llm=llm,
         actions=actions,
-        tool_client=llm.client,
-        tool_model=llm.model,
+        tool_client=_agent_tool_client,
+        tool_model=_agent_tool_model,
     )
     task_mgr = TaskManager(agent=agent, memory=memory, sem_memory=sem_memory)
 
