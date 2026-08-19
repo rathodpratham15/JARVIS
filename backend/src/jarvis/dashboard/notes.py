@@ -56,6 +56,22 @@ class NotesStore:
             rows = conn.execute("SELECT * FROM notes ORDER BY created_at DESC").fetchall()
         return [dict(r) for r in rows]
 
+    def update(self, note_id: str, title: Optional[str] = None, content: Optional[str] = None) -> Optional[dict]:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as conn:
+            row = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+            if row is None:
+                return None
+            new_title = title if title is not None else row["title"]
+            new_content = content if content is not None else row["content"]
+            conn.execute(
+                "UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?",
+                (new_title, new_content, now, note_id),
+            )
+            conn.commit()
+        return {"id": note_id, "title": new_title, "content": new_content,
+                "created_at": row["created_at"], "updated_at": now}
+
     def delete(self, note_id: str) -> bool:
         with self._lock, self._connect() as conn:
             cursor = conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))

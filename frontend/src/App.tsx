@@ -573,6 +573,17 @@ export default function App() {
     }
   };
 
+  const handleEditNote = async (id: string, title: string, content: string) => {
+    try {
+      await fetch(`${API_BASE}/api/notes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+    } catch {}
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, title, content } : n));
+  };
+
   const handleToggleCompleteNote = (id: string) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, completed: !n.completed } : n));
   };
@@ -728,6 +739,7 @@ export default function App() {
             <NotesView
               notes={notes}
               onAddNote={handleAddNote}
+              onEditNote={handleEditNote}
               onToggleCompleteNote={handleToggleCompleteNote}
               onDeleteNote={handleDeleteNote}
             />

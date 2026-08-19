@@ -1,15 +1,14 @@
 import React, { useState } from "react";
 import {
-  FileText,
   Plus,
   Search,
   CheckCircle2,
   Circle,
   Trash2,
-  Tag,
-  AlertCircle,
-  Sparkles,
-  Bookmark,
+  Pencil,
+  Check,
+  X,
+  ArrowUpDown,
 } from "lucide-react";
 import { NoteEntry } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -17,6 +16,7 @@ import { playUiSound } from "../utils/audio";
 interface NotesViewProps {
   notes: NoteEntry[];
   onAddNote: (note: Omit<NoteEntry, "id" | "createdAt">) => void;
+  onEditNote: (id: string, title: string, content: string) => void;
   onToggleCompleteNote: (id: string) => void;
   onDeleteNote: (id: string) => void;
 }
@@ -24,11 +24,16 @@ interface NotesViewProps {
 export const NotesView: React.FC<NotesViewProps> = ({
   notes,
   onAddNote,
+  onEditNote,
   onToggleCompleteNote,
   onDeleteNote,
 }) => {
   const [filter, setFilter] = useState<"All" | "Critical" | "High" | "Completed">("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
 
   // Form state for creating a note
   const [title, setTitle] = useState("");
@@ -36,17 +41,35 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const [priority, setPriority] = useState<NoteEntry["priority"]>("High");
   const [tagsInput, setTagsInput] = useState("");
 
-  const filteredNotes = notes.filter((n) => {
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchText = n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
-      if (!matchText) return false;
+  const filteredNotes = notes
+    .filter((n) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (!n.title.toLowerCase().includes(q) && !n.content.toLowerCase().includes(q)) return false;
+      }
+      if (filter === "Critical") return n.priority === "Critical" && !n.completed;
+      if (filter === "High") return n.priority === "High" && !n.completed;
+      if (filter === "Completed") return n.completed;
+      return true;
+    })
+    .sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortAsc ? diff : -diff;
+    });
+
+  const startEdit = (note: NoteEntry) => {
+    setEditingId(note.id);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+  };
+
+  const submitEdit = (id: string) => {
+    if (editTitle.trim()) {
+      onEditNote(id, editTitle.trim(), editContent.trim());
+      playUiSound("beep");
     }
-    if (filter === "Critical") return n.priority === "Critical" && !n.completed;
-    if (filter === "High") return n.priority === "High" && !n.completed;
-    if (filter === "Completed") return n.completed;
-    return true;
-  });
+    setEditingId(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,21 +132,31 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 </p>
               </div>
 
-              {/* Filter Tabs */}
-              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
-                {(["All", "Critical", "High", "Completed"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setFilter(tab)}
-                    className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
-                      filter === tab
-                        ? "bg-[#00E5FF] text-black"
-                        : "text-[#555] hover:text-[#1a1a1a]"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                {/* Sort toggle */}
+                <button
+                  onClick={() => setSortAsc(v => !v)}
+                  title={sortAsc ? "Oldest first" : "Newest first"}
+                  className="p-1.5 border border-[#1a1a1a] bg-[#EBEBEA] hover:bg-[#00E5FF] transition"
+                >
+                  <ArrowUpDown className="w-3.5 h-3.5" />
+                </button>
+                {/* Filter Tabs */}
+                <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
+                  {(["All", "Critical", "High", "Completed"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setFilter(tab)}
+                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
+                        filter === tab
+                          ? "bg-[#00E5FF] text-black"
+                          : "text-[#555] hover:text-[#1a1a1a]"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -148,73 +181,72 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   No directives found. Compose a new note in Panel 02.
                 </div>
               ) : (
-                filteredNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    className={`p-5 border border-[#1a1a1a] transition space-y-3 ${
-                      note.completed ? "bg-[#EBEBEA] opacity-60" : "bg-[#EBEBEA]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <button
-                        onClick={() => onToggleCompleteNote(note.id)}
-                        className="flex items-start gap-2.5 text-left group"
-                      >
-                        {note.completed ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                        ) : (
-                          <Circle className="w-4 h-4 text-[#1a1a1a] group-hover:text-[#00E5FF] mt-0.5 shrink-0" />
-                        )}
-                        <div>
-                          <h3
-                            className={`font-serif text-lg font-bold ${
-                              note.completed ? "line-through text-[#666]" : "text-[#1a1a1a]"
-                            }`}
-                          >
-                            {note.title}
-                          </h3>
+                filteredNotes.map((note) => {
+                  const isEditing = editingId === note.id;
+                  return (
+                    <div
+                      key={note.id}
+                      className={`p-5 border border-[#1a1a1a] transition space-y-3 ${note.completed ? "bg-[#EBEBEA] opacity-60" : "bg-[#EBEBEA]"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          <button onClick={() => onToggleCompleteNote(note.id)} className="mt-1 shrink-0">
+                            {note.completed
+                              ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              : <Circle className="w-4 h-4 text-[#1a1a1a] hover:text-[#00E5FF]" />}
+                          </button>
+                          {isEditing ? (
+                            <input
+                              autoFocus
+                              value={editTitle}
+                              onChange={e => setEditTitle(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") submitEdit(note.id); if (e.key === "Escape") setEditingId(null); }}
+                              className="flex-1 border border-[#1a1a1a] bg-white font-serif text-lg font-bold text-[#1a1a1a] px-2 py-0.5 outline-none"
+                            />
+                          ) : (
+                            <h3 className={`font-serif text-lg font-bold ${note.completed ? "line-through text-[#666]" : "text-[#1a1a1a]"}`}>
+                              {note.title}
+                            </h3>
+                          )}
                         </div>
-                      </button>
-
-                      <span
-                        className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-[#1a1a1a] ${
-                          note.priority === "Critical"
-                            ? "bg-[#1a1a1a] text-[#00E5FF]"
-                            : note.priority === "High"
-                            ? "bg-amber-100 text-amber-900"
-                            : "bg-white text-[#1a1a1a]"
-                        }`}
-                      >
-                        {note.priority}
-                      </span>
-                    </div>
-
-                    <p className="font-mono text-xs text-[#555] leading-relaxed pl-6">
-                      {note.content}
-                    </p>
-
-                    <div className="pt-3 border-t border-[#1a1a1a]/20 flex items-center justify-between pl-6 text-[10px] font-mono text-[#555]">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {note.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="px-1.5 py-0.2 bg-white border border-[#1a1a1a] text-[#1a1a1a]"
-                          >
-                            #{tag}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-[#1a1a1a] ${note.priority === "Critical" ? "bg-[#1a1a1a] text-[#00E5FF]" : note.priority === "High" ? "bg-amber-100 text-amber-900" : "bg-white text-[#1a1a1a]"}`}>
+                            {note.priority}
                           </span>
-                        ))}
+                          {isEditing ? (
+                            <>
+                              <button onClick={() => submitEdit(note.id)} className="text-emerald-600 hover:text-emerald-800"><Check className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingId(null)} className="text-rose-500 hover:text-rose-700"><X className="w-3.5 h-3.5" /></button>
+                            </>
+                          ) : (
+                            <button onClick={() => startEdit(note)} className="text-[#555] hover:text-[#1a1a1a]"><Pencil className="w-3.5 h-3.5" /></button>
+                          )}
+                          <button onClick={() => onDeleteNote(note.id)} className="text-[#555] hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => onDeleteNote(note.id)}
-                        className="p-1 text-[#555] hover:text-rose-600 transition"
-                        title="Delete Directive"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isEditing ? (
+                        <textarea
+                          value={editContent}
+                          onChange={e => setEditContent(e.target.value)}
+                          rows={3}
+                          className="w-full border border-[#1a1a1a] bg-white font-mono text-xs text-[#555] px-2 py-1.5 outline-none resize-none ml-6"
+                        />
+                      ) : (
+                        <p className="font-mono text-xs text-[#555] leading-relaxed pl-6">{note.content}</p>
+                      )}
+
+                      <div className="pt-3 border-t border-[#1a1a1a]/20 flex items-center justify-between pl-6 text-[10px] font-mono text-[#555]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {note.tags.map((tag) => (
+                            <span key={tag} className="px-1.5 py-0.2 bg-white border border-[#1a1a1a] text-[#1a1a1a]">#{tag}</span>
+                          ))}
+                        </div>
+                        <span className="text-[#aaa]">{new Date(note.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
