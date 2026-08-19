@@ -194,14 +194,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* ── Mobile Overlay ─────────────────────────────────────────── */}
       <div
         onClick={onCloseMobile}
-        className={`lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${
+        className={`lg:hidden fixed inset-0 z-[55] bg-black/50 transition-opacity duration-200 ${
           mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
 
       {/* ── Mobile Drawer ──────────────────────────────────────────── */}
       <aside
-        className={`lg:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-[#F2F2EF] border-r border-[#1a1a1a] flex flex-col select-none transform transition-transform duration-200 ${
+        className={`lg:hidden fixed top-0 left-0 bottom-0 z-[60] w-72 bg-[#F2F2EF] border-r border-[#1a1a1a] flex flex-col select-none transform transition-transform duration-200 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
