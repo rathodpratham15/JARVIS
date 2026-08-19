@@ -117,6 +117,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     rec.interimResults = true;
     rec.lang = "en-US";
 
+    let permissionDenied = false;
+
     rec.onresult = (e: any) => {
       if (voiceStateRef.current !== "idle") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -137,14 +139,20 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
     // Only restart when NOT mid-command (Chrome runs one recognition at a time)
     rec.onend = () => {
-      if (wakeActiveRef.current && !commandInProgressRef.current) {
+      if (!permissionDenied && wakeActiveRef.current && !commandInProgressRef.current) {
         try { rec.start(); } catch {}
       }
     };
 
     rec.onerror = (e: any) => {
-      if ((e.error === "no-speech" || e.error === "aborted") &&
-          wakeActiveRef.current && !commandInProgressRef.current) {
+      console.warn("[JARVIS wake] SpeechRecognition error:", e.error);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        // Mic permission denied — can't recover; user must grant permission
+        permissionDenied = true;
+        console.error("[JARVIS wake] Microphone permission denied. Grant mic access and reload.");
+        return;
+      }
+      if (wakeActiveRef.current && !commandInProgressRef.current) {
         try { rec.start(); } catch {}
       }
     };
