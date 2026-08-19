@@ -32,6 +32,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
+  const stepAction = (step: { title: string; args?: Record<string, any> }): string => {
+    const a = step.args ?? {};
+    switch (step.title) {
+      case "search_web":      return `Searched for: "${a.query ?? ""}"`;
+      case "save_note":       return `Saved note (${String(a.text ?? "").length} chars)`;
+      case "get_weather":     return `Checked weather for: ${a.location ?? ""}`;
+      case "set_reminder":    return `Set reminder: "${a.message ?? a.title ?? ""}"`;
+      case "list_notes":      return "Listed saved notes";
+      case "delete_note":     return `Deleted note: ${a.note_id ?? ""}`;
+      case "open_app":        return `Opened app: ${a.app_name ?? ""}`;
+      case "take_screenshot": return "Took screenshot";
+      default:                return step.title.replace(/_/g, " ");
+    }
+  };
+
   const templates = [
     "Search the web for today's top AI news and save a summary note",
     "Research the latest developments in quantum computing and summarize findings",
@@ -235,16 +250,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                       STEP 0{step.step}
                                     </span>
                                     <span className="font-mono text-xs font-bold text-[#1a1a1a]">
-                                      {step.title}
+                                      {stepAction(step)}
                                     </span>
                                   </div>
                                   <span className="font-mono text-[10px] uppercase font-bold text-[#555]">
                                     {step.status}
                                   </span>
                                 </div>
-                                <p className="font-mono text-[11px] text-[#444] pt-1 pl-1 border-l-2 border-[#1a1a1a]">
-                                  {step.log}
-                                </p>
                               </div>
                             ))}
                           </div>

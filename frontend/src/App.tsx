@@ -98,6 +98,7 @@ function mapBackendTask(t: any): AgentTask {
       title: s.tool ?? `Step ${i + 1}`,
       status: "done" as const,
       log: s.result ?? "",
+      args: s.args ?? {},
     })),
     output: t.final_answer ?? "",
     createdAt: t.created_at ?? new Date().toISOString(),

@@ -119,6 +119,7 @@ export interface AgentStep {
   title: string;
   status: "pending" | "running" | "done" | "error";
   log: string;
+  args?: Record<string, any>;
   timestamp?: string;
 }
 
