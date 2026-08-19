@@ -136,14 +136,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* 2-Column Grid */}
+      {/* 2-Column Grid — Launch Directive left, Execution Queue right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Task Pipeline List (7 cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Execution Queue — appears second on desktop */}
+        <div className="lg:col-span-7 lg:order-2 space-y-6">
           <div className="editorial-panel space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <div className="overline-cyan">PANEL 01</div>
+                <div className="overline-cyan">PANEL 02</div>
                 <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
                   Execution Queue
                 </h2>
@@ -283,10 +283,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
 
         {/* Right Column: Launch Autonomous Task Panel (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Launch Directive — appears first on desktop */}
+        <div className="lg:col-span-5 lg:order-1 space-y-6">
           <div className="editorial-panel space-y-6">
             <div>
-              <div className="overline-cyan">PANEL 02</div>
+              <div className="overline-cyan">PANEL 01</div>
               <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
                 Launch Directive
               </h2>
