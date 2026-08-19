@@ -130,7 +130,9 @@ def create_app() -> Flask:
     _agent_key = _res(_agent_prov)
     if _agent_key and _agent_prov.name != llm.provider.name:
         from openai import OpenAI as _OAI
-        _akw: dict = {"api_key": _agent_key}
+        # GEMINI_API_KEY may be semicolon-separated (pool format) — use only the first key
+        _first_agent_key = _agent_key.split(";")[0].strip()
+        _akw: dict = {"api_key": _first_agent_key}
         if _agent_prov.base_url:
             _akw["base_url"] = _agent_prov.base_url
         _agent_tool_client = _OAI(**_akw)
