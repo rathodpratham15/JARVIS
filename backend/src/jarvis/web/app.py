@@ -1047,6 +1047,14 @@ def create_app() -> Flask:
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
 
+    @app.patch("/api/notes/<note_id>")
+    def update_note(note_id: str) -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        updated = notes.update(note_id, title=payload.get("title"), content=payload.get("content"))
+        if updated is None:
+            return {"error": "note not found"}, 404
+        return {"note": updated}, 200
+
     @app.delete("/api/notes/<note_id>")
     def delete_note_by_path(note_id: str) -> tuple[dict, int]:
         return ({"deleted": True}, 200) if notes.delete(note_id) else ({"error": "not found"}, 404)

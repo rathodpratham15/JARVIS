@@ -146,6 +146,27 @@ export default function App() {
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
   const [wakeWord] = useState<string>("Hey Jarvis");
 
+  // Load persisted settings on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings`)
+      .then(r => r.json())
+      .then(d => {
+        const s = d.settings ?? {};
+        if (s.personality_mode) setPersonalityMode(s.personality_mode as PersonalityMode);
+        if (s.accent_color) setAccentColor(s.accent_color as ThemeAccent);
+        if (typeof s.speech_enabled === "boolean") setSpeechEnabled(s.speech_enabled);
+      })
+      .catch(() => {});
+  }, []);
+
+  const persistSettings = useCallback((patch: Record<string, unknown>) => {
+    fetch(`${API_BASE}/api/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }).catch(() => {});
+  }, []);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(
     () => localStorage.getItem("jarvis-sidebar-collapsed") === "true"
   );
@@ -158,6 +179,23 @@ export default function App() {
       return next;
     });
   };
+
+  const handleSetPersonality = useCallback((mode: PersonalityMode) => {
+    setPersonalityMode(mode);
+    persistSettings({ personality_mode: mode });
+  }, [persistSettings]);
+
+  const handleSetAccentColor = useCallback((color: ThemeAccent) => {
+    setAccentColor(color);
+    persistSettings({ accent_color: color });
+  }, [persistSettings]);
+
+  const handleToggleSpeech = useCallback(() => {
+    setSpeechEnabled(v => {
+      persistSettings({ speech_enabled: !v });
+      return !v;
+    });
+  }, [persistSettings]);
 
   const [services, setServices] = useState<ServiceHealth[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -535,6 +573,17 @@ export default function App() {
     }
   };
 
+  const handleEditNote = async (id: string, title: string, content: string) => {
+    try {
+      await fetch(`${API_BASE}/api/notes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+    } catch {}
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, title, content } : n));
+  };
+
   const handleToggleCompleteNote = (id: string) => {
     setNotes(prev => prev.map(n => n.id === id ? { ...n, completed: !n.completed } : n));
   };
@@ -607,12 +656,12 @@ export default function App() {
           onSelectPage={setCurrentPage}
           services={services}
           personalityMode={personalityMode}
-          onSelectPersonality={setPersonalityMode}
+          onSelectPersonality={handleSetPersonality}
           onOpenResearch={() => setIsResearchOpen(true)}
           speechEnabled={speechEnabled}
-          onToggleSpeech={() => setSpeechEnabled(v => !v)}
+          onToggleSpeech={handleToggleSpeech}
           accentColor={accentColor}
-          onChangeAccentColor={setAccentColor}
+          onChangeAccentColor={handleSetAccentColor}
           onToggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)}
         />
 
@@ -634,15 +683,16 @@ export default function App() {
               onOpenResearch={() => setIsResearchOpen(true)}
               onOpenAgentTask={() => setIsAgentTaskOpen(true)}
               personalityMode={personalityMode}
-              onSelectPersonality={setPersonalityMode}
+              onSelectPersonality={handleSetPersonality}
               speechEnabled={speechEnabled}
-              onToggleSpeech={() => setSpeechEnabled(v => !v)}
+              onToggleSpeech={handleToggleSpeech}
               accentColor={accentColor}
-              onChangeAccentColor={setAccentColor}
+              onChangeAccentColor={handleSetAccentColor}
               messagesCount={chatMessages.length}
               notesCount={notes.length}
               schedulesCount={schedules.length}
               tasksCompletedCount={tasks.filter(t => t.status === "completed").length}
+              tasksRunningCount={tasks.filter(t => t.status === "running").length}
               remindersCount={reminders.filter(r => !r.isDismissed).length}
             />
           )}
@@ -656,7 +706,7 @@ export default function App() {
               onSaveToNote={(title, content) => handleAddNote({ title, content, priority: "High", isReminder: false, completed: false, tags: ["ChatDirective"] })}
               personalityMode={personalityMode}
               memoriesCount={memories.length}
-              onSelectPersonality={setPersonalityMode}
+              onSelectPersonality={handleSetPersonality}
             />
           )}
 
@@ -689,6 +739,7 @@ export default function App() {
             <NotesView
               notes={notes}
               onAddNote={handleAddNote}
+              onEditNote={handleEditNote}
               onToggleCompleteNote={handleToggleCompleteNote}
               onDeleteNote={handleDeleteNote}
             />
@@ -707,11 +758,11 @@ export default function App() {
           {currentPage === "settings" && (
             <SettingsView
               personalityMode={personalityMode}
-              onSelectPersonality={setPersonalityMode}
+              onSelectPersonality={handleSetPersonality}
               speechEnabled={speechEnabled}
-              onToggleSpeech={() => setSpeechEnabled(v => !v)}
+              onToggleSpeech={handleToggleSpeech}
               accentColor={accentColor}
-              onChangeAccentColor={setAccentColor}
+              onChangeAccentColor={handleSetAccentColor}
               wakeWord={wakeWord}
               onChangeWakeWord={() => {}}
             />

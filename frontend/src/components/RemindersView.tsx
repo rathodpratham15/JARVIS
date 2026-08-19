@@ -32,6 +32,16 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   const [targetTime, setTargetTime] = useState("");
   const [priority, setPriority] = useState<ReminderItem["priority"]>("HIGH");
   const [selectedSound, setSelectedSound] = useState("Default Chime");
+  const [filter, setFilter] = useState<"All" | "Active" | "Dismissed">("All");
+
+  const relativeTime = (iso: string) => {
+    const diff = new Date(iso).getTime() - Date.now();
+    const abs = Math.abs(diff);
+    if (abs < 60000) return "now";
+    if (abs < 3600000) return `${Math.round(abs / 60000)}m ${diff < 0 ? "ago" : ""}`.trim();
+    if (abs < 86400000) return `${Math.round(abs / 3600000)}h ${diff < 0 ? "ago" : ""}`.trim();
+    return `${Math.round(abs / 86400000)}d ${diff < 0 ? "ago" : ""}`.trim();
+  };
 
   const quickPresets = [
     { label: "+15m", mins: 15 },
@@ -100,7 +110,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
         {/* Left Column: Reminders List (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           <div className="editorial-panel space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="overline-cyan">PANEL 01</div>
                 <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
@@ -110,9 +120,19 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   Synchronized time-critical triggers and voice alerts
                 </p>
               </div>
-              <span className="p-1.5 px-2.5 bg-[#EBEBEA] border border-[#1a1a1a] font-mono text-[11px] font-bold text-[#1a1a1a]">
-                {reminders.filter((r) => !r.isDismissed).length} ACTIVE
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-[#EBEBEA] border border-[#1a1a1a] font-mono text-[11px] font-bold">
+                  {reminders.filter(r => !r.isDismissed).length} ACTIVE
+                </span>
+                <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5">
+                  {(["All", "Active", "Dismissed"] as const).map(f => (
+                    <button key={f} onClick={() => setFilter(f)}
+                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${filter === f ? "bg-[#00E5FF] text-black" : "text-[#555] hover:text-[#1a1a1a]"}`}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="border-b border-[#1a1a1a]" />
@@ -124,7 +144,10 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   No active alarms. Schedule a time-critical reminder in Panel 02.
                 </div>
               ) : (
-                reminders.map((reminder) => (
+                reminders
+                  .filter(r => filter === "All" ? true : filter === "Active" ? !r.isDismissed : r.isDismissed)
+                  .sort((a, b) => new Date(a.targetTime).getTime() - new Date(b.targetTime).getTime())
+                  .map((reminder) => (
                   <div
                     key={reminder.id}
                     className={`p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3 transition ${
@@ -145,7 +168,8 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                           {reminder.priority}
                         </span>
                         <span className="font-mono text-xs text-[#555] font-bold">
-                          ALARM TIME: {new Date(reminder.targetTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          {new Date(reminder.targetTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          <span className="ml-1.5 text-[#00a8bb]">({relativeTime(reminder.targetTime)})</span>
                         </span>
                       </div>
 
@@ -195,7 +219,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       </div>
                     </div>
                   </div>
-                ))
+                  ))
               )}
             </div>
           </div>
