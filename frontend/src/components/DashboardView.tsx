@@ -45,6 +45,7 @@ interface DashboardViewProps {
   notesCount?: number;
   schedulesCount?: number;
   tasksCompletedCount?: number;
+  tasksRunningCount?: number;
   remindersCount?: number;
 }
 
@@ -62,6 +63,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   notesCount = 0,
   schedulesCount = 0,
   tasksCompletedCount = 0,
+  tasksRunningCount = 0,
   remindersCount = 0,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>("");
@@ -179,7 +181,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               J.A.R.V.I.S. Command Center
             </h2>
             <p className="text-sm text-[#444] leading-relaxed">
-              AI assistant online. Multi-step agent loop active. All subsystems reporting status below.
+              {tasksRunningCount > 0
+                ? `${tasksRunningCount} agent task${tasksRunningCount > 1 ? "s" : ""} running. ${tasksCompletedCount} completed total.`
+                : tasksCompletedCount > 0
+                ? `All agents idle. ${tasksCompletedCount} task${tasksCompletedCount > 1 ? "s" : ""} completed.`
+                : "AI assistant online. No active agent tasks."}
+              {remindersCount > 0 ? ` ${remindersCount} reminder${remindersCount > 1 ? "s" : ""} pending.` : ""}
             </p>
 
             {/* Live subsystem health */}
@@ -229,11 +236,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Real stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "MESSAGES", value: messagesCount, icon: <MessageSquare className="w-4 h-4" />, page: "chat" as PageId },
-          { label: "NOTES", value: notesCount, icon: <FileText className="w-4 h-4" />, page: "notes" as PageId },
-          { label: "SCHEDULES", value: schedulesCount, icon: <Clock className="w-4 h-4" />, page: "schedules" as PageId },
-          { label: "REMINDERS", value: remindersCount, icon: <Bell className="w-4 h-4" />, page: "reminders" as PageId },
-        ].map(({ label, value, icon, page }) => (
+          { label: "MESSAGES", value: messagesCount, icon: <MessageSquare className="w-4 h-4" />, page: "chat" as PageId, sub: null },
+          { label: "TASKS DONE", value: tasksCompletedCount, icon: <Activity className="w-4 h-4" />, page: "tasks" as PageId, sub: tasksRunningCount > 0 ? `${tasksRunningCount} running` : null },
+          { label: "NOTES", value: notesCount, icon: <FileText className="w-4 h-4" />, page: "notes" as PageId, sub: null },
+          { label: "REMINDERS", value: remindersCount, icon: <Bell className="w-4 h-4" />, page: "reminders" as PageId, sub: null },
+        ].map(({ label, value, icon, page, sub }) => (
           <div
             key={label}
             onClick={() => { playUiSound("beep"); onSelectPage(page); }}
@@ -248,6 +255,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="mt-3 font-serif text-3xl font-bold text-[#1a1a1a]">
               {value}
             </div>
+            {sub && (
+              <div className="mt-1 font-mono text-[10px] font-bold text-[#00a8bb]">{sub.toUpperCase()}</div>
+            )}
           </div>
         ))}
       </div>

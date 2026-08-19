@@ -643,6 +643,7 @@ export default function App() {
               notesCount={notes.length}
               schedulesCount={schedules.length}
               tasksCompletedCount={tasks.filter(t => t.status === "completed").length}
+              tasksRunningCount={tasks.filter(t => t.status === "running").length}
               remindersCount={reminders.filter(r => !r.isDismissed).length}
             />
           )}
