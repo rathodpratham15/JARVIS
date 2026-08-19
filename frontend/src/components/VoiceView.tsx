@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Mic, MicOff, Volume2, Sparkles, Radio, Play, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Aperture, MicOff, Volume2, Sparkles, Radio, Play, RefreshCw, CheckCircle2 } from "lucide-react";
 import { speakJarvisText, playUiSound } from "../utils/audio";
 
 interface VoiceViewProps {
@@ -144,22 +144,40 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
       {/* Main Center Holographic Voice Hub */}
       <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-white border-2 border-black shadow-[6px_6px_0px_#000000] space-y-6">
-        {/* Animated Background Pulse Waves */}
-        {voiceState === "listening" && (
-          <div className="absolute inset-0 border-2 border-black animate-ping pointer-events-none opacity-20" />
-        )}
+        {/* Arc Orb */}
+        <div className="relative flex items-center justify-center w-48 h-48">
+          {/* Outer pulse rings */}
+          {voiceState !== "idle" && (
+            <>
+              <span className="absolute inline-flex w-full h-full rounded-full opacity-30 animate-ping"
+                style={{ backgroundColor: voiceState === "listening" ? "#00E5FF" : voiceState === "thinking" ? "#fbbf24" : "#34d399" }} />
+              <span className="absolute inline-flex w-3/4 h-3/4 rounded-full opacity-20 animate-ping [animation-delay:150ms]"
+                style={{ backgroundColor: voiceState === "listening" ? "#00E5FF" : voiceState === "thinking" ? "#fbbf24" : "#34d399" }} />
+            </>
+          )}
+          {/* Idle hover ring */}
+          {voiceState === "idle" && (
+            <span className="absolute inline-flex w-full h-full rounded-full border-2 border-[#1a1a1a] opacity-0 group-hover:opacity-20 group-hover:animate-ping transition" />
+          )}
 
-        {/* Center Mic Button */}
-        <div
-          className={`relative cursor-pointer group w-32 h-32 border-2 border-[#1a1a1a] flex items-center justify-center transition ${
-            voiceState === "listening" ? "bg-[#00E5FF]" : voiceState === "thinking" ? "bg-amber-300" : voiceState === "speaking" ? "bg-emerald-300" : "bg-[#EBEBEA] hover:bg-[#00E5FF]"
-          }`}
-          onClick={handleStartListening}
-        >
-          {voiceState === "idle" && <Mic className="w-10 h-10 text-[#1a1a1a] group-hover:scale-110 transition" />}
-          {voiceState === "listening" && <Radio className="w-10 h-10 text-[#1a1a1a] animate-pulse" />}
-          {voiceState === "thinking" && <RefreshCw className="w-10 h-10 text-[#1a1a1a] animate-spin" />}
-          {voiceState === "speaking" && <Volume2 className="w-10 h-10 text-[#1a1a1a] animate-bounce" />}
+          {/* Orb button */}
+          <button
+            onClick={handleStartListening}
+            className={`group relative z-10 w-36 h-36 rounded-full border-4 border-[#1a1a1a] flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] transition-all duration-300 ${
+              voiceState === "listening"
+                ? "bg-[#00E5FF] scale-110"
+                : voiceState === "thinking"
+                ? "bg-amber-300 scale-105"
+                : voiceState === "speaking"
+                ? "bg-emerald-400 scale-105"
+                : "bg-[#EBEBEA] hover:bg-[#00E5FF] hover:scale-105"
+            }`}
+          >
+            {voiceState === "idle"     && <Aperture  className="w-12 h-12 text-[#1a1a1a] group-hover:scale-110 transition" />}
+            {voiceState === "listening" && <Radio    className="w-12 h-12 text-[#1a1a1a] animate-pulse" />}
+            {voiceState === "thinking"  && <RefreshCw className="w-12 h-12 text-[#1a1a1a] animate-spin" />}
+            {voiceState === "speaking"  && <Volume2  className="w-12 h-12 text-[#1a1a1a] animate-bounce" />}
+          </button>
         </div>
 
         {/* Audio Spectrum Waveform Visualizer */}
@@ -187,7 +205,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         {/* Status Prompt Text */}
         <div className="text-center space-y-1">
           <p className="text-sm font-mono font-black text-black">
-            {voiceState === "idle" && "Tap Arc Orb or speak wake word to initiate speech"}
+            {voiceState === "idle" && `Tap the orb or say "${wakeWord}" to initiate speech`}
             {voiceState === "listening" && "Listening... Speak your command now, Sir"}
             {voiceState === "thinking" && "J.A.R.V.I.S. processing voice acoustics & intent..."}
             {voiceState === "speaking" && "J.A.R.V.I.S. replying verbally..."}
