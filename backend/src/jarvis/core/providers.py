@@ -65,8 +65,16 @@ def select_provider(env_var: str = "JARVIS_LLM_PROVIDER") -> ProviderConfig:
     explicit = (os.getenv(env_var) or "").strip().lower()
     if explicit and explicit in PROVIDERS:
         return PROVIDERS[explicit]
-    if os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY_JARVIS"):
-        return PROVIDERS["openai"]
+    # For the main chat LLM, prefer OpenAI then Groq.
+    # For agent tasks (JARVIS_AGENT_PROVIDER), prefer Gemini (free) over OpenAI (paid).
+    if env_var == "JARVIS_AGENT_PROVIDER":
+        if os.getenv("GEMINI_API_KEY"):
+            return PROVIDERS["gemini"]
+        if os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY_JARVIS"):
+            return PROVIDERS["openai"]
+    else:
+        if os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY_JARVIS"):
+            return PROVIDERS["openai"]
     if os.getenv("GROQ_API_KEY"):
         return PROVIDERS["groq"]
     return PROVIDERS["openai"]
