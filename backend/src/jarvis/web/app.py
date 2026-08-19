@@ -447,10 +447,22 @@ def create_app() -> Flask:
         return task.to_dict(), 200
 
     @app.delete("/api/tasks/<task_id>")
-    def cancel_task(task_id: str) -> tuple[dict, int]:
-        if task_mgr.cancel(task_id):
-            return {"cancelled": True, "task_id": task_id}, 200
+    def delete_task(task_id: str) -> tuple[dict, int]:
+        if task_mgr.delete(task_id):
+            return {"deleted": True, "task_id": task_id}, 200
         return {"error": "task not found"}, 404
+
+    @app.patch("/api/tasks/<task_id>")
+    def rename_task(task_id: str) -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        label = (payload.get("label") or "").strip()
+        if not label:
+            return {"error": "label is required"}, 400
+        task = task_mgr.get(task_id)
+        if task is None:
+            return {"error": "task not found"}, 404
+        task.label = label
+        return task.to_dict(), 200
 
     @app.post("/api/chat/stream")
     def chat_stream():

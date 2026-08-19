@@ -79,7 +79,7 @@ function mapBackendTask(t: any): AgentTask {
   };
   return {
     id: t.id,
-    title: t.goal ?? t.title ?? "Task",
+    title: t.label ?? t.goal ?? t.title ?? "Task",
     status: statusMap[t.status] ?? "idle",
     progressPercent: (() => {
       if (t.status === "done") return 100;
@@ -394,6 +394,22 @@ export default function App() {
     }
   };
 
+  const handleDeleteTask = async (id: string) => {
+    try { await fetch(`${API_BASE}/api/tasks/${id}`, { method: "DELETE" }); } catch {}
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleRenameTask = async (id: string, label: string) => {
+    try {
+      await fetch(`${API_BASE}/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+    } catch {}
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title: label } : t));
+  };
+
   // ── schedules ────────────────────────────────────────────────────────────
 
   const handleToggleSchedule = async (id: string) => {
@@ -646,7 +662,12 @@ export default function App() {
           )}
 
           {currentPage === "tasks" && (
-            <TasksView tasks={tasks} onExecuteAgentTask={handleExecuteAgentTask} />
+            <TasksView
+              tasks={tasks}
+              onExecuteAgentTask={handleExecuteAgentTask}
+              onDeleteTask={handleDeleteTask}
+              onRenameTask={handleRenameTask}
+            />
           )}
 
           {currentPage === "schedules" && (

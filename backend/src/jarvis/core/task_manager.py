@@ -57,6 +57,7 @@ class Task:
     finished_at: Optional[str] = None
     result: "Optional[AgentResult]" = None
     error: Optional[str] = None
+    label: Optional[str] = None
     live_steps: list = field(default_factory=list)
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
 
@@ -64,6 +65,7 @@ class Task:
         d: dict = {
             "id": self.id,
             "goal": self.goal,
+            "label": self.label,
             "status": self.status.value,
             "created_at": self.created_at,
             "started_at": self.started_at,
