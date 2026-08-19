@@ -299,6 +299,21 @@ class GeminiFaceEngine:
 
         return added
 
+    def remove_person(self, name: str) -> bool:
+        """Remove a person and their image directory."""
+        idx = next(
+            (i for i, p in enumerate(self.known_faces) if p.name.lower() == name.lower()),
+            None,
+        )
+        if idx is None:
+            return False
+        person_dir = self.images_root / self.known_faces[idx].name
+        if person_dir.exists():
+            shutil.rmtree(person_dir)
+        self.known_faces.pop(idx)
+        logger.info("GeminiFaceEngine: removed person %s", name)
+        return True
+
     def get_statistics(self) -> dict:
         times = self._stats["processing_times"]
         return {
