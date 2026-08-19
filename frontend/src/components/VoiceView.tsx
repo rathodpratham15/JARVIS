@@ -137,22 +137,23 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       }
     };
 
-    // Only restart when NOT mid-command (Chrome runs one recognition at a time)
+    // Only restart when NOT mid-command AND this is still the active instance.
+    // Guards against React StrictMode double-mount creating two competing instances.
+    const isCurrent = () => wakeRecognitionRef.current === rec;
+
     rec.onend = () => {
-      if (!permissionDenied && wakeActiveRef.current && !commandInProgressRef.current) {
+      if (!permissionDenied && isCurrent() && wakeActiveRef.current && !commandInProgressRef.current) {
         try { rec.start(); } catch {}
       }
     };
 
     rec.onerror = (e: any) => {
-      console.warn("[JARVIS wake] SpeechRecognition error:", e.error);
+      console.error("[JARVIS wake] SpeechRecognition error:", e.error);
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        // Mic permission denied — can't recover; user must grant permission
         permissionDenied = true;
-        console.error("[JARVIS wake] Microphone permission denied. Grant mic access and reload.");
         return;
       }
-      if (wakeActiveRef.current && !commandInProgressRef.current) {
+      if (isCurrent() && wakeActiveRef.current && !commandInProgressRef.current) {
         try { rec.start(); } catch {}
       }
     };
@@ -168,9 +169,17 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     if (wakeActive) {
       startWakeListener();
     } else {
-      wakeRecognitionRef.current?.stop();
+      const r = wakeRecognitionRef.current;
+      wakeRecognitionRef.current = null;
+      r?.stop();
     }
-    return () => { wakeRecognitionRef.current?.stop(); };
+    return () => {
+      // Null out ref before stopping so the instance's onend sees isCurrent()=false
+      // and doesn't try to restart (fixes React StrictMode double-mount conflict)
+      const r = wakeRecognitionRef.current;
+      wakeRecognitionRef.current = null;
+      r?.stop();
+    };
   }, [wakeActive, startWakeListener]);
 
   // ── tap orb handler ────────────────────────────────────────────────────────
