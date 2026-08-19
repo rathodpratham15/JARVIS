@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Play,
   CheckCircle2,
@@ -31,6 +31,23 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [newTaskInput, setNewTaskInput] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [animatedProgress, setAnimatedProgress] = useState<Record<string, number>>({});
+
+  // Tick up progress for running tasks every 2s, cap at 85% until backend confirms done
+  useEffect(() => {
+    const running = tasks.filter(t => t.status === "running");
+    if (running.length === 0) return;
+    const interval = setInterval(() => {
+      setAnimatedProgress(prev => {
+        const next = { ...prev };
+        for (const task of running) {
+          next[task.id] = Math.min((prev[task.id] ?? 10) + 5, 85);
+        }
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [tasks.map(t => `${t.id}:${t.status}`).join(",")]);
 
   const templates = [
     "Search the web for today's top AI news and save a summary note",
@@ -206,7 +223,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       <div className="w-full h-1 bg-[#ccc] border-y border-[#1a1a1a]">
                         <div
                           className="h-full bg-[#00E5FF] transition-all duration-500"
-                          style={{ width: `${task.status === "completed" ? 100 : task.status === "running" ? (task.progressPercent || 10) : 0}%` }}
+                          style={{ width: `${task.status === "completed" ? 100 : task.status === "running" ? (animatedProgress[task.id] ?? 10) : 0}%` }}
                         />
                       </div>
 
