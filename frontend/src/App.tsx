@@ -79,9 +79,17 @@ function mapBackendTask(t: any): AgentTask {
   };
   return {
     id: t.id,
-    title: t.goal ?? t.title ?? "Task",
+    title: t.label ?? t.goal ?? t.title ?? "Task",
     status: statusMap[t.status] ?? "idle",
-    progressPercent: t.status === "done" ? 100 : t.status === "running" ? 50 : 0,
+    progressPercent: (() => {
+      if (t.status === "done") return 100;
+      if (t.status === "failed" || t.status === "cancelled") return 0;
+      const steps = t.steps?.length ?? 0;
+      const max = t.max_steps ?? 8;
+      if (t.status === "pending") return 10;
+      if (steps === 0) return 20;  // running but no step completed yet
+      return Math.min(30 + Math.round((steps / max) * 60), 90);
+    })(),
     priority: "High",
     category: "Agent",
     duration: "-",
@@ -90,6 +98,7 @@ function mapBackendTask(t: any): AgentTask {
       title: s.tool ?? `Step ${i + 1}`,
       status: "done" as const,
       log: s.result ?? "",
+      args: s.args ?? {},
     })),
     output: t.final_answer ?? "",
     createdAt: t.created_at ?? new Date().toISOString(),
@@ -244,9 +253,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/tasks`).then(r => r.json()).then(d => {
-      if (Array.isArray(d)) setTasks(d.map(mapBackendTask));
-    }).catch(() => {});
+    const fetchTasks = () => {
+      fetch(`${API_BASE}/api/tasks`)
+        .then(r => r.json())
+        .then(d => {
+          const list: any[] = Array.isArray(d) ? d : (d.tasks ?? []);
+          setTasks(list.map(mapBackendTask));
+        })
+        .catch(() => {});
+    };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   // ── log helper ──────────────────────────────────────────────────────────
@@ -337,7 +355,7 @@ export default function App() {
   const handleExecuteAgentTask = async (taskDescription: string): Promise<AgentTask> => {
     addLog("AGENT", "Autonomous Task Launched", taskDescription.slice(0, 40));
     try {
-      const res = await fetch(`${API_BASE}/api/agent`, {
+      const res = await fetch(`${API_BASE}/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: taskDescription }),
@@ -347,7 +365,7 @@ export default function App() {
         id: data.task_id ?? Date.now().toString(),
         title: taskDescription,
         status: "running",
-        progressPercent: 0,
+        progressPercent: 30,
         priority: "High",
         category: "Autonomous Agent",
         duration: "-",
@@ -374,6 +392,22 @@ export default function App() {
       setTasks(prev => [fallback, ...prev]);
       return fallback;
     }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    try { await fetch(`${API_BASE}/api/tasks/${id}`, { method: "DELETE" }); } catch {}
+    setTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleRenameTask = async (id: string, label: string) => {
+    try {
+      await fetch(`${API_BASE}/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+    } catch {}
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, title: label } : t));
   };
 
   // ── schedules ────────────────────────────────────────────────────────────
@@ -575,7 +609,6 @@ export default function App() {
           personalityMode={personalityMode}
           onSelectPersonality={setPersonalityMode}
           onOpenResearch={() => setIsResearchOpen(true)}
-          onOpenAgentTask={() => setIsAgentTaskOpen(true)}
           speechEnabled={speechEnabled}
           onToggleSpeech={() => setSpeechEnabled(v => !v)}
           accentColor={accentColor}
@@ -628,7 +661,12 @@ export default function App() {
           )}
 
           {currentPage === "tasks" && (
-            <TasksView tasks={tasks} onExecuteAgentTask={handleExecuteAgentTask} />
+            <TasksView
+              tasks={tasks}
+              onExecuteAgentTask={handleExecuteAgentTask}
+              onDeleteTask={handleDeleteTask}
+              onRenameTask={handleRenameTask}
+            />
           )}
 
           {currentPage === "schedules" && (
