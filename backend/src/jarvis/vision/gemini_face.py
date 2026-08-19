@@ -17,6 +17,7 @@ import logging
 import os
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 
@@ -163,12 +164,57 @@ class GeminiFaceEngine:
         reason = parsed.get("reasoning") or "No matching face found"
         return RecognitionResult(None, confidence, False, elapsed, reason)
 
-    def _call_gemini(self, image_path: str) -> dict:
-        """One-vs-one comparisons: ask 'is this person X?' for each enrolled person.
+    def _compare_one(
+        self,
+        person,
+        target_oai: dict,
+        target_anthropic_img: dict,
+    ) -> tuple[str, float, bool, str | None]:
+        """Run one binary same-person comparison for `person`. Returns (name, confidence, matched, reasoning)."""
+        ref_oai: list[dict] = []
+        ref_anthropic: list[dict] = []
+        for ref_path in person.image_paths[:_MAX_REFS_PER_PERSON]:
+            b64 = _b64_image(ref_path)
+            if b64 is None:
+                continue
+            ref_oai.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+            ref_anthropic.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}})
 
-        This is more accurate than multi-class recognition because the model
-        only has to answer a binary same-person question per comparison.
-        """
+        if not ref_oai:
+            logger.warning("FaceEngine: no reference images for %s — skipping", person.name)
+            return person.name, 0.0, False, None
+
+        prompt = {
+            "type": "text",
+            "text": (
+                f"The image(s) above are reference photos of {person.name}. "
+                "Does the next image (TARGET) show this SAME person? "
+                "Reply ONLY with JSON (no markdown): "
+                "{\"matched\": true/false, \"confidence\": <0.0-1.0>, \"reasoning\": \"<one sentence>\"}"
+            ),
+        }
+        content_oai = ref_oai + [prompt, {"type": "text", "text": "TARGET:"}, target_oai]
+        content_anthropic = ref_anthropic + [prompt, {"type": "text", "text": "TARGET:"}, target_anthropic_img]
+
+        if self._vision_chain is not None:
+            raw = self._vision_chain.call_content(content_oai, content_anthropic, max_tokens=120)
+        else:
+            resp = self._client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": content_oai}],
+                max_tokens=120,
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+
+        logger.info("FaceEngine [%s]: %.300s", person.name, raw)
+        parsed = _parse_json(raw)
+        confidence = float(parsed.get("confidence", 0.0))
+        matched = bool(parsed.get("matched", False))
+        reasoning = parsed.get("reasoning")
+        return person.name, confidence, matched, reasoning
+
+    def _call_gemini(self, image_path: str) -> dict:
+        """One-vs-one comparisons run in parallel for all enrolled people."""
         target_b64 = _b64_image(image_path)
         if target_b64 is None:
             raise ValueError("Could not read target image")
@@ -176,73 +222,35 @@ class GeminiFaceEngine:
         target_oai = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{target_b64}"}}
         target_anthropic_img = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": target_b64}}
 
+        logger.info("FaceEngine: parallel one-vs-one comparisons for %d enrolled people", len(self.known_faces))
+
         best_name: str | None = None
         best_confidence: float = 0.0
         best_matched: bool = False
         best_reasoning: str | None = None
 
-        logger.info("FaceEngine: one-vs-one comparisons for %d enrolled people", len(self.known_faces))
-
-        for person in self.known_faces:
-            ref_oai: list[dict] = []
-            ref_anthropic: list[dict] = []
-            for ref_path in person.image_paths[:_MAX_REFS_PER_PERSON]:
-                b64 = _b64_image(ref_path)
-                if b64 is None:
-                    continue
-                ref_oai.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
-                ref_anthropic.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}})
-
-            if not ref_oai:
-                logger.warning("FaceEngine: no reference images for %s — skipping", person.name)
-                continue
-
-            prompt = {
-                "type": "text",
-                "text": (
-                    f"The image(s) above are reference photos of {person.name}. "
-                    "Does the next image (TARGET) show this SAME person? "
-                    "Reply ONLY with JSON (no markdown): "
-                    "{\"matched\": true/false, \"confidence\": <0.0-1.0>, \"reasoning\": \"<one sentence>\"}"
-                ),
+        max_workers = min(len(self.known_faces), 8)
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(self._compare_one, person, target_oai, target_anthropic_img): person.name
+                for person in self.known_faces
             }
-            content_oai = ref_oai + [prompt, {"type": "text", "text": "TARGET:"}, target_oai]
-            content_anthropic = ref_anthropic + [prompt, {"type": "text", "text": "TARGET:"}, target_anthropic_img]
-
-            try:
-                if self._vision_chain is not None:
-                    raw = self._vision_chain.call_content(content_oai, content_anthropic, max_tokens=120)
-                else:
-                    resp = self._client.chat.completions.create(
-                        model=self.model,
-                        messages=[{"role": "user", "content": content_oai}],
-                        max_tokens=120,
-                    )
-                    raw = (resp.choices[0].message.content or "").strip()
-
-                logger.info("FaceEngine [%s]: %.300s", person.name, raw)
-                parsed = _parse_json(raw)
-                confidence = float(parsed.get("confidence", 0.0))
-                matched = bool(parsed.get("matched", False))
-
-                if matched and confidence > best_confidence:
-                    best_name = person.name
-                    best_confidence = confidence
-                    best_matched = True
-                    best_reasoning = parsed.get("reasoning")
-
-                # Early exit on high-confidence match
-                if best_matched and best_confidence >= 0.85:
-                    break
-
-            except Exception as exc:
-                logger.warning("FaceEngine: comparison for %s failed: %s", person.name, exc)
+            for future in as_completed(futures):
+                try:
+                    name, confidence, matched, reasoning = future.result()
+                    if matched and confidence > best_confidence:
+                        best_name = name
+                        best_confidence = confidence
+                        best_matched = True
+                        best_reasoning = reasoning
+                except Exception as exc:
+                    logger.warning("FaceEngine: comparison for %s failed: %s", futures[future], exc)
 
         return {
             "matched": best_matched,
             "name": best_name,
             "confidence": best_confidence,
-            "reasoning": best_reasoning or ("No matching face found"),
+            "reasoning": best_reasoning or "No matching face found",
         }
 
     # ── management ────────────────────────────────────────────────────
