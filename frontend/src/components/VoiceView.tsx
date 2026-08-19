@@ -21,13 +21,15 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [transcript, setTranscript] = useState("");
   const [aiReply, setAiReply] = useState("");
-  const [wakeActive, setWakeActive] = useState(false);
+  const [wakeActive, setWakeActive] = useState(true);
   const [voiceHistory, setVoiceHistory] = useState<
     { id: string; time: string; input: string; reply: string }[]
   >([]);
 
   const voiceStateRef = useRef(voiceState);
   voiceStateRef.current = voiceState;
+  const wakeActiveRef = useRef(wakeActive);
+  wakeActiveRef.current = wakeActive;
 
   const wakeRecognitionRef = useRef<any>(null);
   const commandRecognitionRef = useRef<any>(null);
@@ -114,21 +116,21 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       }
     };
 
-    // Auto-restart so it listens continuously
+    // Auto-restart so wake word is always listening (onresult guards non-idle states)
     rec.onend = () => {
-      if (voiceStateRef.current === "idle" && wakeActive) {
+      if (wakeActiveRef.current) {
         try { rec.start(); } catch {}
       }
     };
 
     rec.onerror = (e: any) => {
       if (e.error === "no-speech" || e.error === "aborted") {
-        try { rec.start(); } catch {}
+        if (wakeActiveRef.current) try { rec.start(); } catch {}
       }
     };
 
     try { rec.start(); } catch {}
-  }, [wakeWordLower, startCommandListening, wakeActive]);
+  }, [wakeWordLower, startCommandListening]);
 
   // ── toggle wake word listener ──────────────────────────────────────────────
   useEffect(() => {
