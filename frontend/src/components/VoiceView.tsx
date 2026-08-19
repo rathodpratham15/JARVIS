@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Mic, MicOff, Volume2, Sparkles, Radio, Play, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Aperture, MicOff, Volume2, Sparkles, Radio, Play, RefreshCw, CheckCircle2 } from "lucide-react";
 import { speakJarvisText, playUiSound } from "../utils/audio";
 
 interface VoiceViewProps {
@@ -173,7 +173,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
                 : "bg-[#EBEBEA] hover:bg-[#00E5FF] hover:scale-105"
             }`}
           >
-            {voiceState === "idle"     && <Mic      className="w-12 h-12 text-[#1a1a1a] group-hover:scale-110 transition" />}
+            {voiceState === "idle"     && <Aperture  className="w-12 h-12 text-[#1a1a1a] group-hover:scale-110 transition" />}
             {voiceState === "listening" && <Radio    className="w-12 h-12 text-[#1a1a1a] animate-pulse" />}
             {voiceState === "thinking"  && <RefreshCw className="w-12 h-12 text-[#1a1a1a] animate-spin" />}
             {voiceState === "speaking"  && <Volume2  className="w-12 h-12 text-[#1a1a1a] animate-bounce" />}
