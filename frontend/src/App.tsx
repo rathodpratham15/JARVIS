@@ -35,6 +35,7 @@ import { VisionView } from "./components/VisionView";
 import { MemoryView } from "./components/MemoryView";
 import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
+import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound } from "./utils/audio";
 import { API_BASE } from "./utils/api";
 
@@ -172,6 +173,7 @@ export default function App() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [activeAgentTask, setActiveAgentTask] = useState<AgentTask | undefined>();
   const [isResearchOpen, setIsResearchOpen] = useState(false);
+  const [isAgentTaskOpen, setIsAgentTaskOpen] = useState(false);
 
   // ── bootstrap from backend ───────────────────────────────────────────────
 
@@ -630,6 +632,7 @@ export default function App() {
               activeAgentTask={activeAgentTask}
               onSelectPage={setCurrentPage}
               onOpenResearch={() => setIsResearchOpen(true)}
+              onOpenAgentTask={() => setIsAgentTaskOpen(true)}
               personalityMode={personalityMode}
               onSelectPersonality={setPersonalityMode}
               speechEnabled={speechEnabled}
@@ -814,6 +817,7 @@ export default function App() {
       </div>
 
       <ResearchModal isOpen={isResearchOpen} onClose={() => setIsResearchOpen(false)} onRunResearch={handleRunResearch} />
+      <AgentTaskModal isOpen={isAgentTaskOpen} onClose={() => setIsAgentTaskOpen(false)} onExecuteAgentTask={handleExecuteAgentTask} />
     </div>
   );
 }

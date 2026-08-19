@@ -34,6 +34,7 @@ interface DashboardViewProps {
   activeAgentTask?: AgentTask;
   onSelectPage: (page: PageId) => void;
   onOpenResearch: () => void;
+  onOpenAgentTask: () => void;
   personalityMode?: PersonalityMode;
   onSelectPersonality?: (mode: PersonalityMode) => void;
   speechEnabled?: boolean;
@@ -52,6 +53,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   logs = [],
   onSelectPage,
   onOpenResearch,
+  onOpenAgentTask,
   personalityMode = "Standard",
   onSelectPersonality,
   speechEnabled = false,
@@ -158,6 +160,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>RESEARCH</span>
           </button>
 
+          <button onClick={() => { playUiSound("power"); onOpenAgentTask(); }} className="editorial-btn-primary text-xs">
+            <Play className="w-3.5 h-3.5 fill-black" />
+            <span>LAUNCH TASK</span>
+          </button>
         </div>
       </div>
 
