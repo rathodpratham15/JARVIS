@@ -1,5 +1,11 @@
 // Web Speech API and Web Audio API helper for J.A.R.V.I.S audio feedback
 
+const API_BASE = (
+  typeof import.meta !== "undefined"
+    ? ((import.meta as any).env?.VITE_API_BASE ?? "")
+    : ""
+).replace(/\/$/, "");
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -14,6 +20,15 @@ function getAudioContext(): AudioContext | null {
     audioCtx.resume().catch(() => {});
   }
   return audioCtx;
+}
+
+// Call once inside a user-gesture handler to satisfy Chrome's autoplay policy.
+// After this, speakJarvisText will always use ElevenLabs via AudioContext.
+export function unlockAudioContext() {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
 }
 
 // Play futuristic UI beep sound effect
@@ -77,56 +92,102 @@ export function playUiSound(type: "beep" | "success" | "alert" | "scan" | "power
   }
 }
 
-// Text-To-Speech function using browser SpeechSynthesis
-export function speakJarvisText(text: string, onEnd?: () => void) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    if (onEnd) onEnd();
-    return;
-  }
+// Active AudioContext source node so we can stop mid-speech
+let activeTtsSource: AudioBufferSourceNode | null = null;
 
-  // Cancel any ongoing speech
-  window.speechSynthesis.cancel();
+// Text-To-Speech: calls /api/tts (macOS say → WAV, or ElevenLabs if configured)
+// and plays the returned audio through AudioContext. Falls back to browser
+// speechSynthesis if the backend call fails.
+export async function speakJarvisText(text: string, onEnd?: () => void): Promise<void> {
+  if (typeof window === "undefined") { onEnd?.(); return; }
 
-  // Strip markdown formatting like **bold** or `code` for clean spoken speech
+  // Stop any currently playing TTS
+  stopJarvisSpeech();
+
   const cleanText = text
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/`(.*?)`/g, "$1")
-    .replace(/#+\s/g, "")
-    .replace(/\[(.*?)\]\(.*?\)/g, "$1");
+    .replace(/```[\s\S]*?```/g, "")           // fenced code blocks
+    .replace(/\|[^\n]+\|/g, "")               // table rows
+    .replace(/^[-:|]+$/gm, "")               // table separators
+    .replace(/---+/g, "")                     // horizontal rules
+    .replace(/\*\*(.*?)\*\*/g, "$1")          // bold
+    .replace(/\*(.*?)\*/g, "$1")              // italic
+    .replace(/`(.*?)`/g, "$1")               // inline code
+    .replace(/#+\s+/g, "")                   // headers
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")      // links
+    .replace(/^\s*[-*+]\s+/gm, "")           // bullet points
+    .replace(/^\s*\d+\.\s+/gm, "")           // numbered lists
+    .replace(/\n+/g, " ")                     // newlines → spaces
+    .replace(/\s{2,}/g, " ")                  // collapse whitespace
+    .trim();
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-
-  // Try to find a British or smooth male voice suitable for J.A.R.V.I.S.
-  const voices = window.speechSynthesis.getVoices();
-  const britishVoice =
-    voices.find(
-      (v) =>
-        v.lang.includes("en-GB") ||
-        v.name.toLowerCase().includes("british") ||
-        v.name.toLowerCase().includes("daniel") ||
-        v.name.toLowerCase().includes("george") ||
-        v.name.toLowerCase().includes("male")
-    ) || voices.find((v) => v.lang.startsWith("en"));
-
-  if (britishVoice) {
-    utterance.voice = britishVoice;
+  // ── Backend TTS via AudioContext (bypasses Chrome autoplay restrictions) ──
+  try {
+    const res = await fetch(`${API_BASE}/api/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: cleanText }),
+    });
+    if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+    const arrayBuf = await res.arrayBuffer();
+    const ctx = getAudioContext();
+    if (!ctx) throw new Error("No AudioContext");
+    // Ensure the context is running before decoding/playing
+    if (ctx.state === "suspended") await ctx.resume();
+    const audioBuf = await ctx.decodeAudioData(arrayBuf);
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuf;
+    source.connect(ctx.destination);
+    activeTtsSource = source;
+    source.onended = () => {
+      activeTtsSource = null;
+      onEnd?.();
+    };
+    source.start(0);
+    console.log("[JARVIS TTS] backend TTS playing, duration:", audioBuf.duration.toFixed(1) + "s");
+    return;
+  } catch (err) {
+    console.warn("[JARVIS TTS] backend TTS failed, falling back to speechSynthesis:", err);
   }
 
-  utterance.pitch = 0.95; // Slightly deeper, precise voice
-  utterance.rate = 1.05; // Articulate, measured pace
+  // ── Fallback: browser SpeechSynthesis ────────────────────────────────────
+  if (!("speechSynthesis" in window)) { onEnd?.(); return; }
 
-  utterance.onend = () => {
-    if (onEnd) onEnd();
+  const buildAndSpeak = (voices: SpeechSynthesisVoice[]) => {
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const britishVoice =
+      voices.find(
+        (v) =>
+          v.lang.includes("en-GB") ||
+          v.name.toLowerCase().includes("british") ||
+          v.name.toLowerCase().includes("daniel") ||
+          v.name.toLowerCase().includes("george") ||
+          v.name.toLowerCase().includes("male")
+      ) || voices.find((v) => v.lang.startsWith("en"));
+    if (britishVoice) utterance.voice = britishVoice;
+    utterance.pitch = 0.95;
+    utterance.rate = 1.05;
+    utterance.onend = () => { onEnd?.(); };
+    utterance.onerror = () => { onEnd?.(); };
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utterance);
   };
 
-  utterance.onerror = () => {
-    if (onEnd) onEnd();
-  };
-
-  window.speechSynthesis.speak(utterance);
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    buildAndSpeak(voices);
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      buildAndSpeak(window.speechSynthesis.getVoices());
+    };
+  }
 }
 
 export function stopJarvisSpeech() {
+  if (activeTtsSource) {
+    try { activeTtsSource.stop(); } catch {}
+    activeTtsSource = null;
+  }
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     window.speechSynthesis.cancel();
   }

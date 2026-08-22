@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Aperture, Volume2, Radio, Play, RefreshCw } from "lucide-react";
-import { speakJarvisText, playUiSound } from "../utils/audio";
+import { speakJarvisText, stopJarvisSpeech, playUiSound } from "../utils/audio";
 
 interface VoiceViewProps {
   onProcessVoiceCommand: (transcript: string) => Promise<string>;
@@ -31,6 +31,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const wakeActiveRef = useRef(wakeActive);
   wakeActiveRef.current = wakeActive;
   const commandInProgressRef = useRef(false);
+  const queryIdRef = useRef(0); // incremented on each new query; used to discard stale replies
   const onProcessVoiceCommandRef = useRef(onProcessVoiceCommand);
   onProcessVoiceCommandRef.current = onProcessVoiceCommand;
 
@@ -42,14 +43,28 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
   // ── process query ──────────────────────────────────────────────────────────
   const processQuery = useCallback(async (queryText: string) => {
+    const queryId = ++queryIdRef.current;
+    const isCurrent = () => queryIdRef.current === queryId;
+
     setVoiceState("thinking");
     playUiSound("scan");
-    const restoreWake = () => {
-      commandInProgressRef.current = false;
-      if (wakeActiveRef.current) startWakeListenerRef.current?.();
+
+    // Command recognition is done — restart wake listener immediately so
+    // "Hey Jarvis" can interrupt while Jarvis is thinking or speaking.
+    commandInProgressRef.current = false;
+    if (wakeActiveRef.current && !wakeRecognitionRef.current) {
+      startWakeListenerRef.current?.();
+    }
+
+    const ensureWake = () => {
+      if (wakeActiveRef.current && !wakeRecognitionRef.current) {
+        startWakeListenerRef.current?.();
+      }
     };
+
     try {
       const reply = await onProcessVoiceCommandRef.current(queryText);
+      if (!isCurrent()) return; // superseded by a newer query
       setAiReply(reply);
       setVoiceState("speaking");
       playUiSound("success");
@@ -59,10 +74,22 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         input: queryText,
         reply,
       }, ...prev]);
-      speakJarvisText(reply, () => { setVoiceState("idle"); restoreWake(); });
+      // Cap spoken text so ElevenLabs generates quickly; full reply stays in history card.
+      const MAX_SPEAK_CHARS = 300;
+      let textToSpeak = reply;
+      if (reply.length > MAX_SPEAK_CHARS) {
+        const cut = reply.lastIndexOf(" ", MAX_SPEAK_CHARS);
+        textToSpeak = reply.slice(0, cut > 0 ? cut : MAX_SPEAK_CHARS) + "… full response shown above.";
+      }
+      speakJarvisText(textToSpeak, () => {
+        if (!isCurrent()) return; // interrupted; new query already manages state
+        setVoiceState("idle");
+        ensureWake();
+      });
     } catch {
+      if (!isCurrent()) return;
       setVoiceState("idle");
-      restoreWake();
+      ensureWake();
     }
   }, []); // stable — uses refs for all external deps
 
@@ -120,14 +147,23 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     let permissionDenied = false;
 
     rec.onresult = (e: any) => {
-      if (voiceStateRef.current !== "idle") return;
+      const state = voiceStateRef.current;
+      // Allow wake during idle, thinking, or speaking — not while already listening for a command
+      if (state === "listening") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         // Normalize: lowercase + strip punctuation so "Hey, Jarvis" matches "hey jarvis"
         const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
+          if (state === "thinking" || state === "speaking") {
+            queryIdRef.current++; // invalidate current query / TTS onEnd callback
+            stopJarvisSpeech();
+            playUiSound("alert");
+          } else {
+            playUiSound("beep");
+          }
           commandInProgressRef.current = true;
+          wakeRecognitionRef.current = null; // prevent onend from restarting this instance
           rec.stop();
-          playUiSound("beep");
           setTranscript("");
           setAiReply("");
           setVoiceState("listening");
@@ -184,12 +220,27 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
   // ── tap orb handler ────────────────────────────────────────────────────────
   const handleOrbClick = () => {
+    // Interrupt thinking or speaking — wake listener is already running, just cancel the query.
+    if (voiceState === "thinking" || voiceState === "speaking") {
+      queryIdRef.current++;
+      stopJarvisSpeech();
+      setVoiceState("idle");
+      return;
+    }
+
     if (voiceState === "listening") {
       commandRecognitionRef.current?.stop();
       setVoiceState("idle");
       return;
     }
     if (voiceState !== "idle") return;
+
+    // Stop the wake listener so command recognition can acquire the microphone.
+    // Chrome only allows one SpeechRecognition instance at a time.
+    commandInProgressRef.current = true;
+    const wakeRec = wakeRecognitionRef.current;
+    wakeRecognitionRef.current = null; // null out so its onend doesn't restart it
+    wakeRec?.stop();
 
     playUiSound("beep");
     setTranscript("");
@@ -222,8 +273,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const stateColor = {
     idle: "bg-[#EBEBEA] hover:bg-[#00E5FF]",
     listening: "bg-[#00E5FF] scale-110",
-    thinking: "bg-amber-300 scale-105",
-    speaking: "bg-emerald-400 scale-105",
+    thinking: "bg-amber-300 scale-105 hover:bg-red-300",
+    speaking: "bg-emerald-400 scale-105 hover:bg-red-400",
   }[voiceState];
 
   const ringColor = {
@@ -317,8 +368,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         <p className="text-sm font-mono font-black text-black text-center">
           {voiceState === "idle"      && `Tap the orb or say "${wakeWord}" to initiate speech`}
           {voiceState === "listening" && "Listening… speak your command now, Sir"}
-          {voiceState === "thinking"  && "J.A.R.V.I.S. processing voice acoustics & intent…"}
-          {voiceState === "speaking"  && "J.A.R.V.I.S. replying verbally…"}
+          {voiceState === "thinking"  && `J.A.R.V.I.S. processing… tap or say "${wakeWord}" to cancel`}
+          {voiceState === "speaking"  && `J.A.R.V.I.S. replying verbally… tap or say "${wakeWord}" to interrupt`}
         </p>
 
         {/* Transcript / reply box */}
