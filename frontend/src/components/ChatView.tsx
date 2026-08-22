@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Send,
   Sparkles,
@@ -222,9 +224,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             className="max-h-48 border border-[#1a1a1a] mb-2 object-cover"
                           />
                         )}
-                        <p className="whitespace-pre-wrap leading-relaxed">
-                          {msg.text}
-                        </p>
+                        {isUser ? (
+                          <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                        ) : (
+                          <div className="prose prose-xs max-w-none font-mono text-xs leading-relaxed
+                            prose-headings:font-black prose-headings:font-heading prose-headings:text-[#1a1a1a] prose-headings:mt-3 prose-headings:mb-1
+                            prose-p:my-1 prose-p:text-[#1a1a1a]
+                            prose-strong:text-[#1a1a1a] prose-strong:font-black
+                            prose-code:bg-black/10 prose-code:px-1 prose-code:rounded prose-code:text-[11px]
+                            prose-pre:bg-black/10 prose-pre:p-2 prose-pre:rounded prose-pre:text-[11px] prose-pre:overflow-x-auto
+                            prose-ul:my-1 prose-ul:pl-4 prose-li:my-0
+                            prose-ol:my-1 prose-ol:pl-4
+                            prose-blockquote:border-l-2 prose-blockquote:border-[#1a1a1a] prose-blockquote:pl-2 prose-blockquote:italic
+                            prose-table:text-[11px] prose-th:border prose-th:border-[#1a1a1a] prose-th:px-2 prose-th:py-1 prose-th:bg-black/10
+                            prose-td:border prose-td:border-[#1a1a1a] prose-td:px-2 prose-td:py-1
+                            prose-hr:border-[#1a1a1a]/30">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                          </div>
+                        )}
 
                         {/* Jarvis Message Actions */}
                         {!isUser && (
