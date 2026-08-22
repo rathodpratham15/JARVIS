@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   PageId,
@@ -17,6 +17,7 @@ import {
   ScheduleJob,
   CapabilityPermission,
   ReminderItem,
+  AppNotification,
 } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -37,6 +38,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
+import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { API_BASE } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -219,9 +221,13 @@ export default function App() {
   const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [snapshots] = useState<VisionSnapshot[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeAgentTask, setActiveAgentTask] = useState<AgentTask | undefined>();
   const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isAgentTaskOpen, setIsAgentTaskOpen] = useState(false);
+
+  // Track previous schedule statuses to detect done/failed transitions
+  const prevScheduleStatusRef = useRef<Record<string, string>>({});
 
   // ── bootstrap from backend ───────────────────────────────────────────────
 
@@ -266,10 +272,51 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // Request browser notification permission once on first load
+  useEffect(() => { requestNotificationPermission(); }, []);
+
   useEffect(() => {
-    fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
-      if (d.jobs) setSchedules(d.jobs.map(mapBackendSchedule));
-    }).catch(() => {});
+    const fetchSchedules = () => {
+      fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
+        if (!d.jobs) return;
+        const jobs: ScheduleJob[] = d.jobs.map(mapBackendSchedule);
+        setSchedules(jobs);
+
+        // Detect transitions: running → done or failed
+        const prev = prevScheduleStatusRef.current;
+        jobs.forEach(job => {
+          const prevStatus = prev[job.id];
+          const nowStatus = job.status;
+          if (prevStatus === "running" && (nowStatus === "success" || nowStatus === "failed")) {
+            const isSuccess = nowStatus === "success";
+            const title = isSuccess
+              ? `Agent complete: ${job.title}`
+              : `Agent failed: ${job.title}`;
+            const body = job.lastResult
+              ? job.lastResult.slice(0, 120) + (job.lastResult.length > 120 ? "…" : "")
+              : isSuccess ? "Task completed successfully." : "Task encountered an error.";
+
+            showBrowserNotification(title, body, job.id);
+
+            setNotifications(prev => [{
+              id: `${job.id}-${Date.now()}`,
+              title,
+              body,
+              type: (isSuccess ? "success" : "error") as AppNotification["type"],
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              read: false,
+              page: "schedules" as const,
+            }, ...prev].slice(0, 50));
+          }
+          prev[job.id] = nowStatus;
+        });
+        prevScheduleStatusRef.current = prev;
+      }).catch(() => {});
+    };
+
+    fetchSchedules();
+    const interval = setInterval(fetchSchedules, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -313,6 +360,16 @@ export default function App() {
     fetchTasks();
     const interval = setInterval(fetchTasks, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  // ── notification helpers ─────────────────────────────────────────────────
+
+  const handleMarkAllRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
+  const handleNotificationClick = useCallback((n: AppNotification) => {
+    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x));
   }, []);
 
   // ── log helper ──────────────────────────────────────────────────────────
@@ -680,6 +737,9 @@ export default function App() {
           accentColor={accentColor}
           onChangeAccentColor={handleSetAccentColor}
           onToggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)}
+          notifications={notifications}
+          onMarkAllRead={handleMarkAllRead}
+          onNotificationClick={handleNotificationClick}
         />
 
         <StatusBar

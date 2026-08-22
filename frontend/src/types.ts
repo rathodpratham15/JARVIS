@@ -15,6 +15,16 @@ export type PageId =
 
 export type PersonalityMode = "Standard" | "Tactical" | "Formal" | "Concise";
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: "success" | "error" | "info";
+  timestamp: string;
+  read: boolean;
+  page?: PageId;
+}
+
 export type ThemeAccent = "cyan" | "gold" | "crimson" | "emerald" | "cobalt" | "purple" | "light" | "brutalist";
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
