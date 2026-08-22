@@ -217,7 +217,7 @@ export default function App() {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
-  const [plugins] = useState<PluginItem[]>([]);
+  const [plugins, setPlugins] = useState<PluginItem[]>([]);
   const [faces, setFaces] = useState<DetectedFace[]>([]);
   const [snapshots] = useState<VisionSnapshot[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -347,6 +347,26 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
+  const refreshPlugins = useCallback(() => {
+    fetch(`${API_BASE}/api/plugins`).then(r => r.json()).then(d => {
+      if (d.plugins) setPlugins(d.plugins.map((p: any): PluginItem => ({
+        id: p.name,
+        name: p.name,
+        description: p.description ?? "",
+        category: p.author ?? "Custom",
+        version: p.version ?? "0.1.0",
+        enabled: p.enabled ?? true,
+        status: p.enabled ? "Active" : "Idle",
+        iconName: "Puzzle",
+        author: p.author,
+        keywords: p.keywords ?? [],
+        priority: p.priority ?? 100,
+      })));
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { refreshPlugins(); }, [refreshPlugins]);
+
   useEffect(() => {
     const fetchTasks = () => {
       fetch(`${API_BASE}/api/tasks`)
@@ -360,6 +380,52 @@ export default function App() {
     fetchTasks();
     const interval = setInterval(fetchTasks, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  // ── plugin handlers ──────────────────────────────────────────────────────
+
+  const handleTogglePlugin = useCallback(async (name: string) => {
+    const plugin = plugins.find(p => p.name === name);
+    const newEnabled = !plugin?.enabled;
+    try {
+      await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(name)}/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: newEnabled }),
+      });
+    } catch {}
+    setPlugins(prev => prev.map(p => p.name === name ? { ...p, enabled: newEnabled, status: newEnabled ? "Active" : "Idle" } : p));
+  }, [plugins]);
+
+  const handleInstallPlugin = useCallback(async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`${API_BASE}/api/plugins/install`, { method: "POST", body: form });
+      const data = await res.json();
+      if (data.plugins) setPlugins(data.plugins.map((p: any): PluginItem => ({
+        id: p.name, name: p.name, description: p.description ?? "",
+        category: p.author ?? "Custom", version: p.version ?? "0.1.0",
+        enabled: p.enabled ?? true, status: p.enabled ? "Active" : "Idle",
+        iconName: "Puzzle", author: p.author, keywords: p.keywords ?? [], priority: p.priority ?? 100,
+      })));
+      return data.installed ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const handleDeletePlugin = useCallback(async (name: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.plugins) setPlugins(data.plugins.map((p: any): PluginItem => ({
+        id: p.name, name: p.name, description: p.description ?? "",
+        category: p.author ?? "Custom", version: p.version ?? "0.1.0",
+        enabled: p.enabled ?? true, status: p.enabled ? "Active" : "Idle",
+        iconName: "Puzzle", author: p.author, keywords: p.keywords ?? [], priority: p.priority ?? 100,
+      })));
+    } catch {}
   }, []);
 
   // ── notification helpers ─────────────────────────────────────────────────
@@ -938,7 +1004,9 @@ export default function App() {
           {currentPage === "plugins" && (
             <PluginsView
               plugins={plugins}
-              onTogglePlugin={() => {}}
+              onTogglePlugin={handleTogglePlugin}
+              onInstallPlugin={handleInstallPlugin}
+              onDeletePlugin={handleDeletePlugin}
             />
           )}
         </main>

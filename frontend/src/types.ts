@@ -82,6 +82,9 @@ export interface PluginItem {
   status: "Active" | "Idle" | "Error";
   iconName: string;
   configKey?: string;
+  author?: string;
+  keywords?: string[];
+  priority?: number;
 }
 
 export interface DetectedFace {

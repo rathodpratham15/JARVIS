@@ -1,201 +1,308 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Puzzle,
-  Globe,
-  Home,
-  Zap,
-  Search,
-  Shield,
-  Terminal,
-  CloudSun,
-  GitBranch,
-  Sliders,
-  CheckCircle2,
-  XCircle,
-  X,
+  Upload,
+  Trash2,
+  Copy,
+  Check,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { PluginItem } from "../types";
 import { playUiSound } from "../utils/audio";
 
 interface PluginsViewProps {
   plugins: PluginItem[];
-  onTogglePlugin: (id: string) => void;
+  onTogglePlugin: (name: string) => void;
+  onInstallPlugin: (file: File) => Promise<string[]>;
+  onDeletePlugin: (name: string) => void;
 }
+
+const TEMPLATE = `from jarvis.plugins import BasePlugin, PluginManifest
+
+
+class MyPlugin(BasePlugin):
+    def get_manifest(self) -> PluginManifest:
+        return PluginManifest(
+            name="my_plugin",
+            version="0.1.0",
+            description="Describe what this plugin does.",
+            author="your-name",
+            keywords=["trigger", "word"],
+            priority=100,
+        )
+
+    def run(self, query: str, **kwargs) -> str:
+        return f"My plugin handled: {query}"
+`;
 
 export const PluginsView: React.FC<PluginsViewProps> = ({
   plugins,
   onTogglePlugin,
+  onInstallPlugin,
+  onDeletePlugin,
 }) => {
-  const [selectedPlugin, setSelectedPlugin] = useState<PluginItem | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [installResult, setInstallResult] = useState<string | null>(null);
+  const [deletingName, setDeletingName] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getPluginIcon = (iconName: string) => {
-    switch (iconName) {
-      case "Globe":
-        return <Globe className="w-6 h-6 text-black" />;
-      case "Home":
-        return <Home className="w-6 h-6 text-black" />;
-      case "Zap":
-        return <Zap className="w-6 h-6 text-black" />;
-      case "Search":
-        return <Search className="w-6 h-6 text-black" />;
-      case "Shield":
-        return <Shield className="w-6 h-6 text-black" />;
-      case "Terminal":
-        return <Terminal className="w-6 h-6 text-black" />;
-      case "CloudSun":
-        return <CloudSun className="w-6 h-6 text-black" />;
-      case "GitBranch":
-        return <GitBranch className="w-6 h-6 text-black" />;
-      default:
-        return <Puzzle className="w-6 h-6 text-black" />;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    playUiSound("scan");
+    setInstalling(true);
+    setInstallResult(null);
+    const installed = await onInstallPlugin(file);
+    setInstalling(false);
+    if (installed.length > 0) {
+      playUiSound("success");
+      setInstallResult(`Installed: ${installed.join(", ")}`);
+    } else {
+      setInstallResult("Install failed — check the file and try again.");
     }
+    // Reset so same file can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDelete = async (name: string) => {
+    playUiSound("alert");
+    setDeletingName(name);
+    await onDeletePlugin(name);
+    setDeletingName(null);
+  };
+
+  const handleCopyTemplate = () => {
+    navigator.clipboard.writeText(TEMPLATE).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 font-mono text-black">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-white border-2 border-black shadow-[4px_4px_0px_#000000]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+        <div>
+          <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 11</div>
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+            Plugin Marketplace
+          </h1>
+          <p className="label-secondary mt-1">
+            EXTEND JARVIS WITH CUSTOM PYTHON MODULES
+          </p>
+        </div>
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00e5ff] text-black border-2 border-black shadow-[2px_2px_0px_#000000]">
-            <Puzzle className="w-6 h-6" />
+          <div className="p-2 px-3 bg-[#F2F2EF] border border-[#1a1a1a] font-mono text-xs font-bold text-[#1a1a1a]">
+            {plugins.filter(p => p.enabled).length} OF {plugins.length} ACTIVE
           </div>
-          <div>
-            <h2 className="text-xl font-heading font-black text-black tracking-wide">
-              MODULAR SUBSYSTEM PLUGINS
-            </h2>
-            <p className="text-xs font-mono font-bold text-black/70">
-              {plugins.filter((p) => p.enabled).length} of {plugins.length} Subsystems Active • Extend J.A.R.V.I.S capabilities
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Installed plugins */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="editorial-panel space-y-6">
+            <div>
+              <div className="overline-cyan">PANEL 01</div>
+              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">Installed Plugins</h2>
+              <p className="text-xs text-[#555] font-sans mt-0.5">
+                Plugins are auto-discovered from the <code className="font-mono bg-[#EBEBEA] px-1">plugins/</code> directory
+              </p>
+            </div>
+
+            <div className="border-b border-[#1a1a1a]" />
+
+            {plugins.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+                No plugins installed. Upload a <code>.py</code> file in Panel 02 to get started.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {plugins.map(plugin => (
+                  <div
+                    key={plugin.id}
+                    className="p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 border border-[#1a1a1a] bg-[#F2F2EF] shrink-0">
+                          <Puzzle className="w-4 h-4 text-[#1a1a1a]" />
+                        </div>
+                        <div>
+                          <h3 className="font-mono font-bold text-sm text-[#1a1a1a]">{plugin.name}</h3>
+                          <p className="font-mono text-[10px] text-[#555]">
+                            v{plugin.version}{plugin.author ? ` · ${plugin.author}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono text-[10px] font-bold text-[#555]">
+                          {plugin.enabled ? "ENABLED" : "DISABLED"}
+                        </span>
+                        <button
+                          onClick={() => onTogglePlugin(plugin.name)}
+                          className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
+                            plugin.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                          }`}
+                          title={plugin.enabled ? "Disable" : "Enable"}
+                        >
+                          <div className="w-3.5 h-3.5 bg-black" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(plugin.name)}
+                          disabled={deletingName === plugin.name}
+                          className="p-1.5 border border-[#1a1a1a] bg-transparent hover:bg-rose-100 text-[#1a1a1a] transition"
+                          title="Uninstall plugin"
+                        >
+                          {deletingName === plugin.name
+                            ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="font-mono text-xs text-[#555] leading-relaxed">
+                      {plugin.description || "No description provided."}
+                    </p>
+
+                    {plugin.keywords && plugin.keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {plugin.keywords.map(kw => (
+                          <span
+                            key={kw}
+                            className="font-mono text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold"
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-[#1a1a1a]/20 flex items-center gap-3 font-mono text-[10px] text-[#555]">
+                      <span>PRIORITY: <strong className="text-[#1a1a1a]">{plugin.priority ?? 100}</strong></span>
+                      <span
+                        className={`px-1.5 py-0.5 font-bold text-[9px] border ${
+                          plugin.enabled
+                            ? "bg-emerald-100 border-emerald-600 text-emerald-700"
+                            : "bg-[#F2F2EF] border-[#1a1a1a]/30 text-[#555]"
+                        }`}
+                      >
+                        {plugin.enabled ? "ACTIVE" : "IDLE"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Install + Template */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Install Panel */}
+          <div className="editorial-panel space-y-5">
+            <div>
+              <div className="overline-cyan">PANEL 02</div>
+              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">Install Plugin</h2>
+              <p className="text-xs text-[#555] font-sans mt-0.5">
+                Upload a <code className="font-mono bg-[#EBEBEA] px-1">.py</code> file that subclasses <code className="font-mono bg-[#EBEBEA] px-1">BasePlugin</code>
+              </p>
+            </div>
+
+            <div className="border-b border-[#1a1a1a]" />
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border border-dashed border-[#1a1a1a] bg-[#EBEBEA] p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-[#E0E0DE] transition"
+            >
+              {installing ? (
+                <RefreshCw className="w-6 h-6 text-[#555] animate-spin" />
+              ) : (
+                <Upload className="w-6 h-6 text-[#555]" />
+              )}
+              <p className="font-mono text-xs text-[#555] text-center">
+                {installing ? "Installing…" : "Click to upload a .py plugin file"}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".py"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+
+            {installResult && (
+              <p className={`font-mono text-xs px-3 py-2 border ${
+                installResult.startsWith("Installed")
+                  ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                  : "bg-rose-50 border-rose-400 text-rose-700"
+              }`}>
+                {installResult}
+              </p>
+            )}
+
+            <div className="space-y-2 font-mono text-[11px]">
+              <div className="flex justify-between text-[#555]">
+                <span>PLUGIN ENGINE</span>
+                <span className="font-bold text-[#1a1a1a]">Python 3.12 hot-load</span>
+              </div>
+              <div className="flex justify-between text-[#555]">
+                <span>TRIGGER</span>
+                <span className="font-bold text-[#1a1a1a]">Keyword matching</span>
+              </div>
+              <div className="flex justify-between text-[#555]">
+                <span>DISCOVERY</span>
+                <span className="font-bold text-[#1a1a1a]">Auto on upload</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Template Panel */}
+          <div className="editorial-panel space-y-4">
+            <div>
+              <div className="overline-cyan">PANEL 03</div>
+              <h2 className="font-serif text-xl font-bold text-[#1a1a1a]">Starter Template</h2>
+              <p className="text-xs text-[#555] font-sans mt-0.5">
+                Copy this, fill in your logic, and upload it above
+              </p>
+            </div>
+
+            <div className="border-b border-[#1a1a1a]" />
+
+            <button
+              onClick={() => setTemplateOpen(v => !v)}
+              className="w-full flex items-center justify-between font-mono text-xs text-[#555] hover:text-[#1a1a1a] transition py-1"
+            >
+              <span>{templateOpen ? "Hide template" : "Show template"}</span>
+              {templateOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {templateOpen && (
+              <div className="relative">
+                <pre className="bg-[#1a1a1a] text-[#00E5FF] font-mono text-[10px] p-4 overflow-x-auto leading-relaxed rounded-none max-h-64 overflow-y-auto">
+                  {TEMPLATE}
+                </pre>
+                <button
+                  onClick={handleCopyTemplate}
+                  className="absolute top-2 right-2 p-1.5 bg-[#00E5FF] border border-[#000] text-black hover:bg-white transition"
+                  title="Copy template"
+                >
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                </button>
+              </div>
+            )}
+
+            <p className="font-mono text-[10px] text-[#555] leading-relaxed">
+              Plugins intercept chat messages via <code className="bg-[#EBEBEA] px-0.5">can_handle()</code> (keyword match) and return a response from <code className="bg-[#EBEBEA] px-0.5">run()</code>. Higher <code className="bg-[#EBEBEA] px-0.5">priority</code> wins when multiple match.
             </p>
           </div>
         </div>
       </div>
-
-      {/* Plugins Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plugins.map((plugin) => (
-          <div
-            key={plugin.id}
-            className={`p-5 border-2 border-black transition-all duration-200 space-y-3 shadow-[3px_3px_0px_#000000] flex flex-col justify-between ${
-              plugin.enabled
-                ? "bg-white hover:shadow-[5px_5px_0px_#000000]"
-                : "bg-[#f3f3ee] opacity-70"
-            }`}
-          >
-            <div className="space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-[#00e5ff] border-2 border-black shadow-[2px_2px_0px_#000000]">
-                    {getPluginIcon(plugin.iconName)}
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-black text-sm text-black">
-                      {plugin.name}
-                    </h3>
-                    <span className="text-[10px] font-mono font-bold text-black/60 block">
-                      {plugin.category} • {plugin.version}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Enable Toggle Switch */}
-                <button
-                  onClick={() => {
-                    playUiSound("beep");
-                    onTogglePlugin(plugin.id);
-                  }}
-                  className={`w-12 h-6 border-2 border-black p-0.5 transition-colors duration-200 flex items-center ${
-                    plugin.enabled ? "bg-[#00e5ff] justify-end" : "bg-white justify-start"
-                  }`}
-                >
-                  <div className="w-4 h-4 bg-black border border-black shadow-sm" />
-                </button>
-              </div>
-
-              <p className="text-xs text-black/80 font-mono leading-relaxed">
-                {plugin.description}
-              </p>
-            </div>
-
-            <div className="pt-3 border-t-2 border-black/10 flex items-center justify-between text-[11px] font-mono">
-              <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 border border-black text-[10px] font-black uppercase ${
-                  plugin.enabled
-                    ? "bg-emerald-400 text-black"
-                    : "bg-white text-black/50"
-                }`}
-              >
-                {plugin.enabled ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                {plugin.enabled ? "ACTIVE" : "DISABLED"}
-              </span>
-
-              <button
-                onClick={() => setSelectedPlugin(plugin)}
-                className="px-2 py-1 bg-white hover:bg-slate-50 border-2 border-black text-black font-mono font-bold text-[10px] shadow-[2px_2px_0px_#000000] flex items-center gap-1 transition"
-              >
-                <Sliders className="w-3 h-3" />
-                <span>CONFIG</span>
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Config Drawer / Modal */}
-      {selectedPlugin && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg p-6 bg-white border-2 border-black space-y-4 shadow-[6px_6px_0px_#000000] text-black font-mono">
-            <div className="flex items-center justify-between border-b-2 border-black pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#00e5ff] border-2 border-black">
-                  {getPluginIcon(selectedPlugin.iconName)}
-                </div>
-                <div>
-                  <h3 className="text-base font-heading font-black text-black">
-                    {selectedPlugin.name}
-                  </h3>
-                  <span className="text-[10px] font-mono font-bold text-black/70">
-                    {selectedPlugin.category} • {selectedPlugin.version}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedPlugin(null)}
-                className="p-1 border border-black hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-black font-mono">
-              <p className="p-3 bg-[#f3f3ee] border-2 border-black font-bold">{selectedPlugin.description}</p>
-
-              <div className="p-3 bg-[#f3f3ee] border-2 border-black space-y-2 font-mono text-[11px]">
-                <div className="flex justify-between border-b border-black/20 pb-1">
-                  <span className="text-black/70 font-bold">TELEMETRY LINK:</span>
-                  <span className="text-black font-black bg-[#00e5ff] px-1 border border-black">ENCRYPTED (STARK-AES-256)</span>
-                </div>
-                <div className="flex justify-between border-b border-black/20 pb-1">
-                  <span className="text-black/70 font-bold">RESOURCE ALLOCATION:</span>
-                  <span className="text-black font-black">0.4% CPU • 12MB RAM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-black/70 font-bold">HEALTH CHECK:</span>
-                  <span className="text-emerald-700 font-black">PASSED (0 ERRORS)</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2 border-t-2 border-black">
-              <button
-                onClick={() => setSelectedPlugin(null)}
-                className="px-4 py-2 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-mono font-black text-xs shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px]"
-              >
-                CLOSE CONFIG
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
