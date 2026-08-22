@@ -50,8 +50,10 @@ function mapBackendSchedule(s: any): ScheduleJob {
     targetModule: "Intelligence",
     enabled: s.enabled ?? true,
     lastRun: s.last_run ? new Date(s.last_run).toLocaleString() : undefined,
+    lastResult: s.last_result ?? undefined,
+    runCount: s.run_count ?? 0,
     nextRun: "—",
-    status: s.last_status === "running" ? "running" : s.last_status === "done" ? "success" : "idle",
+    status: s.last_status === "running" ? "running" : s.last_status === "done" ? "success" : s.last_status === "failed" ? "failed" : "idle",
   };
 }
 
@@ -475,11 +477,17 @@ export default function App() {
 
   const handleRunScheduleNow = async (id: string) => {
     const job = schedules.find(s => s.id === id);
+    setSchedules(prev => prev.map(s => s.id === id ? { ...s, status: "running" as const } : s));
     try {
       await fetch(`${API_BASE}/api/schedules/${id}/run`, { method: "POST" });
     } catch {}
-    setSchedules(prev => prev.map(s => s.id === id ? { ...s, lastRun: "Just now", status: "success" } : s));
-    addLog("SCHEDULE", `Job Run: ${job?.title ?? id}`, "Autonomous routine executed.");
+    addLog("SCHEDULE", `Job Run: ${job?.title ?? id}`, "Autonomous routine dispatched.");
+    // Poll for result after a brief delay then refresh the full list
+    setTimeout(() => {
+      fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
+        if (d.jobs) setSchedules(d.jobs.map(mapBackendSchedule));
+      }).catch(() => {});
+    }, 3000);
   };
 
   const handleDeleteSchedule = async (id: string) => {
