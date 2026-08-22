@@ -4,11 +4,10 @@ import {
   Play,
   Trash2,
   Plus,
-  CheckCircle2,
-  Calendar,
-  Layers,
-  Sparkles,
   RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Bot,
 } from "lucide-react";
 import { ScheduleJob } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -21,6 +20,26 @@ interface SchedulesViewProps {
   onCreateSchedule: (job: Omit<ScheduleJob, "id" | "lastRun" | "status">) => void;
 }
 
+const SCHEDULE_PRESETS = [
+  { label: "Every 15 minutes", value: "every 15 minutes" },
+  { label: "Every 30 minutes", value: "every 30 minutes" },
+  { label: "Every hour",       value: "every 1 hours" },
+  { label: "Every 6 hours",    value: "every 6 hours" },
+  { label: "Every day at 9am", value: "every day at 09:00" },
+  { label: "Every day at 8pm", value: "every day at 20:00" },
+  { label: "Every Monday",     value: "every monday at 09:00" },
+  { label: "Custom…",          value: "custom" },
+];
+
+const TARGET_MODULES: ScheduleJob["targetModule"][] = [
+  "Security",
+  "Research",
+  "Intelligence",
+  "Backups",
+  "Diagnostics",
+  "Communications",
+];
+
 export const SchedulesView: React.FC<SchedulesViewProps> = ({
   schedules,
   onToggleSchedule,
@@ -29,27 +48,15 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
   onCreateSchedule,
 }) => {
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [cronExpression, setCronExpression] = useState("Every 15 minutes");
-  const [targetModule, setTargetModule] = useState<ScheduleJob["targetModule"]>("Security");
+  const [expandedId, setExpandedId]   = useState<string | null>(null);
 
-  const cronPresets = [
-    "Every 15 minutes",
-    "Hourly at :00",
-    "Daily at 06:00 EST",
-    "Daily at 02:00 EST",
-    "Weekly on Sunday 04:00",
-  ];
+  const [title, setTitle]           = useState("");
+  const [goal, setGoal]             = useState("");
+  const [presetValue, setPresetValue] = useState(SCHEDULE_PRESETS[0].value);
+  const [customExpr, setCustomExpr]   = useState("");
+  const [targetModule, setTargetModule] = useState<ScheduleJob["targetModule"]>("Intelligence");
 
-  const targetModules: ScheduleJob["targetModule"][] = [
-    "Security",
-    "Research",
-    "Intelligence",
-    "Backups",
-    "Diagnostics",
-    "Communications",
-  ];
+  const scheduleExpr = presetValue === "custom" ? customExpr.trim() : presetValue;
 
   const handleRunNow = async (id: string) => {
     playUiSound("beep");
@@ -64,34 +71,48 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
+    if (!title.trim() || !goal.trim() || !scheduleExpr) return;
     playUiSound("beep");
     onCreateSchedule({
       title: title.trim(),
-      description: description.trim() || `Autonomous routine scheduled for ${targetModule}.`,
-      cronExpression,
+      description: goal.trim(),
+      cronExpression: scheduleExpr,
       targetModule,
       enabled: true,
-      nextRun: "In 15 minutes",
+      nextRun: "—",
     });
-
     setTitle("");
-    setDescription("");
+    setGoal("");
+    setPresetValue(SCHEDULE_PRESETS[0].value);
+    setCustomExpr("");
     playUiSound("success");
+  };
+
+  const statusColor = (s: ScheduleJob["status"]) => {
+    if (s === "running") return "text-amber-600";
+    if (s === "success") return "text-emerald-600";
+    if (s === "failed")  return "text-red-600";
+    return "text-[#555]";
+  };
+
+  const statusLabel = (job: ScheduleJob) => {
+    if (job.status === "running") return "RUNNING";
+    if (job.status === "success") return "DONE";
+    if (job.status === "failed")  return "FAILED";
+    return job.runCount ? `${job.runCount} RUNS` : "IDLE";
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
         <div>
-          <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 03</div>
+          <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 05</div>
           <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
-            Schedules
+            Background Agents
           </h1>
           <p className="label-secondary mt-1">
-            AUTONOMOUS PERIODIC JOBS & RECURRENT CRON ORCHESTRATION
+            AUTONOMOUS SCHEDULED AGENT ROUTINES
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -101,112 +122,132 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
         </div>
       </div>
 
-      {/* 2-Column Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Scheduled Jobs List (7 cols) */}
+        {/* Left: Job List */}
         <div className="lg:col-span-7 space-y-6">
           <div className="editorial-panel space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
-                  Configured Cron Jobs
-                </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
-                  Autonomous background routines running on a schedule
-                </p>
-              </div>
+            <div>
+              <div className="overline-cyan">PANEL 01</div>
+              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                Configured Agents
+              </h2>
+              <p className="text-xs text-[#555] font-sans mt-0.5">
+                Recurring tasks that run autonomously on a schedule
+              </p>
             </div>
 
             <div className="border-b border-[#1a1a1a]" />
 
-            {/* Jobs List */}
             <div className="space-y-4">
               {schedules.length === 0 ? (
                 <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
-                  No scheduled jobs configured. Create a routine in Panel 02.
+                  No background agents configured. Create one in Panel 02.
                 </div>
               ) : (
                 schedules.map((job) => {
                   const isRunning = runningJobId === job.id;
+                  const isExpanded = expandedId === job.id;
                   return (
                     <div
                       key={job.id}
-                      className="p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3 transition"
+                      className="border border-[#1a1a1a] bg-[#EBEBEA] transition"
                     >
-                      {/* Job Header */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[9px] uppercase px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold">
-                            {job.targetModule}
-                          </span>
-                          <span className="font-mono text-xs text-[#555]">
-                            {job.cronExpression}
-                          </span>
+                      <div className="p-5 space-y-3">
+                        {/* Top row */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[9px] uppercase px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold">
+                              {job.targetModule}
+                            </span>
+                            <span className="font-mono text-xs text-[#555]">
+                              {job.cronExpression}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono text-[10px] font-bold ${statusColor(job.status)}`}>
+                              {statusLabel(job)}
+                            </span>
+                            <span className="font-mono text-[10px] text-[#555] font-bold">
+                              {job.enabled ? "ENABLED" : "DISABLED"}
+                            </span>
+                            <button
+                              onClick={() => onToggleSchedule(job.id)}
+                              className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
+                                job.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                              }`}
+                              title={job.enabled ? "Disable" : "Enable"}
+                            >
+                              <div className="w-3.5 h-3.5 bg-black" />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Enable/Disable Toggle Switch */}
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] text-[#555] font-bold">
-                            {job.enabled ? "ENABLED" : "DISABLED"}
-                          </span>
-                          <button
-                            onClick={() => onToggleSchedule(job.id)}
-                            className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
-                              job.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
-                            }`}
-                            title={job.enabled ? "Disable Routine" : "Enable Routine"}
-                          >
-                            <div className="w-3.5 h-3.5 bg-black" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Title & Description */}
-                      <div>
-                        <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
-                          {job.title}
-                        </h3>
-                        <p className="font-mono text-xs text-[#555] mt-1 leading-relaxed">
-                          {job.description}
-                        </p>
-                      </div>
-
-                      {/* Telemetry Row */}
-                      <div className="pt-3 border-t border-[#1a1a1a]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-mono">
-                        <div className="space-y-0.5 text-[#555]">
-                          <div>LAST RUN: <strong className="text-[#1a1a1a]">{job.lastRun || "Never"}</strong></div>
-                          <div>NEXT EXECUTION: <strong className="text-[#1a1a1a]">{job.nextRun}</strong></div>
+                        {/* Title & goal */}
+                        <div>
+                          <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
+                            {job.title}
+                          </h3>
+                          <p className="font-mono text-xs text-[#555] mt-1 leading-relaxed">
+                            {job.description}
+                          </p>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleRunNow(job.id)}
-                            disabled={isRunning}
-                            className="editorial-btn-primary py-1.5 px-3 text-[10px]"
-                          >
-                            {isRunning ? (
-                              <>
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                                <span>RUNNING...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Play className="w-3 h-3 fill-current" />
-                                <span>RUN NOW</span>
-                              </>
+                        {/* Telemetry row */}
+                        <div className="pt-3 border-t border-[#1a1a1a]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-mono">
+                          <div className="text-[#555]">
+                            LAST RUN:{" "}
+                            <strong className="text-[#1a1a1a]">{job.lastRun || "Never"}</strong>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {job.lastResult && (
+                              <button
+                                onClick={() => setExpandedId(isExpanded ? null : job.id)}
+                                className="flex items-center gap-1 font-mono text-[10px] text-[#555] hover:text-[#1a1a1a] transition"
+                              >
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                <span>LAST RESULT</span>
+                              </button>
                             )}
-                          </button>
-                          <button
-                            onClick={() => onDeleteSchedule(job.id)}
-                            className="p-1.5 border border-[#1a1a1a] bg-transparent hover:bg-rose-100 text-[#1a1a1a] transition"
-                            title="Delete Schedule"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            <button
+                              onClick={() => handleRunNow(job.id)}
+                              disabled={isRunning}
+                              className="editorial-btn-primary py-1.5 px-3 text-[10px]"
+                            >
+                              {isRunning ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>RUNNING…</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-3 h-3 fill-current" />
+                                  <span>RUN NOW</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => onDeleteSchedule(job.id)}
+                              className="p-1.5 border border-[#1a1a1a] bg-transparent hover:bg-rose-100 text-[#1a1a1a] transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Expandable result */}
+                      {isExpanded && job.lastResult && (
+                        <div className="px-5 pb-5 border-t border-[#1a1a1a]/20">
+                          <div className="mt-3 flex items-start gap-2">
+                            <Bot className="w-3.5 h-3.5 text-[#00E5FF] shrink-0 mt-0.5" />
+                            <p className="font-mono text-xs text-[#333] leading-relaxed whitespace-pre-wrap">
+                              {job.lastResult}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -215,16 +256,16 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Create Schedule Form (5 cols) */}
+        {/* Right: Create Form */}
         <div className="lg:col-span-5 space-y-6">
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
               <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
-                New Schedule Job
+                New Background Agent
               </h2>
               <p className="text-xs text-[#555] font-sans mt-0.5">
-                Register recurring autonomous routines with custom frequency
+                Schedule an autonomous agent task to run on a recurring interval
               </p>
             </div>
 
@@ -232,52 +273,56 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="label-secondary">ROUTINE TITLE</label>
+                <label className="label-secondary">AGENT NAME</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="E.G. MALIBU WORKSHOP SENSOR AUDIT..."
+                  placeholder="E.G. DAILY NEWS BRIEFING"
                   className="editorial-input"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="label-secondary">DESCRIPTION & PURPOSE</label>
+                <label className="label-secondary">AGENT GOAL (TASK INSTRUCTIONS)</label>
                 <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Specify task instructions, logging criteria, or threat thresholds..."
-                  rows={3}
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  placeholder="E.g. Search the web for today's top AI news and save a summary note."
+                  rows={4}
                   className="editorial-input resize-none"
+                  required
                 />
+                <p className="font-mono text-[10px] text-[#888]">
+                  This is the prompt the agent will execute autonomously.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="label-secondary">FREQUENCY PRESET</label>
+                  <label className="label-secondary">FREQUENCY</label>
                   <select
-                    value={cronExpression}
-                    onChange={(e) => setCronExpression(e.target.value)}
+                    value={presetValue}
+                    onChange={(e) => setPresetValue(e.target.value)}
                     className="editorial-input"
                   >
-                    {cronPresets.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
+                    {SCHEDULE_PRESETS.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="label-secondary">TARGET MODULE</label>
+                  <label className="label-secondary">CATEGORY</label>
                   <select
                     value={targetModule}
                     onChange={(e) => setTargetModule(e.target.value as any)}
                     className="editorial-input"
                   >
-                    {targetModules.map((m) => (
+                    {TARGET_MODULES.map((m) => (
                       <option key={m} value={m}>
                         {m}
                       </option>
@@ -286,31 +331,47 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                 </div>
               </div>
 
+              {presetValue === "custom" && (
+                <div className="space-y-1.5">
+                  <label className="label-secondary">CUSTOM EXPRESSION</label>
+                  <input
+                    type="text"
+                    value={customExpr}
+                    onChange={(e) => setCustomExpr(e.target.value)}
+                    placeholder="every 2 hours / every day at 09:00 / every monday at 10:00"
+                    className="editorial-input"
+                    required
+                  />
+                  <p className="font-mono text-[10px] text-[#888]">
+                    Syntax: "every N minutes/hours/days", "every day at HH:MM", "every [weekday] at HH:MM"
+                  </p>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={!title.trim()}
+                disabled={!title.trim() || !goal.trim() || (presetValue === "custom" && !customExpr.trim())}
                 className="editorial-btn-primary w-full py-3"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>REGISTER SCHEDULED JOB</span>
+                <span>REGISTER BACKGROUND AGENT</span>
               </button>
             </form>
 
             <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
 
-            {/* Cron Engine Telemetry */}
             <div className="space-y-2 font-mono text-[11px]">
               <div className="flex justify-between text-[#555]">
-                <span>DISPATCH ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">STARK AUTONOMOUS CRON v4</span>
+                <span>RUNNER ENGINE</span>
+                <span className="font-bold text-[#1a1a1a]">ReAct Agent Loop</span>
               </div>
               <div className="flex justify-between text-[#555]">
-                <span>TIME DRIFT ACCURACY</span>
-                <span className="font-bold text-[#1a1a1a]">&lt; 2.4 ms (ATOMIC)</span>
+                <span>CONCURRENCY</span>
+                <span className="font-bold text-[#1a1a1a]">4 PARALLEL WORKERS</span>
               </div>
               <div className="flex justify-between text-[#555]">
-                <span>CONCURRENCY LIMIT</span>
-                <span className="font-bold text-[#1a1a1a]">16 ASYNC THREADS</span>
+                <span>MAX STEPS/RUN</span>
+                <span className="font-bold text-[#1a1a1a]">8 (CONFIGURABLE)</span>
               </div>
             </div>
           </div>

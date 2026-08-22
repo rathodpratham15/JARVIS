@@ -144,6 +144,8 @@ export interface ScheduleJob {
   targetModule: "Security" | "Intelligence" | "Research" | "Communications" | "Backups" | "Diagnostics";
   enabled: boolean;
   lastRun?: string;
+  lastResult?: string;
+  runCount?: number;
   nextRun: string;
   status: "idle" | "running" | "success" | "failed";
 }
