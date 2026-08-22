@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 from jarvis.services.weather_service import get_weather
 from jarvis.services.smart_home import control_device as _smart_home_control
 from jarvis.services.web_search import search_and_summarize as _web_search
+from jarvis.services.system_api import handle_system_api as _handle_system_api
 
 
 if TYPE_CHECKING:
@@ -197,6 +198,7 @@ class ActionEngine:
             "create_schedule": self._create_schedule,
             "list_schedules": self._list_schedules,
             "delete_schedule": self._delete_schedule,
+            "system_api": self._system_api,
             "conversation": self._conversation,
         }
 
@@ -553,6 +555,10 @@ class ActionEngine:
         if len(matches) == 1 and self._scheduler.remove(matches[0]["id"]):
             return f"Scheduled job '{matches[0]['name']}' has been deleted."
         return f"No job found with ID starting with '{job_id}'."
+
+    @staticmethod
+    def _system_api(intent: dict) -> str:
+        return _handle_system_api(intent)
 
     @staticmethod
     def _conversation(intent: dict) -> str:

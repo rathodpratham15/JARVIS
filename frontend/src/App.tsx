@@ -36,7 +36,7 @@ import { MemoryView } from "./components/MemoryView";
 import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
-import { speakJarvisText, playUiSound } from "./utils/audio";
+import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { API_BASE } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -135,6 +135,14 @@ export default function App() {
     const page = PATH_TO_PAGE[location.pathname] ?? "dashboard";
     setCurrentPageState(page);
   }, [location.pathname]);
+
+  // Unlock AudioContext on first user click so ElevenLabs TTS works in Chat
+  // without needing to visit Voice mode first.
+  useEffect(() => {
+    const handler = () => { unlockAudioContext(); document.removeEventListener("click", handler); };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   // Sync state → URL when app navigates internally
   const setCurrentPage = useCallback((page: PageId) => {
@@ -301,7 +309,7 @@ export default function App() {
         .catch(() => {});
     };
     fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
+    const interval = setInterval(fetchTasks, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -322,7 +330,7 @@ export default function App() {
 
   // ── chat (SSE streaming) ─────────────────────────────────────────────────
 
-  const handleSendMessage = async (text: string, imageBase64?: string) => {
+  const handleSendMessage = async (text: string, imageBase64?: string, suppressAutoSpeak = false): Promise<string> => {
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: "user",
@@ -380,12 +388,13 @@ export default function App() {
         }
       }
       addLog("CHAT", "J.A.R.V.I.S. Response", finalText.slice(0, 50), "success");
-      if (speechEnabled && finalText) speakJarvisText(finalText);
+      if (speechEnabled && finalText && !suppressAutoSpeak) speakJarvisText(finalText);
     } catch {
       setChatMessages(prev => prev.map(m =>
         m.id === streamingId ? { ...m, text: "Apologies, Sir. Communication disruption.", isStreaming: false } : m
       ));
     }
+    return finalText;
   };
 
   // ── agent tasks ──────────────────────────────────────────────────────────
@@ -770,7 +779,7 @@ export default function App() {
 
           {currentPage === "voice" && (
             <VoiceView
-              onProcessVoiceCommand={async t => { await handleSendMessage(t); return "Directive processed."; }}
+              onProcessVoiceCommand={async t => await handleSendMessage(t, undefined, true)}
               wakeWord={wakeWord}
               accentColor={accentColor}
             />

@@ -366,6 +366,38 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "system_api",
+            "description": (
+                "Control system-level settings: volume, screen brightness, Do Not Disturb (Focus mode), and WiFi. "
+                "Use for requests like 'set volume to 70', 'mute', 'unmute', 'turn on do not disturb', "
+                "'disable wifi', 'what's the brightness', etc."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "get_volume", "set_volume", "mute", "unmute",
+                            "get_brightness", "set_brightness",
+                            "enable_dnd", "disable_dnd",
+                            "get_wifi", "enable_wifi", "disable_wifi",
+                        ],
+                        "description": "The system action to perform.",
+                    },
+                    "level": {
+                        "type": "integer",
+                        "description": "For set_volume and set_brightness: integer 0–100.",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    },
 ]
 
 # Map tool function names → intent dicts that ActionEngine understands
@@ -462,5 +494,8 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "delete_schedule":
         return {**base, "type": "delete_schedule", "job_id": args.get("job_id", "")}
+
+    if name == "system_api":
+        return {**base, "type": "system_api", "action": args.get("action", ""), "level": args.get("level")}
 
     return {**base, "type": "conversation"}

@@ -364,7 +364,7 @@ def create_app() -> Flask:
                 word_count = len(text.split())
                 timeout_s = max(15, word_count * 2)
                 subprocess.run(
-                    ["say", "-v", "Samantha", "-o", tmp_aiff, text],
+                    ["say", "-v", "Daniel", "-o", tmp_aiff, text],
                     timeout=timeout_s, check=True, capture_output=True,
                 )
                 subprocess.run(

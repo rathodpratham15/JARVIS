@@ -21,7 +21,7 @@ import { speakJarvisText, playUiSound } from "../utils/audio";
 
 interface ChatViewProps {
   messages: ChatMessage[];
-  onSendMessage: (text: string, imageBase64?: string, useMemory?: boolean) => Promise<void>;
+  onSendMessage: (text: string, imageBase64?: string, suppressAutoSpeak?: boolean) => Promise<string>;
   onClearHistory: () => void;
   onSaveToMemory: (title: string, content: string) => void;
   onSaveToNote: (title: string, content: string) => void;
@@ -74,7 +74,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setIsSending(true);
 
     try {
-      await onSendMessage(textToSend, imgToSend, useMemoryContext);
+      await onSendMessage(textToSend, imgToSend);
       playUiSound("success");
     } catch (err) {
       console.error(err);

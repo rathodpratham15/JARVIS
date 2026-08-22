@@ -44,7 +44,22 @@ INTENT_PATTERNS: dict[str, list[str]] = {
         r"what's \d+.*[\+\-\*\/].*\d+",
         r"\d+\s*(?:plus|minus|times|divided by)\s*\d+",
     ],
-    "music": [r"play music", r"play (.+)", r"\bmusic\b", r"\bsong\b", r"\bspotify\b", r"\bvolume\b"],
+    "music": [r"play music", r"play (.+)", r"\bmusic\b", r"\bsong\b", r"\bspotify\b"],
+    "system_api": [
+        # volume
+        r"\bset\s+(?:the\s+)?(?:system\s+)?volume\b",
+        r"\bvolume\s+(?:to|level|at)\b",
+        r"\b(?:current\s+|system\s+)?volume\b",
+        r"\bmute\b", r"\bunmute\b",
+        # brightness
+        r"\bset\s+(?:the\s+)?(?:screen\s+)?brightness\b",
+        r"\bbrightness\s+(?:to|level|at)\b",
+        r"\b(?:screen\s+)?brightness\b",
+        # Do Not Disturb / Focus
+        r"\bdo\s+not\s+disturb\b", r"\bdnd\b", r"\bfocus\s+mode\b",
+        # WiFi
+        r"\bwi-?fi\b", r"\bwireless\s+network\b",
+    ],
     "news": [
         r"(?:latest |tech |world |breaking )?news",
         r"(?:latest |today's |breaking )?headlines",
@@ -54,7 +69,7 @@ INTENT_PATTERNS: dict[str, list[str]] = {
     "greeting": [r"\bhello\b", r"\bhi\b", r"\bhey\b", r"good morning", r"good afternoon", r"good evening", r"\bjarvis\b"],
     "goodbye": [r"\bbye\b", r"\bgoodbye\b", r"see you", r"\bexit\b", r"\bquit\b", r"\bstop\b", r"\bshutdown\b", r"turn off", r"power off"],
     "help": [r"\bhelp\b", r"what can you do", r"\bcommands\b", r"\bassist\b"],
-    "smart_home": [r"turn on (.+)", r"turn off (.+)", r"\blights\b", r"\bthermostat\b", r"temperature to", r"dim (.+)", r"\bbrightness\b"],
+    "smart_home": [r"turn on (.+)", r"turn off (.+)", r"\blights\b", r"\bthermostat\b", r"temperature to", r"dim (.+)"],
     "email": [r"send email", r"email (.+)", r"check email", r"new messages"],
     "timer": [r"set timer", r"timer for", r"\bcountdown\b", r"\balarm\b"],
     "navigation": [r"directions to (.+)", r"navigate to (.+)", r"how to get to (.+)", r"route to (.+)", r"\btraffic\b"],
@@ -82,7 +97,7 @@ INTENT_PATTERNS: dict[str, list[str]] = {
 PRIORITY_ORDER = [
     "visual_recognition", "person_identification",
     "time", "date", "weather", "calculation", "define", "fact", "joke",
-    "reminder", "note", "open_app", "music", "news",
+    "reminder", "note", "open_app", "system_api", "music", "news",
     "navigation", "timer", "smart_home", "email",
     "greeting", "goodbye", "help", "search",
 ]
@@ -96,7 +111,7 @@ ACTION_REQUIRED = {
     "search", "weather", "open_app", "time", "date", "define", "fact",
     "reminder", "note", "calculation", "music", "smart_home", "timer",
     "navigation", "email", "news", "person_identification", "visual_recognition",
-    "joke", "greeting", "goodbye", "help",
+    "joke", "greeting", "goodbye", "help", "system_api",
 }
 
 LOCATION_PATTERNS = [r"in ([A-Za-z\s,]+)", r"at ([A-Za-z\s,]+)", r"near ([A-Za-z\s,]+)", r"for ([A-Za-z\s,]+)"]
@@ -167,6 +182,33 @@ class IntentParser:
             }
         if intent == "calculation":
             return {"expression": _extract_math(text)}
+        if intent == "system_api":
+            t = text.lower()
+            level_m = re.search(r"(\d+)\s*%?", text)
+            level = int(level_m.group(1)) if level_m else None
+            if re.search(r"\bwi-?fi\b|\bwireless\b", t):
+                if re.search(r"\b(enable|turn on|switch on)\b", t):
+                    return {"action": "enable_wifi"}
+                if re.search(r"\b(disable|turn off|switch off)\b", t):
+                    return {"action": "disable_wifi"}
+                return {"action": "get_wifi"}
+            if re.search(r"\bdo\s+not\s+disturb\b|\bdnd\b|\bfocus\s+mode\b", t):
+                if re.search(r"\b(disable|turn off|deactivate|off)\b", t):
+                    return {"action": "disable_dnd"}
+                return {"action": "enable_dnd"}
+            if re.search(r"\bbrightness\b", t):
+                if level is not None:
+                    return {"action": "set_brightness", "level": level}
+                return {"action": "get_brightness"}
+            # volume / mute
+            if re.search(r"\bunmute\b", t):
+                return {"action": "unmute"}
+            if re.search(r"\bmute\b", t):
+                return {"action": "mute"}
+            if level is not None:
+                return {"action": "set_volume", "level": level}
+            return {"action": "get_volume"}
+
         if intent == "music":
             return {"song": first}
         if intent == "smart_home":
