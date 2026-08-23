@@ -61,6 +61,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [unknownName, setUnknownName] = useState("");
   const [unknownCompany, setUnknownCompany] = useState("");
   const [showUnknownForm, setShowUnknownForm] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const [lensToast, setLensToast] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,6 +87,24 @@ export const VisionView: React.FC<VisionViewProps> = ({
     } finally {
       setOsintLoading(false);
     }
+  };
+
+  const handleGoogleLens = async () => {
+    if (!capturedFrame) return;
+    window.open("https://lens.google.com/", "_blank");
+    try {
+      const blob = await (await fetch(capturedFrame)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ "image/jpeg": blob })]);
+      setLensToast("Image copied — paste it into Google Lens (Ctrl+V / ⌘V)");
+    } catch {
+      // Clipboard API not supported — fall back to downloading the image
+      const a = document.createElement("a");
+      a.href = capturedFrame;
+      a.download = "face-scan.jpg";
+      a.click();
+      setLensToast("Image downloaded — upload it to Google Lens");
+    }
+    setTimeout(() => setLensToast(null), 5000);
   };
 
   const fetchEnrolled = async () => {
@@ -204,6 +224,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setOsintDossier(null);
       setOsintError(null);
       setShowUnknownForm(false);
+      setCapturedFrame(imageBase64 ?? null);
       if (res.faceMatch) {
         runOsint(res.faceMatch);
       } else {
@@ -390,6 +411,27 @@ export const VisionView: React.FC<VisionViewProps> = ({
           {showUnknownForm && !osintLoading && !osintDossier && (
             <div className="border-t-2 border-black pt-3 space-y-2">
               <p className="text-[10px] font-mono font-bold text-black/70 uppercase">No match — research manually:</p>
+
+              {/* Google Lens fallback */}
+              <button
+                onClick={handleGoogleLens}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                SEARCH ON GOOGLE LENS
+              </button>
+              {lensToast && (
+                <p className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-1.5">
+                  {lensToast}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 text-[10px] font-mono text-black/40">
+                <div className="flex-1 border-t border-black/20" />
+                <span>OR ENTER NAME MANUALLY</span>
+                <div className="flex-1 border-t border-black/20" />
+              </div>
+
               <input
                 type="text"
                 value={unknownName}
