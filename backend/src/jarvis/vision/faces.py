@@ -1,15 +1,17 @@
 """Face recognition: encode known faces, identify unknown faces.
 
-Replaces the legacy `face_recognition_system.py` (634 lines) +
-`person_identifier.py` (963 lines, never wired) +
-`scalable_face_recognition.py` (822 lines, never wired) +
-`face_encoding_pipeline.py` (586 lines, never wired) +
-`face_recognition_manager.py` (452 lines, CLI-only). Net: ~3,400 lines
-of duplication and unused scaffolding collapsed into ~220 lines.
+Uses InsightFace (ONNX backend) instead of dlib/face_recognition.
+InsightFace ships pre-compiled ONNX wheels → works on Railway (Linux)
+without any C++ compilation. dlib could not compile on Railway at all.
 
-Persistence format is unchanged from legacy: pickled `list[PersonData]`
-at `data_dir/encodings_file`. Existing `data/faces/known_faces.pkl`
-files load directly.
+Persistence format is unchanged: pickled `list[PersonData]` at
+`data_dir/encodings_file`. Existing dlib (128-dim) encodings are skipped
+with a warning — those people need to be re-registered once.
+
+Encodings are 512-dim L2-normalised vectors (InsightFace normed_embedding).
+Matching uses dot-product cosine similarity (equivalent because normalised).
+Tolerance meaning: minimum cosine similarity to accept a match (0–1).
+Typical good range: 0.35 (permissive) – 0.55 (strict). Default: 0.40.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 _IMAGE_GLOBS = ("*.jpg", "*.jpeg", "*.png", "*.bmp")
+_INSIGHTFACE_EMBEDDING_DIM = 512
 
 
 @dataclass
@@ -55,18 +58,17 @@ class RecognitionResult:
 
 
 class FaceRecognitionEngine:
-    """Stateful face DB + matcher.
+    """Stateful face DB + matcher backed by InsightFace.
 
-    `tolerance` is a *confidence floor* (0–1). A match is accepted only
-    when `1 - face_distance >= tolerance`. Legacy default was 0.6;
-    web server lowered it to 0.5 for more permissive matching.
+    `tolerance` is the minimum cosine similarity (0–1) required to accept
+    a match. 0.40 is a reasonable default — raise it to reduce false positives.
     """
 
     def __init__(
         self,
         data_dir: str | Path = "data/faces",
         encodings_file: str = "known_faces.pkl",
-        tolerance: float = 0.5,
+        tolerance: float = 0.40,
     ):
         self.data_dir = Path(data_dir)
         self.encodings_path = self.data_dir / encodings_file
@@ -74,18 +76,12 @@ class FaceRecognitionEngine:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.known_faces: list[PersonData] = []
         self.stats = {"successful_matches": 0, "failed_matches": 0, "processing_times": []}
-        self._face_recognition = _import_face_recognition()
+        self._app = _init_insightface()
         self.load()
 
-    def load(self) -> None:
-        """Load `known_faces` from pickle.
+    # ── persistence ────────────────────────────────────────────────────────
 
-        Handles three formats:
-          - v2 native (`list[PersonData]` from jarvis.vision.faces)
-          - v1 dataclass (`PersonData` defined under the legacy
-            `modules.vision.*` module path) — remapped at unpickle time
-          - legacy dict format (`{name: encoding}`) — migrated to PersonData
-        """
+    def load(self) -> None:
         if not self.encodings_path.exists():
             logger.info("No existing face DB at %s", self.encodings_path)
             return
@@ -96,48 +92,71 @@ class FaceRecognitionEngine:
             logger.exception("Failed to load %s: %s", self.encodings_path, exc)
             return
         if isinstance(data, dict):
-            # Earliest legacy format: {name: encoding}.
             self.known_faces = [
                 PersonData(name=name, face_encodings=[encoding])
                 for name, encoding in data.items()
             ]
         else:
             self.known_faces = list(data)
+
+        # Drop dlib 128-dim encodings — incompatible with InsightFace 512-dim
+        stale = []
+        for person in self.known_faces:
+            valid = [e for e in person.face_encodings if e.shape == (_INSIGHTFACE_EMBEDDING_DIM,)]
+            if len(valid) < len(person.face_encodings):
+                stale.append(person.name)
+            person.face_encodings = valid
+        if stale:
+            logger.warning(
+                "Dropped legacy dlib encodings for: %s — please re-register these people.",
+                ", ".join(stale),
+            )
         logger.info("Loaded %d people from %s", len(self.known_faces), self.encodings_path)
 
     def save(self) -> None:
         with self.encodings_path.open("wb") as fh:
             pickle.dump(self.known_faces, fh)
 
+    # ── encoding ───────────────────────────────────────────────────────────
+
     def encode(self, image_path: str | Path) -> Optional[np.ndarray]:
-        """Return the first face encoding in `image_path`, or None if no face found."""
-        if self._face_recognition is None:
+        """Return the first face embedding in `image_path`, or None."""
+        if self._app is None:
             return None
         try:
-            image = self._face_recognition.load_image_file(str(image_path))
-            encodings = self._face_recognition.face_encodings(image)
-            return encodings[0] if encodings else None
+            import cv2
+            img = cv2.imread(str(image_path))
+            if img is None:
+                logger.warning("cv2 could not read image: %s", image_path)
+                return None
+            faces = self._app.get(img)
+            if not faces:
+                return None
+            return faces[0].normed_embedding.astype(np.float32)
         except Exception as exc:
             logger.warning("Failed to encode %s: %s", image_path, exc)
             return None
 
-    def recognize_face(self, image_path: str | Path) -> RecognitionResult:
-        """Match the face in `image_path` against the known DB."""
-        start = time.monotonic()
-        if self._face_recognition is None:
-            return RecognitionResult(None, 0.0, False, 0.0, "face_recognition library unavailable")
+    # ── recognition ────────────────────────────────────────────────────────
 
-        unknown_encoding = self.encode(image_path)
-        if unknown_encoding is None:
+    def recognize_face(self, image_path: str | Path) -> RecognitionResult:
+        start = time.monotonic()
+        if self._app is None:
+            return RecognitionResult(None, 0.0, False, 0.0, "InsightFace not available")
+
+        unknown_emb = self.encode(image_path)
+        if unknown_emb is None:
             return RecognitionResult(None, 0.0, False, time.monotonic() - start, "No face found in image")
 
         best_match: Optional[PersonData] = None
         best_confidence = 0.0
         for person in self.known_faces:
-            if not person.face_encodings:
+            valid = [e for e in person.face_encodings if e.shape == (_INSIGHTFACE_EMBEDDING_DIM,)]
+            if not valid:
                 continue
-            distances = self._face_recognition.face_distance(person.face_encodings, unknown_encoding)
-            confidence = 1.0 - float(distances.min())
+            # Embeddings are L2-normalised → dot product = cosine similarity
+            sims = [float(np.dot(unknown_emb, enc)) for enc in valid]
+            confidence = max(sims)
             if confidence > best_confidence and confidence >= self.tolerance:
                 best_confidence = confidence
                 best_match = person
@@ -150,13 +169,14 @@ class FaceRecognitionEngine:
         self.stats["failed_matches"] += 1
         return RecognitionResult(None, best_confidence, False, elapsed, "No matching face found")
 
+    # ── management ─────────────────────────────────────────────────────────
+
     def add_person(
         self,
         name: str,
         image_paths: list[str | Path],
         metadata: Optional[dict] = None,
     ) -> Optional[PersonData]:
-        """Register a person from one or more image paths. Saves to disk."""
         encodings = [enc for path in image_paths if (enc := self.encode(path)) is not None]
         if not encodings:
             logger.warning("No face encodings extracted for %s", name)
@@ -175,12 +195,19 @@ class FaceRecognitionEngine:
         self.save()
         return person
 
-    def load_from_excel(self, excel_file: str | Path, images_folder: Optional[str | Path] = None) -> int:
-        """Bulk-ingest from an Excel sheet with `Name` + `Image` columns.
+    def remove_person(self, name: str) -> bool:
+        idx = next(
+            (i for i, p in enumerate(self.known_faces) if p.name.lower() == name.lower()),
+            None,
+        )
+        if idx is None:
+            return False
+        self.known_faces.pop(idx)
+        self.save()
+        logger.info("FaceRecognitionEngine: removed person %s", name)
+        return True
 
-        `Image` may be a single file path or a folder containing many images
-        for the same person. Returns the count of people added.
-        """
+    def load_from_excel(self, excel_file: str | Path, images_folder: Optional[str | Path] = None) -> int:
         import pandas as pd
 
         df = pd.read_excel(excel_file)
@@ -222,8 +249,7 @@ class FaceRecognitionEngine:
         if not encodings:
             return None
 
-        import pandas as pd  # local import to avoid mandatory dep at import time
-
+        import pandas as pd
         extras = {col: row[col] for col in row.index if col not in {"Name", "Image"} and pd.notna(row[col])}
         return PersonData(
             name=name,
@@ -235,19 +261,6 @@ class FaceRecognitionEngine:
             additional_data=extras,
         )
 
-    def remove_person(self, name: str) -> bool:
-        """Remove a person from the DB by name and save to disk."""
-        idx = next(
-            (i for i, p in enumerate(self.known_faces) if p.name.lower() == name.lower()),
-            None,
-        )
-        if idx is None:
-            return False
-        self.known_faces.pop(idx)
-        self.save()
-        logger.info("FaceRecognitionEngine: removed person %s", name)
-        return True
-
     def get_statistics(self) -> dict:
         times = self.stats["processing_times"]
         return {
@@ -258,17 +271,9 @@ class FaceRecognitionEngine:
         }
 
 
+# ── legacy pickle compat ───────────────────────────────────────────────────
+
 class _LegacyCompatUnpickler(pickle.Unpickler):
-    """Map legacy `modules.vision.*.PersonData` references onto v2.
-
-    The original J.A.R.V.I.S kept its `PersonData` dataclass under
-    `modules.vision.face_recognition_system`. Pickles produced by that
-    code carry the old qualified class name; loading them in v2 raises
-    `ModuleNotFoundError: No module named 'modules'`. This subclass
-    intercepts the class lookup and substitutes our v2 `PersonData`.
-    Field shape is identical, so the unpickled instances are valid.
-    """
-
     _LEGACY_PREFIXES = ("modules.vision",)
 
     def find_class(self, module: str, name: str):
@@ -277,20 +282,33 @@ class _LegacyCompatUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 
-def _import_face_recognition():
-    """Import dlib-based `face_recognition` lazily; return None if unavailable.
+# ── InsightFace init ───────────────────────────────────────────────────────
 
-    Tests don't require dlib — they monkey-patch the engine's
-    `_face_recognition` attribute with a mock module.
-    """
+def _init_insightface():
+    """Initialise InsightFace FaceAnalysis app. Returns None if unavailable."""
     try:
-        import face_recognition  # type: ignore
+        from insightface.app import FaceAnalysis  # type: ignore
 
-        return face_recognition
+        # Store models inside the project data dir so Railway's ephemeral FS
+        # doesn't re-download on every cold start (mount a volume at data/).
+        model_root = os.getenv("INSIGHTFACE_HOME", "data/.insightface")
+        os.makedirs(model_root, exist_ok=True)
+        os.environ.setdefault("INSIGHTFACE_HOME", model_root)
+
+        model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_sc")
+        app = FaceAnalysis(name=model_name, providers=["CPUExecutionProvider"])
+        app.prepare(ctx_id=0, det_size=(640, 640))
+        logger.info("InsightFace initialised (model=%s)", model_name)
+        return app
     except ImportError:
-        logger.warning("face_recognition library not installed — face matching disabled")
+        logger.warning("insightface not installed — face matching disabled")
+        return None
+    except Exception as exc:
+        logger.warning("InsightFace init failed: %s", exc)
         return None
 
+
+# ── helpers ────────────────────────────────────────────────────────────────
 
 def format_recognition_result(result: RecognitionResult) -> str:
     if not result.matched or result.person is None:

@@ -261,21 +261,10 @@ def create_app() -> Flask:
         tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
     ) if _face_available else None
 
-    # Fallback: if dlib/face_recognition is unavailable, use Gemini Vision.
-    # This activates on Railway (where dlib can't compile) as long as
-    # GEMINI_API_KEY is set.
-    _dlib_missing = face_engine is None or getattr(face_engine, "_face_recognition", None) is None
-    if _dlib_missing and _vision_chain:
-        try:
-            from jarvis.vision.gemini_face import GeminiFaceEngine
-            face_engine = GeminiFaceEngine(
-                data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
-                tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
-                vision_chain=_vision_chain,
-            )
-            logger.info("GeminiFaceEngine active with provider chain: %s", " → ".join(_vision_chain.providers))
-        except Exception:
-            logger.exception("GeminiFaceEngine init failed — face recognition unavailable")
+    # InsightFace works on Railway (ONNX, no C++ compilation needed).
+    # If it failed to init (missing package), face_engine._app will be None.
+    if face_engine is not None and getattr(face_engine, "_app", None) is None:
+        logger.warning("InsightFace unavailable — face recognition disabled")
 
     scene_analyzer = SceneAnalyzer(vision_chain=_vision_chain) if _scene_available and _vision_chain else (SceneAnalyzer() if _scene_available else None)
     scene_history = SceneHistoryStore(
