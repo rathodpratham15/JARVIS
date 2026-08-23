@@ -9,8 +9,13 @@ import {
   UserPlus,
   Trash2,
   Upload,
+  Search,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react";
-import { DetectedFace, VisionSnapshot } from "../types";
+import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
 import { API_BASE, apiFetch } from "../utils/api";
 
@@ -47,9 +52,40 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [showEnrollForm, setShowEnrollForm] = useState(false);
 
+  // OSINT / research state
+  const [osintDossier, setOsintDossier] = useState<ResearchDossier | null>(null);
+  const [osintLoading, setOsintLoading] = useState(false);
+  const [osintError, setOsintError] = useState<string | null>(null);
+  const [osintSourcesOpen, setOsintSourcesOpen] = useState(false);
+  // For unknown-face manual lookup
+  const [unknownName, setUnknownName] = useState("");
+  const [unknownCompany, setUnknownCompany] = useState("");
+  const [showUnknownForm, setShowUnknownForm] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enrollFileRef = useRef<HTMLInputElement>(null);
+
+  const runOsint = async (subject: string, company?: string) => {
+    setOsintLoading(true);
+    setOsintError(null);
+    setOsintDossier(null);
+    setOsintSourcesOpen(false);
+    try {
+      const res = await apiFetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, kind: "person", ...(company ? { company } : {}) }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ResearchDossier = await res.json();
+      setOsintDossier(data);
+    } catch (err: any) {
+      setOsintError(err.message ?? "Research failed");
+    } finally {
+      setOsintLoading(false);
+    }
+  };
 
   const fetchEnrolled = async () => {
     try {
@@ -163,6 +199,16 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setAnalysisResult(res);
       setIsAnalyzingScene(true);  // scene is still loading in background
       playUiSound("success");
+
+      // OSINT: auto-research known match, show manual form for unknown
+      setOsintDossier(null);
+      setOsintError(null);
+      setShowUnknownForm(false);
+      if (res.faceMatch) {
+        runOsint(res.faceMatch);
+      } else {
+        setShowUnknownForm(true);
+      }
 
       const newSnap: VisionSnapshot = {
         id: Date.now().toString(),
@@ -339,8 +385,119 @@ export const VisionView: React.FC<VisionViewProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Unknown face — manual research form */}
+          {showUnknownForm && !osintLoading && !osintDossier && (
+            <div className="border-t-2 border-black pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-bold text-black/70 uppercase">No match — research manually:</p>
+              <input
+                type="text"
+                value={unknownName}
+                onChange={e => setUnknownName(e.target.value)}
+                placeholder="Person's name"
+                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+              />
+              <input
+                type="text"
+                value={unknownCompany}
+                onChange={e => setUnknownCompany(e.target.value)}
+                placeholder="Company (optional)"
+                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+              />
+              <button
+                onClick={() => { if (unknownName.trim()) runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}
+                disabled={!unknownName.trim()}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00e5ff] border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition disabled:opacity-50"
+              >
+                <Search className="w-3.5 h-3.5" />
+                COMPILE DOSSIER
+              </button>
+            </div>
+          )}
+
+          {/* OSINT loading */}
+          {osintLoading && (
+            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Running OSINT pipeline…
+            </div>
+          )}
+
+          {/* OSINT error */}
+          {osintError && (
+            <p className="border-t-2 border-black pt-2 text-[11px] font-mono text-red-600">{osintError}</p>
+          )}
         </div>
       </div>
+
+      {/* OSINT Dossier panel */}
+      {osintDossier && (
+        <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[5px_5px_0px_#000000]">
+          <div className="flex items-center justify-between border-b-2 border-black pb-3">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#00a8bb]" />
+              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black">
+                INTELLIGENCE DOSSIER — {osintDossier.subject.toUpperCase()}
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">
+              {osintDossier.sources.length} SOURCES
+            </span>
+          </div>
+
+          {/* Summary */}
+          <p className="text-xs font-mono text-black leading-relaxed bg-[#f3f3ee] border-2 border-black p-3">
+            {osintDossier.summary}
+          </p>
+
+          {/* Sections */}
+          {Object.keys(osintDossier.sections).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(osintDossier.sections).map(([title, content]) => (
+                <div key={title} className="border-2 border-black p-3 space-y-1">
+                  <div className="text-[10px] font-mono font-black text-black/60 uppercase tracking-widest border-b border-black/20 pb-1">
+                    {title}
+                  </div>
+                  <p className="text-[11px] font-mono text-black leading-relaxed">{content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sources toggle */}
+          {osintDossier.sources.length > 0 && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setOsintSourcesOpen(o => !o)}
+                className="flex items-center gap-1.5 text-[10px] font-mono font-black text-black/60 uppercase tracking-widest hover:text-black transition"
+              >
+                {osintSourcesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {osintDossier.sources.length} Sources
+              </button>
+              {osintSourcesOpen && (
+                <div className="space-y-1.5">
+                  {osintDossier.sources.map((src, i) => (
+                    <a
+                      key={i}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 p-2 border border-black/20 hover:border-black transition group"
+                    >
+                      <span className="font-mono text-[10px] text-black/40 shrink-0 mt-0.5">[{i + 1}]</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-[11px] font-bold text-black truncate group-hover:text-[#00a8bb] transition">{src.title}</div>
+                        <div className="font-mono text-[10px] text-black/50 line-clamp-1">{src.snippet}</div>
+                      </div>
+                      <ExternalLink className="w-3 h-3 text-black/30 shrink-0 mt-0.5" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI Scene Analysis Result Card */}
       {(analysisResult || isAnalyzingScene) && (
