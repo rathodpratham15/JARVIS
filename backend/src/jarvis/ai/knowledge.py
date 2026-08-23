@@ -1,10 +1,4 @@
-"""SQLite-backed knowledge base with substring search.
-
-Replaces the legacy 1,207-line `knowledge_base.py` with ~80 lines.
-Legacy claimed embedding-based retrieval but actually fell back to
-substring matching anyway. v2 is honest about what it does: insert
-key/value/tag triples, query by substring or tag.
-"""
+"""SQLite-backed knowledge base with substring search."""
 
 from __future__ import annotations
 
@@ -36,6 +30,10 @@ class KnowledgeBase:
         self._lock = threading.RLock()
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            try:
+                conn.execute("ALTER TABLE knowledge ADD COLUMN user_id TEXT")
+            except Exception:
+                pass
             conn.commit()
 
     @contextmanager
@@ -47,33 +45,53 @@ class KnowledgeBase:
         finally:
             conn.close()
 
-    def add(self, title: str, content: str, tags: Optional[list[str]] = None) -> dict:
+    def add(self, title: str, content: str, tags: Optional[list[str]] = None,
+            user_id: Optional[str] = None) -> dict:
         entry_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as conn:
             conn.execute(
-                "INSERT INTO knowledge VALUES (?, ?, ?, ?, ?)",
-                (entry_id, title, content, json.dumps(tags or []), now),
+                "INSERT INTO knowledge VALUES (?, ?, ?, ?, ?, ?)",
+                (entry_id, title, content, json.dumps(tags or []), now, user_id),
             )
             conn.commit()
-        return {"id": entry_id, "title": title, "content": content, "tags": tags or [], "created_at": now}
+        return {"id": entry_id, "title": title, "content": content,
+                "tags": tags or [], "created_at": now, "user_id": user_id}
 
-    def search(self, query: str, limit: int = 20) -> list[dict]:
+    def search(self, query: str, limit: int = 20, user_id: Optional[str] = None) -> list[dict]:
         like = f"%{query}%"
         with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT * FROM knowledge
-                WHERE title LIKE ? OR content LIKE ? OR tags LIKE ?
-                ORDER BY created_at DESC LIMIT ?
-                """,
-                (like, like, like, limit),
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM knowledge
+                    WHERE user_id = ? AND (title LIKE ? OR content LIKE ? OR tags LIKE ?)
+                    ORDER BY created_at DESC LIMIT ?
+                    """,
+                    (user_id, like, like, like, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM knowledge
+                    WHERE title LIKE ? OR content LIKE ? OR tags LIKE ?
+                    ORDER BY created_at DESC LIMIT ?
+                    """,
+                    (like, like, like, limit),
+                ).fetchall()
         return [_row(r) for r in rows]
 
-    def list_all(self, limit: int = 100) -> list[dict]:
+    def list_all(self, limit: int = 100, user_id: Optional[str] = None) -> list[dict]:
         with self._lock, self._connect() as conn:
-            rows = conn.execute("SELECT * FROM knowledge ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM knowledge WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+                    (user_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM knowledge ORDER BY created_at DESC LIMIT ?", (limit,)
+                ).fetchall()
         return [_row(r) for r in rows]
 
 

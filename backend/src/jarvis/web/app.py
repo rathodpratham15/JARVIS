@@ -77,12 +77,14 @@ _vision_available = _face_available or _scene_available
 logger = logging.getLogger(__name__)
 
 
-def _build_context(memory: Memory, n: int = 5, query: str = "", sem: "SemanticMemory | None" = None) -> str | None:
+def _build_context(memory: Memory, n: int = 5, query: str = "",
+                   sem: "SemanticMemory | None" = None,
+                   user_id: "str | None" = None) -> "str | None":
     if query and sem and sem.available:
         relevant = sem.search(query, limit=n)
         if relevant:
             return " || ".join(f"User: {r['user_input']} | Assistant: {r['response']}" for r in relevant)
-    recent = memory.recent(limit=n)
+    recent = memory.recent(limit=n, user_id=user_id)
     if not recent:
         return None
     return " || ".join(f"User: {r['user_input']} | Assistant: {r['response']}" for r in recent)
@@ -114,6 +116,10 @@ def create_app() -> Flask:
         )
     else:
         logger.info("Auth disabled (set JARVIS_AUTH_ENABLED=true to enable)")
+
+    def _uid() -> "str | None":
+        """Return the current request's user ID, or None when auth is disabled."""
+        return getattr(request, "current_user", {}).get("sub") if _auth_enabled else None
 
     _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
 
@@ -402,7 +408,8 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         intent = parser.parse_intent(user_input)
-        ctx = _build_context(memory)
+        uid = _uid()
+        ctx = _build_context(memory, user_id=uid)
         tool_used: str | None = None
 
         if intent.get("action_required"):
@@ -432,8 +439,9 @@ def create_app() -> Flask:
             user_input=user_input,
             response=response,
             intent_type=intent.get("type"),
+            user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, user_input)
+        sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
         result: dict = {
             "id": interaction_id,
             "response": response,
@@ -459,7 +467,8 @@ def create_app() -> Flask:
         if not user_input:
             return {"error": "message field is required"}, 400
 
-        ctx = _build_context(memory)
+        uid = _uid()
+        ctx = _build_context(memory, user_id=uid)
         response = llm.query_llm(
             user_input,
             memory=ctx,
@@ -471,8 +480,9 @@ def create_app() -> Flask:
             user_input=user_input,
             response=response,
             intent_type="voice",
+            user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, user_input)
+        sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
         return {"id": interaction_id, "response": response}, 200
 
     @app.post("/api/tts")
@@ -551,7 +561,8 @@ def create_app() -> Flask:
         max_steps = int(payload.get("max_steps", 8))
         agent.max_steps = min(max(1, max_steps), 15)
 
-        ctx = _build_context(memory)
+        uid = _uid()
+        ctx = _build_context(memory, user_id=uid)
         result = agent.run(goal, memory_context=ctx)
 
         interaction_id = memory.store_interaction(
@@ -559,8 +570,9 @@ def create_app() -> Flask:
             response=result.final_answer,
             intent_type="agent",
             metadata={"steps": len(result.steps), "stopped_early": result.stopped_early},
+            user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, goal)
+        sem_memory.index_interaction(interaction_id, goal, user_id=uid)
 
         return {
             "id": interaction_id,
@@ -638,12 +650,14 @@ def create_app() -> Flask:
             else:
                 response_text = None  # will stream below
 
+        uid = _uid()
         if response_text is not None:
             # Non-LLM response: emit as a single data event then done
             interaction_id = memory.store_interaction(
                 user_input=user_input,
                 response=response_text,
                 intent_type=intent.get("type"),
+                user_id=uid,
             )
 
             def _single():
@@ -657,7 +671,7 @@ def create_app() -> Flask:
             )
 
         # LLM path: stream tokens
-        ctx = _build_context(memory)
+        ctx = _build_context(memory, user_id=uid)
 
         def _stream():
             full: list[str] = []
@@ -669,6 +683,7 @@ def create_app() -> Flask:
                 user_input=user_input,
                 response=full_text,
                 intent_type=intent.get("type"),
+                user_id=uid,
             )
             yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
 
@@ -684,7 +699,7 @@ def create_app() -> Flask:
             limit = int(request.args.get("limit", 20))
         except ValueError:
             return {"error": "limit must be an integer"}, 400
-        return {"interactions": memory.recent(limit=min(limit, 200))}, 200
+        return {"interactions": memory.recent(limit=min(limit, 200), user_id=_uid())}, 200
 
     @app.get("/api/search")
     def search() -> tuple[dict, int]:
@@ -692,11 +707,12 @@ def create_app() -> Flask:
         if not query:
             return {"error": "q is required"}, 400
         # Try semantic search first; fall back to substring if unavailable
+        uid = _uid()
         if sem_memory.available:
-            results = sem_memory.search(query, limit=20)
+            results = sem_memory.search(query, limit=20, user_id=uid)
             if results:
                 return {"results": results, "mode": "semantic"}, 200
-        return {"results": memory.search(query, limit=20), "mode": "substring"}, 200
+        return {"results": memory.search(query, limit=20, user_id=uid), "mode": "substring"}, 200
 
     @app.post("/api/research/person")
     def research_person_endpoint() -> tuple[dict, int]:
@@ -786,7 +802,7 @@ def create_app() -> Flask:
             limit = int(request.args.get("limit", 10))
         except ValueError:
             return {"error": "limit must be an integer"}, 400
-        return {"results": sem_memory.search(query, limit=min(limit, 50)), "mode": "semantic"}, 200
+        return {"results": sem_memory.search(query, limit=min(limit, 50), user_id=_uid()), "mode": "semantic"}, 200
 
     @app.get("/api/plugins")
     def list_plugins() -> tuple[dict, int]:
@@ -1238,31 +1254,33 @@ class MyPlugin(BasePlugin):
             limit = int(request.args.get("limit", 100))
         except ValueError:
             return {"error": "limit must be an integer"}, 400
-        return {"history": memory.recent(limit=min(limit, 500))}, 200
+        return {"history": memory.recent(limit=min(limit, 500), user_id=_uid())}, 200
 
     @app.get("/api/dashboard/stats")
     def dashboard_stats() -> tuple[dict, int]:
+        uid = _uid()
         return {
-            "interactions": memory.count(),
-            "notes": notes.count(),
+            "interactions": memory.count(user_id=uid),
+            "notes": notes.count(user_id=uid),
             "plugins": len(plugins.list()),
             "people": face_engine.get_statistics()["total_people"] if face_engine else 0,
         }, 200
 
     @app.route("/api/dashboard/notes", methods=["GET", "POST", "DELETE"])
     def dashboard_notes() -> tuple[dict, int]:
+        uid = _uid()
         if request.method == "GET":
-            return {"notes": notes.list()}, 200
+            return {"notes": notes.list(user_id=uid)}, 200
         if request.method == "DELETE":
             note_id = request.args.get("id")
             if not note_id:
                 return {"error": "id is required"}, 400
-            return ({"deleted": True}, 200) if notes.delete(note_id) else ({"error": "not found"}, 404)
+            return ({"deleted": True}, 200) if notes.delete(note_id, user_id=uid) else ({"error": "not found"}, 404)
         payload = request.get_json(silent=True) or {}
         content = (payload.get("content") or "").strip()
         if not content:
             return {"error": "content is required"}, 400
-        return {"note": notes.add(content=content, title=payload.get("title"))}, 201
+        return {"note": notes.add(content=content, title=payload.get("title"), user_id=uid)}, 201
 
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
@@ -1270,14 +1288,14 @@ class MyPlugin(BasePlugin):
     @app.patch("/api/notes/<note_id>")
     def update_note(note_id: str) -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
-        updated = notes.update(note_id, title=payload.get("title"), content=payload.get("content"))
+        updated = notes.update(note_id, title=payload.get("title"), content=payload.get("content"), user_id=_uid())
         if updated is None:
             return {"error": "note not found"}, 404
         return {"note": updated}, 200
 
     @app.delete("/api/notes/<note_id>")
     def delete_note_by_path(note_id: str) -> tuple[dict, int]:
-        return ({"deleted": True}, 200) if notes.delete(note_id) else ({"error": "not found"}, 404)
+        return ({"deleted": True}, 200) if notes.delete(note_id, user_id=_uid()) else ({"error": "not found"}, 404)
 
     @app.route("/api/dashboard/settings", methods=["GET", "POST"])
     def dashboard_settings() -> tuple[dict, int]:
@@ -1316,9 +1334,10 @@ class MyPlugin(BasePlugin):
             response = actions.execute_action(intent)
         else:
             plugin_response = plugins.dispatch(message)
-            response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory))
-        interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"))
-        sem_memory.index_interaction(interaction_id, message)
+            uid = _uid()
+        response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory, user_id=uid))
+        interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"), user_id=uid)
+        sem_memory.index_interaction(interaction_id, message, user_id=uid)
         return {"response": response, "intent": intent.get("type")}, 200
 
     # ── knowledge base ───────────────────────────────────────────────
@@ -1330,16 +1349,17 @@ class MyPlugin(BasePlugin):
         content = (payload.get("content") or "").strip()
         if not title or not content:
             return {"error": "title and content are required"}, 400
-        return {"entry": knowledge.add(title=title, content=content, tags=payload.get("tags"))}, 201
+        return {"entry": knowledge.add(title=title, content=content, tags=payload.get("tags"), user_id=_uid())}, 201
 
     @app.get("/api/knowledge/search")
     def knowledge_search() -> tuple[dict, int]:
+        uid = _uid()
         query = (request.args.get("q") or "").strip()
         try:
             limit = int(request.args.get("limit", 20))
         except ValueError:
             return {"error": "limit must be an integer"}, 400
-        results = knowledge.list_all(limit=limit) if not query else knowledge.search(query, limit=limit)
+        results = knowledge.list_all(limit=limit, user_id=uid) if not query else knowledge.search(query, limit=limit, user_id=uid)
         return {"results": results}, 200
 
     # ── emotion analysis ─────────────────────────────────────────────
@@ -1362,36 +1382,54 @@ class MyPlugin(BasePlugin):
 
     @app.get("/api/reminders")
     def list_reminders() -> tuple[dict, int]:
-        return {"reminders": reminders.list_all()}, 200
+        return {"reminders": reminders.list_all(user_id=_uid())}, 200
 
     @app.get("/api/reminders/pending")
     def pending_reminders() -> tuple[dict, int]:
-        return {"reminders": reminders.list_pending()}, 200
+        return {"reminders": reminders.list_pending(user_id=_uid())}, 200
 
     @app.get("/api/reminders/due")
     def due_reminders() -> tuple[dict, int]:
         """Reminders whose time has come but haven't been acknowledged yet."""
-        return {"reminders": reminders.list_due()}, 200
+        uid = _uid()
+        due = reminders.list_due()
+        if uid is not None:
+            due = [r for r in due if r.get("user_id") == uid]
+        return {"reminders": due}, 200
 
     @app.get("/api/timers")
     def list_timers() -> tuple[dict, int]:
+        uid = _uid()
         with reminders._lock, reminders._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM reminders WHERE kind='timer' ORDER BY created_at DESC"
-            ).fetchall()
+            if uid is not None:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE kind='timer' AND user_id=? ORDER BY created_at DESC",
+                    (uid,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE kind='timer' ORDER BY created_at DESC"
+                ).fetchall()
         return {"timers": [reminders._to_dict(r) for r in rows]}, 200
 
     @app.get("/api/timers/pending")
     def pending_timers() -> tuple[dict, int]:
+        uid = _uid()
         with reminders._lock, reminders._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM reminders WHERE kind='timer' AND fired=0 ORDER BY due_at ASC"
-            ).fetchall()
+            if uid is not None:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE kind='timer' AND fired=0 AND user_id=? ORDER BY due_at ASC",
+                    (uid,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE kind='timer' AND fired=0 ORDER BY due_at ASC"
+                ).fetchall()
         return {"timers": [reminders._to_dict(r) for r in rows]}, 200
 
     @app.delete("/api/reminders/<reminder_id>")
     def delete_reminder(reminder_id: str) -> tuple[dict, int]:
-        if reminders.delete(reminder_id):
+        if reminders.delete(reminder_id, user_id=_uid()):
             return {"deleted": True}, 200
         return {"error": "not found"}, 404
 
@@ -1399,7 +1437,7 @@ class MyPlugin(BasePlugin):
 
     @app.get("/api/schedules")
     def list_schedules() -> tuple[dict, int]:
-        return {"jobs": sched.list_all()}, 200
+        return {"jobs": sched.list_all(user_id=_uid())}, 200
 
     @app.post("/api/schedules")
     def create_schedule() -> tuple[dict, int]:
@@ -1414,39 +1452,41 @@ class MyPlugin(BasePlugin):
         if not name or not goal or not expr:
             return {"error": "name, goal, and schedule_expr are required"}, 400
         enabled = bool(payload.get("enabled", True))
+        uid = _uid()
         try:
-            job_id = sched.add(name=name, goal=goal, schedule_expr=expr, enabled=enabled)
+            job_id = sched.add(name=name, goal=goal, schedule_expr=expr, enabled=enabled, user_id=uid)
         except ValueError as exc:
             return {"error": str(exc)}, 400
-        return {"job": sched.get(job_id).to_dict()}, 201
+        return {"job": sched.get(job_id, user_id=uid).to_dict()}, 201
 
     @app.get("/api/schedules/<job_id>")
     def get_schedule(job_id: str) -> tuple[dict, int]:
-        job = sched.get(job_id)
+        job = sched.get(job_id, user_id=_uid())
         if job is None:
             return {"error": "job not found"}, 404
         return job.to_dict(), 200
 
     @app.delete("/api/schedules/<job_id>")
     def delete_schedule(job_id: str) -> tuple[dict, int]:
-        if sched.remove(job_id):
+        if sched.remove(job_id, user_id=_uid()):
             return {"deleted": True, "id": job_id}, 200
         return {"error": "job not found"}, 404
 
     @app.patch("/api/schedules/<job_id>")
     def toggle_schedule(job_id: str) -> tuple[dict, int]:
+        uid = _uid()
         payload = request.get_json(silent=True) or {}
         if "enabled" not in payload:
             return {"error": "enabled field is required"}, 400
-        if not sched.set_enabled(job_id, bool(payload["enabled"])):
+        if not sched.set_enabled(job_id, bool(payload["enabled"]), user_id=uid):
             return {"error": "job not found"}, 404
-        job = sched.get(job_id)
+        job = sched.get(job_id, user_id=uid)
         return job.to_dict(), 200
 
     @app.post("/api/schedules/<job_id>/run")
     def run_schedule_now(job_id: str) -> tuple[dict, int]:
         """Trigger a scheduled job immediately (outside its schedule)."""
-        task_id = sched.trigger(job_id)
+        task_id = sched.trigger(job_id, user_id=_uid())
         if task_id is None:
             return {"error": "job not found"}, 404
         return {"task_id": task_id, "status": "submitted"}, 202

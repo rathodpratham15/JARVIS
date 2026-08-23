@@ -35,12 +35,15 @@ class RemindersStore:
         self._lock = threading.RLock()
         with self._connect() as conn:
             conn.executescript(_CREATE_TABLE)
-            # Add kind column if this is an existing DB (idempotent).
-            try:
-                conn.execute("ALTER TABLE reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'reminder'")
-                conn.commit()
-            except Exception:
-                pass
+            for col, definition in [
+                ("kind", "TEXT NOT NULL DEFAULT 'reminder'"),
+                ("user_id", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE reminders ADD COLUMN {col} {definition}")
+                    conn.commit()
+                except Exception:
+                    pass
             conn.executescript(_CREATE_INDICES)
             conn.commit()
 
@@ -53,33 +56,47 @@ class RemindersStore:
         finally:
             conn.close()
 
-    def add(self, text: str, due_at: Optional[datetime] = None, kind: str = "reminder") -> dict:
+    def add(self, text: str, due_at: Optional[datetime] = None,
+            kind: str = "reminder", user_id: Optional[str] = None) -> dict:
         reminder_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         due_str = due_at.astimezone(timezone.utc).isoformat() if due_at else None
         with self._lock, self._connect() as conn:
             conn.execute(
-                "INSERT INTO reminders (id, text, due_at, created_at, fired, kind) VALUES (?, ?, ?, ?, 0, ?)",
-                (reminder_id, text, due_str, now, kind),
+                "INSERT INTO reminders (id, text, due_at, created_at, fired, kind, user_id) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                (reminder_id, text, due_str, now, kind, user_id),
             )
             conn.commit()
-        return {"id": reminder_id, "text": text, "due_at": due_str, "created_at": now, "fired": False, "kind": kind}
+        return {"id": reminder_id, "text": text, "due_at": due_str,
+                "created_at": now, "fired": False, "kind": kind, "user_id": user_id}
 
-    def list_all(self) -> list[dict]:
+    def list_all(self, user_id: Optional[str] = None) -> list[dict]:
         with self._lock, self._connect() as conn:
-            rows = conn.execute("SELECT * FROM reminders ORDER BY created_at DESC").fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE user_id = ? ORDER BY created_at DESC",
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM reminders ORDER BY created_at DESC").fetchall()
         return [self._to_dict(r) for r in rows]
 
-    def list_pending(self) -> list[dict]:
+    def list_pending(self, user_id: Optional[str] = None) -> list[dict]:
         """All reminders that haven't fired yet."""
         with self._lock, self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM reminders WHERE fired=0 ORDER BY due_at ASC NULLS LAST",
-            ).fetchall()
+            if user_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE fired=0 AND user_id = ? ORDER BY due_at ASC NULLS LAST",
+                    (user_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM reminders WHERE fired=0 ORDER BY due_at ASC NULLS LAST",
+                ).fetchall()
         return [self._to_dict(r) for r in rows]
 
     def list_due(self) -> list[dict]:
-        """Reminders whose due_at has passed and haven't fired yet."""
+        """Reminders whose due_at has passed and haven't fired yet (all users — for background poller)."""
         now = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as conn:
             rows = conn.execute(
@@ -98,14 +115,23 @@ class RemindersStore:
             conn.commit()
             return cursor.rowcount > 0
 
-    def delete(self, reminder_id: str) -> bool:
+    def delete(self, reminder_id: str, user_id: Optional[str] = None) -> bool:
         with self._lock, self._connect() as conn:
-            cursor = conn.execute("DELETE FROM reminders WHERE id=?", (reminder_id,))
+            if user_id is not None:
+                cursor = conn.execute(
+                    "DELETE FROM reminders WHERE id=? AND user_id=?", (reminder_id, user_id)
+                )
+            else:
+                cursor = conn.execute("DELETE FROM reminders WHERE id=?", (reminder_id,))
             conn.commit()
             return cursor.rowcount > 0
 
-    def count_pending(self) -> int:
+    def count_pending(self, user_id: Optional[str] = None) -> int:
         with self._lock, self._connect() as conn:
+            if user_id is not None:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM reminders WHERE fired=0 AND user_id = ?", (user_id,)
+                ).fetchone()[0]
             return conn.execute("SELECT COUNT(*) FROM reminders WHERE fired=0").fetchone()[0]
 
     @staticmethod

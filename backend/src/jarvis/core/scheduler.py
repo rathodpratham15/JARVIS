@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS scheduled_jobs (
 );
 """
 
+_MIGRATE_USER_ID = "ALTER TABLE scheduled_jobs ADD COLUMN user_id TEXT"
+
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
@@ -69,6 +71,7 @@ class ScheduledJob:
     run_count: int = 0
     last_result: Optional[str] = None
     last_status: Optional[str] = None
+    user_id: Optional[str] = None
     _schedule_job: object = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict:
@@ -83,6 +86,7 @@ class ScheduledJob:
             "run_count": self.run_count,
             "last_result": self.last_result,
             "last_status": self.last_status,
+            "user_id": self.user_id,
         }
 
 
@@ -154,7 +158,8 @@ class Scheduler:
 
     # ── public API ─────────────────────────────────────────────────────
 
-    def add(self, name: str, goal: str, schedule_expr: str, enabled: bool = True) -> str:
+    def add(self, name: str, goal: str, schedule_expr: str,
+            enabled: bool = True, user_id: Optional[str] = None) -> str:
         """Create and persist a new scheduled job. Returns its id."""
         # Validate expression before persisting
         dummy = _sched.Scheduler()
@@ -168,6 +173,7 @@ class Scheduler:
             schedule_expr=schedule_expr,
             enabled=enabled,
             created_at=datetime.now(timezone.utc).isoformat(),
+            user_id=user_id,
         )
         self._save(job)
         with self._lock:
@@ -177,20 +183,25 @@ class Scheduler:
         logger.info("Scheduled job %s added: %r (%s)", job_id, name, schedule_expr)
         return job_id
 
-    def remove(self, job_id: str) -> bool:
+    def remove(self, job_id: str, user_id: Optional[str] = None) -> bool:
         with self._lock:
-            job = self._jobs.pop(job_id, None)
-        if job is None:
-            return False
+            job = self._jobs.get(job_id)
+            if job is None:
+                return False
+            if user_id is not None and job.user_id != user_id:
+                return False
+            self._jobs.pop(job_id)
         if job._schedule_job is not None:
             self._scheduler.cancel_job(job._schedule_job)
         self._delete(job_id)
         return True
 
-    def set_enabled(self, job_id: str, enabled: bool) -> bool:
+    def set_enabled(self, job_id: str, enabled: bool, user_id: Optional[str] = None) -> bool:
         with self._lock:
             job = self._jobs.get(job_id)
         if job is None:
+            return False
+        if user_id is not None and job.user_id != user_id:
             return False
         job.enabled = enabled
         if enabled:
@@ -203,21 +214,31 @@ class Scheduler:
         self._save(job)
         return True
 
-    def trigger(self, job_id: str) -> Optional[str]:
+    def trigger(self, job_id: str, user_id: Optional[str] = None) -> Optional[str]:
         """Run a job immediately (outside its schedule). Returns task_id or None."""
         with self._lock:
             job = self._jobs.get(job_id)
         if job is None:
             return None
+        if user_id is not None and job.user_id != user_id:
+            return None
         return self._submit(job)
 
-    def get(self, job_id: str) -> Optional[ScheduledJob]:
+    def get(self, job_id: str, user_id: Optional[str] = None) -> Optional[ScheduledJob]:
         with self._lock:
-            return self._jobs.get(job_id)
+            job = self._jobs.get(job_id)
+        if job is None:
+            return None
+        if user_id is not None and job.user_id != user_id:
+            return None
+        return job
 
-    def list_all(self) -> list[dict]:
+    def list_all(self, user_id: Optional[str] = None) -> list[dict]:
         with self._lock:
-            return [j.to_dict() for j in sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)]
+            jobs = self._jobs.values()
+            if user_id is not None:
+                jobs = [j for j in jobs if j.user_id == user_id]
+            return [j.to_dict() for j in sorted(jobs, key=lambda j: j.created_at, reverse=True)]
 
     def start(self) -> None:
         """Start the background scheduler thread (idempotent)."""
@@ -317,6 +338,10 @@ class Scheduler:
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            try:
+                conn.execute(_MIGRATE_USER_ID)
+            except Exception:
+                pass
 
     def _load_jobs(self) -> None:
         with self._connect() as conn:
@@ -333,6 +358,7 @@ class Scheduler:
                 run_count=row["run_count"] or 0,
                 last_result=row["last_result"],
                 last_status=row["last_status"],
+                user_id=row["user_id"] if "user_id" in row.keys() else None,
             )
             self._jobs[job.id] = job
             if job.enabled:
@@ -345,13 +371,13 @@ class Scheduler:
                 """
                 INSERT OR REPLACE INTO scheduled_jobs
                     (id, name, goal, schedule_expr, enabled, created_at,
-                     last_run, run_count, last_result, last_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     last_run, run_count, last_result, last_status, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job.id, job.name, job.goal, job.schedule_expr,
                     int(job.enabled), job.created_at, job.last_run,
-                    job.run_count, job.last_result, job.last_status,
+                    job.run_count, job.last_result, job.last_status, job.user_id,
                 ),
             )
 
