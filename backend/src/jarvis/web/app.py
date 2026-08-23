@@ -156,7 +156,7 @@ def create_app() -> Flask:
         "https://www.googleapis.com/auth/drive",
     ]
 
-    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health", "/api/google/callback"}
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health", "/api/google/callback", "/api/face/image"}
 
     # Apply auth globally via before_request
     @app.before_request
