@@ -93,7 +93,13 @@ def _build_context(memory: Memory, n: int = 5, query: str = "",
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+    _default_origins = (
+        "http://localhost:5173,http://localhost:3000,"
+        "https://jarvis.pratham.click,"
+        "capacitor://localhost,https://localhost,http://localhost"
+    )
+    _allowed_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
+    CORS(app, resources={r"/api/*": {"origins": _allowed_origins}}, supports_credentials=True)
 
     # ── Auth (opt-in via JARVIS_AUTH_ENABLED=true) ────────────────────────
     _auth_enabled = os.getenv("JARVIS_AUTH_ENABLED", "false").lower() in ("1", "true", "yes")
