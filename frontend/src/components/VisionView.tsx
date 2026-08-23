@@ -670,13 +670,28 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {enrolledPeople.length} PROFILES
             </span>
           </h3>
-          <button
-            onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
-            className="px-3 py-1.5 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
-          >
-            <UserPlus className="w-3 h-3" />
-            {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const res = await apiFetch("/api/face/reencode-all", { method: "POST" });
+                const data = await res.json();
+                alert(`Re-encoded ${data.reencoded} people. Failed: ${data.failed}.\n\n${data.details.map((d: {name:string;encodings:number}) => `${d.name}: ${d.encodings} encoding(s)`).join("\n")}`);
+                fetchEnrolled();
+              }}
+              className="px-3 py-1.5 bg-white border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+              title="Re-run InsightFace on existing photos (fixes dlib→InsightFace migration)"
+            >
+              <RefreshCw className="w-3 h-3" />
+              RE-ENCODE ALL
+            </button>
+            <button
+              onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
+              className="px-3 py-1.5 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+            >
+              <UserPlus className="w-3 h-3" />
+              {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
+            </button>
+          </div>
         </div>
 
         {/* Enroll form */}

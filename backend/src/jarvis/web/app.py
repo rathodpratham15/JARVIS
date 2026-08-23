@@ -1133,6 +1133,26 @@ class MyPlugin(BasePlugin):
             return {"success": False, "error": f"Person '{name}' not found"}, 404
         return {"success": True, "remaining": len(face_engine.known_faces)}, 200
 
+    @app.post("/api/face/reencode-all")
+    def face_reencode_all() -> tuple[dict, int]:
+        """Re-run InsightFace encoding on every person's stored image paths.
+
+        Called after upgrading from dlib to InsightFace — all existing
+        128-dim encodings are empty; this rebuilds them from the saved images.
+        """
+        if face_engine is None:
+            return {"error": "Face recognition unavailable"}, 503
+        results = []
+        for person in face_engine.known_faces:
+            valid_paths = [p for p in person.image_paths if os.path.exists(p)]
+            new_encs = [enc for p in valid_paths if (enc := face_engine.encode(p)) is not None]
+            person.face_encodings = new_encs
+            results.append({"name": person.name, "encodings": len(new_encs), "paths_found": len(valid_paths)})
+        face_engine.save()
+        ok = [r for r in results if r["encodings"] > 0]
+        failed = [r for r in results if r["encodings"] == 0]
+        return {"reencoded": len(ok), "failed": len(failed), "details": results}, 200
+
     @app.post("/api/face/export")
     def face_export() -> tuple[dict, int]:
         """Dump the known-faces metadata (no encodings) to disk."""
