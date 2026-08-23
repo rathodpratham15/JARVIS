@@ -441,7 +441,7 @@ def create_app() -> Flask:
             intent_type=intent.get("type"),
             user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, user_input)
+        sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
         result: dict = {
             "id": interaction_id,
             "response": response,
@@ -482,7 +482,7 @@ def create_app() -> Flask:
             intent_type="voice",
             user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, user_input)
+        sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
         return {"id": interaction_id, "response": response}, 200
 
     @app.post("/api/tts")
@@ -572,7 +572,7 @@ def create_app() -> Flask:
             metadata={"steps": len(result.steps), "stopped_early": result.stopped_early},
             user_id=uid,
         )
-        sem_memory.index_interaction(interaction_id, goal)
+        sem_memory.index_interaction(interaction_id, goal, user_id=uid)
 
         return {
             "id": interaction_id,
@@ -707,11 +707,12 @@ def create_app() -> Flask:
         if not query:
             return {"error": "q is required"}, 400
         # Try semantic search first; fall back to substring if unavailable
+        uid = _uid()
         if sem_memory.available:
-            results = sem_memory.search(query, limit=20)
+            results = sem_memory.search(query, limit=20, user_id=uid)
             if results:
                 return {"results": results, "mode": "semantic"}, 200
-        return {"results": memory.search(query, limit=20, user_id=_uid()), "mode": "substring"}, 200
+        return {"results": memory.search(query, limit=20, user_id=uid), "mode": "substring"}, 200
 
     @app.post("/api/research/person")
     def research_person_endpoint() -> tuple[dict, int]:
@@ -801,7 +802,7 @@ def create_app() -> Flask:
             limit = int(request.args.get("limit", 10))
         except ValueError:
             return {"error": "limit must be an integer"}, 400
-        return {"results": sem_memory.search(query, limit=min(limit, 50)), "mode": "semantic"}, 200
+        return {"results": sem_memory.search(query, limit=min(limit, 50), user_id=_uid()), "mode": "semantic"}, 200
 
     @app.get("/api/plugins")
     def list_plugins() -> tuple[dict, int]:
@@ -1336,7 +1337,7 @@ class MyPlugin(BasePlugin):
             uid = _uid()
         response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory, user_id=uid))
         interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"), user_id=uid)
-        sem_memory.index_interaction(interaction_id, message)
+        sem_memory.index_interaction(interaction_id, message, user_id=uid)
         return {"response": response, "intent": intent.get("type")}, 200
 
     # ── knowledge base ───────────────────────────────────────────────

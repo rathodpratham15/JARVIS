@@ -67,6 +67,10 @@ class SemanticMemory:
                 "CREATE TABLE IF NOT EXISTS vec_id_map "
                 "(rowid INTEGER PRIMARY KEY, interaction_id TEXT NOT NULL)"
             )
+            try:
+                conn.execute("ALTER TABLE vec_id_map ADD COLUMN user_id TEXT")
+            except Exception:
+                pass
             conn.commit()
 
     @staticmethod
@@ -94,7 +98,8 @@ class SemanticMemory:
     def available(self) -> bool:
         return self._model is not None
 
-    def index_interaction(self, interaction_id: str, text: str) -> None:
+    def index_interaction(self, interaction_id: str, text: str,
+                          user_id: Optional[str] = None) -> None:
         """Embed `text` and insert it into the vector index."""
         if not self._model:
             return
@@ -103,8 +108,8 @@ class SemanticMemory:
             with self._lock, self._connect() as conn:
                 self._load_vec_extension(conn)
                 conn.execute(
-                    "INSERT INTO vec_id_map (interaction_id) VALUES (?)",
-                    (interaction_id,),
+                    "INSERT INTO vec_id_map (interaction_id, user_id) VALUES (?, ?)",
+                    (interaction_id, user_id),
                 )
                 rowid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
                 conn.execute(
@@ -115,7 +120,8 @@ class SemanticMemory:
         except Exception as exc:
             logger.warning("SemanticMemory.index_interaction failed: %s", exc)
 
-    def search(self, query: str, limit: int = 5) -> list[dict]:
+    def search(self, query: str, limit: int = 5,
+               user_id: Optional[str] = None) -> list[dict]:
         """Return up to `limit` interactions most semantically similar to `query`.
 
         Each result is a dict with keys from the `interactions` table plus
@@ -126,6 +132,9 @@ class SemanticMemory:
             return []
         try:
             vec = self._model.encode(query).tolist()
+            # Request extra candidates when filtering by user so we still fill
+            # `limit` even if many top results belong to other users.
+            candidate_limit = limit * 4 if user_id else limit
             with self._lock, self._connect() as conn:
                 self._load_vec_extension(conn)
                 rows = conn.execute(
@@ -139,7 +148,7 @@ class SemanticMemory:
                       AND k = ?
                     ORDER BY v.distance ASC
                     """,
-                    (_encode_vec(vec), limit),
+                    (_encode_vec(vec), candidate_limit),
                 ).fetchall()
 
                 if not rows:
@@ -149,10 +158,16 @@ class SemanticMemory:
                 dist_map = {r["interaction_id"]: r["distance"] for r in rows}
 
                 placeholders = ",".join("?" * len(ids))
-                interactions = conn.execute(
-                    f"SELECT * FROM interactions WHERE id IN ({placeholders})",
-                    ids,
-                ).fetchall()
+                if user_id is not None:
+                    interactions = conn.execute(
+                        f"SELECT * FROM interactions WHERE id IN ({placeholders}) AND user_id = ?",
+                        ids + [user_id],
+                    ).fetchall()
+                else:
+                    interactions = conn.execute(
+                        f"SELECT * FROM interactions WHERE id IN ({placeholders})",
+                        ids,
+                    ).fetchall()
 
             results = []
             for row in interactions:
@@ -163,9 +178,9 @@ class SemanticMemory:
                 d["similarity"] = round(max(0.0, min(1.0, 1.0 - (distance ** 2) / 2.0)), 4)
                 results.append(d)
 
-            # Return in similarity-descending order
+            # Return in similarity-descending order, truncated to requested limit
             results.sort(key=lambda x: x["similarity"], reverse=True)
-            return results
+            return results[:limit]
 
         except Exception as exc:
             logger.warning("SemanticMemory.search failed: %s", exc)
