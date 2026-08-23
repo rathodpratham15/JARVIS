@@ -25,6 +25,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from jarvis.ai import EmotionAnalyzer, KnowledgeBase
+from jarvis.services.google import GoogleServiceBundle
 from jarvis.core.action_engine import ActionEngine
 from jarvis.core.auth import AuthManager
 from jarvis.core.intent_parser import IntentParser
@@ -121,7 +122,35 @@ def create_app() -> Flask:
         """Return the current request's user ID, or None when auth is disabled."""
         return getattr(request, "current_user", {}).get("sub") if _auth_enabled else None
 
-    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
+    # ── Google OAuth integration ──────────────────────────────────────────
+    _google_client_id_oauth = os.getenv("GOOGLE_CLIENT_ID", "")
+    _google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    _frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    _backend_url = os.getenv("BACKEND_URL", "http://localhost:5050")
+
+    _google_svc: "GoogleServiceBundle | None" = None
+    if _google_client_id_oauth and _google_client_secret:
+        try:
+            _google_svc = GoogleServiceBundle(
+                db_path=os.getenv("JARVIS_AUTH_DB", "data/auth.db"),
+                client_id=_google_client_id_oauth,
+                client_secret=_google_client_secret,
+            )
+            logger.info("Google integration enabled (Gmail + Calendar + Drive)")
+        except Exception as _ge:
+            logger.warning("Google integration unavailable: %s", _ge)
+
+    import secrets as _secrets_mod
+    import time as _time_mod
+    _oauth_states: dict[str, tuple[str, float]] = {}  # state → (user_id, expiry)
+
+    _GOOGLE_SCOPES = [
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/drive",
+    ]
+
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health", "/api/google/callback"}
 
     # Apply auth globally via before_request
     @app.before_request
@@ -163,6 +192,7 @@ def create_app() -> Flask:
         settings_store=settings,
         llm=llm,
         permissions=permissions,
+        google_service=_google_svc,
     )
     from jarvis.core.gemini_pool import GeminiKeyPool
     from jarvis.core.vision_provider import VisionProviderChain
@@ -409,6 +439,7 @@ def create_app() -> Flask:
 
         intent = parser.parse_intent(user_input)
         uid = _uid()
+        intent["_user_id"] = uid
         ctx = _build_context(memory, user_id=uid)
         tool_used: str | None = None
 
@@ -426,6 +457,7 @@ def create_app() -> Flask:
                 )
                 if tool_name:
                     tool_intent = tool_call_to_intent(tool_name, tool_args or {})
+                    tool_intent["_user_id"] = uid
                     tool_result = actions.execute_action(tool_intent)
                     tool_used = tool_name
                     response = llm.finish_after_tool(
@@ -638,6 +670,8 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         intent = parser.parse_intent(user_input)
+        uid = _uid()
+        intent["_user_id"] = uid
 
         # Action-engine / plugin intents return instantly — no streaming needed.
         # Wrap as a single SSE event so the frontend can use one code path.
@@ -650,9 +684,7 @@ def create_app() -> Flask:
             else:
                 response_text = None  # will stream below
 
-        uid = _uid()
         if response_text is not None:
-            # Non-LLM response: emit as a single data event then done
             interaction_id = memory.store_interaction(
                 user_input=user_input,
                 response=response_text,
@@ -1329,13 +1361,14 @@ class MyPlugin(BasePlugin):
         message = (payload.get("command") or payload.get("message") or "").strip()
         if not message:
             return {"error": "command is required"}, 400
+        uid = _uid()
         intent = parser.parse_intent(message)
+        intent["_user_id"] = uid
         if intent.get("action_required"):
             response = actions.execute_action(intent)
         else:
             plugin_response = plugins.dispatch(message)
-            uid = _uid()
-        response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory, user_id=uid))
+            response = plugin_response if plugin_response is not None else llm.query_llm(message, memory=_build_context(memory, user_id=uid))
         interaction_id = memory.store_interaction(message, response, intent_type=intent.get("type"), user_id=uid)
         sem_memory.index_interaction(interaction_id, message, user_id=uid)
         return {"response": response, "intent": intent.get("type")}, 200
@@ -1560,6 +1593,281 @@ class MyPlugin(BasePlugin):
         if cu_mgr.cancel(task_id):
             return {"status": "cancelled"}, 200
         return {"error": "task not found"}, 404
+
+    # ── Google integration endpoints ──────────────────────────────────────
+
+    @app.get("/api/google/status")
+    def google_status() -> tuple[dict, int]:
+        uid = _uid()
+        if uid is None or _google_svc is None:
+            return {"connected": False, "gmail": False, "calendar": False, "drive": False}, 200
+        connected = _google_svc.token_store.has_tokens(uid)
+        return {"connected": connected, "gmail": connected, "calendar": connected, "drive": connected}, 200
+
+    @app.get("/api/google/connect")
+    def google_connect() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "Must be logged in to connect Google"}, 401
+        try:
+            from google_auth_oauthlib.flow import Flow
+            flow = Flow.from_client_config(
+                {"web": {
+                    "client_id": _google_client_id_oauth,
+                    "client_secret": _google_client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [f"{_backend_url}/api/google/callback"],
+                }},
+                scopes=_GOOGLE_SCOPES,
+            )
+            flow.redirect_uri = f"{_backend_url}/api/google/callback"
+            state = _secrets_mod.token_urlsafe(24)
+            _oauth_states[state] = (uid, _time_mod.time() + 600)
+            auth_url, _ = flow.authorization_url(
+                access_type="offline",
+                prompt="consent",
+                state=state,
+            )
+            return {"url": auth_url}, 200
+        except Exception as exc:
+            logger.error("Google connect error: %s", exc)
+            return {"error": str(exc)}, 500
+
+    @app.get("/api/google/callback")
+    def google_callback():
+        from flask import redirect as flask_redirect
+        code = request.args.get("code")
+        state = request.args.get("state")
+        error = request.args.get("error")
+
+        if error:
+            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={error}")
+
+        if not code or not state or state not in _oauth_states:
+            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=invalid_state")
+
+        uid, expiry = _oauth_states.pop(state)
+        if _time_mod.time() > expiry:
+            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=state_expired")
+
+        try:
+            from google_auth_oauthlib.flow import Flow
+            flow = Flow.from_client_config(
+                {"web": {
+                    "client_id": _google_client_id_oauth,
+                    "client_secret": _google_client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [f"{_backend_url}/api/google/callback"],
+                }},
+                scopes=_GOOGLE_SCOPES,
+            )
+            flow.redirect_uri = f"{_backend_url}/api/google/callback"
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            expiry_iso = creds.expiry.isoformat() if creds.expiry else None
+            _google_svc.token_store.save(
+                user_id=uid,
+                access_token=creds.token,
+                refresh_token=creds.refresh_token or "",
+                token_expiry=expiry_iso,
+                scopes=list(creds.scopes or _GOOGLE_SCOPES),
+            )
+            logger.info("Google OAuth tokens stored for user %s", uid)
+            return flask_redirect(f"{_frontend_url}/settings?google=connected")
+        except Exception as exc:
+            logger.error("Google callback error: %s", exc)
+            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={str(exc)[:100]}")
+
+    @app.delete("/api/google/disconnect")
+    def google_disconnect() -> tuple[dict, int]:
+        uid = _uid()
+        if uid is None:
+            return {"error": "Must be logged in"}, 401
+        if _google_svc:
+            _google_svc.token_store.delete(uid)
+        return {"disconnected": True}, 200
+
+    # ── Gmail REST endpoints ──────────────────────────────────────────────
+
+    @app.get("/api/gmail/messages")
+    def gmail_list_messages() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        query = request.args.get("q", "")
+        try:
+            max_results = int(request.args.get("limit", 10))
+        except ValueError:
+            max_results = 10
+        result = _google_svc.gmail.list_messages(uid, query=query, max_results=max_results)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return {"messages": result}, 200
+
+    @app.get("/api/gmail/messages/<message_id>")
+    def gmail_get_message(message_id: str) -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        result = _google_svc.gmail.get_message(uid, message_id)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return {"message": result}, 200
+
+    @app.post("/api/gmail/send")
+    def gmail_send_message() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        payload = request.get_json(silent=True) or {}
+        to = (payload.get("to") or "").strip()
+        subject = (payload.get("subject") or "").strip()
+        body = (payload.get("body") or "").strip()
+        if not to or not subject or not body:
+            return {"error": "to, subject, and body are required"}, 400
+        result = _google_svc.gmail.send_message(uid, to=to, subject=subject, body=body)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return result, 200
+
+    # ── Calendar REST endpoints ───────────────────────────────────────────
+
+    @app.get("/api/calendar/events")
+    def calendar_list_events() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        time_min = request.args.get("time_min")
+        time_max = request.args.get("time_max")
+        try:
+            max_results = int(request.args.get("limit", 10))
+        except ValueError:
+            max_results = 10
+        result = _google_svc.calendar.list_events(uid, time_min=time_min, time_max=time_max, max_results=max_results)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return {"events": result}, 200
+
+    @app.post("/api/calendar/events")
+    def calendar_create_event() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        payload = request.get_json(silent=True) or {}
+        title = (payload.get("title") or "").strip()
+        start = (payload.get("start") or "").strip()
+        end = (payload.get("end") or "").strip()
+        if not title or not start or not end:
+            return {"error": "title, start, and end are required"}, 400
+        result = _google_svc.calendar.create_event(
+            uid, title=title, start=start, end=end,
+            description=payload.get("description", ""),
+            location=payload.get("location", ""),
+            attendees=payload.get("attendees", []),
+        )
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return result, 201
+
+    @app.patch("/api/calendar/events/<event_id>")
+    def calendar_update_event(event_id: str) -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        payload = request.get_json(silent=True) or {}
+        result = _google_svc.calendar.update_event(
+            uid, event_id=event_id,
+            title=payload.get("title"),
+            start=payload.get("start"),
+            end=payload.get("end"),
+            description=payload.get("description"),
+            location=payload.get("location"),
+            attendees=payload.get("attendees"),
+        )
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return result, 200
+
+    @app.delete("/api/calendar/events/<event_id>")
+    def calendar_delete_event(event_id: str) -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        result = _google_svc.calendar.delete_event(uid, event_id)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return {"deleted": True}, 200
+
+    # ── Drive REST endpoints ──────────────────────────────────────────────
+
+    @app.get("/api/drive/files")
+    def drive_list_files() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        query = request.args.get("q", "")
+        try:
+            max_results = int(request.args.get("limit", 20))
+        except ValueError:
+            max_results = 20
+        result = _google_svc.drive.list_files(uid, query=query, max_results=max_results)
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return {"files": result}, 200
+
+    @app.post("/api/drive/files")
+    def drive_create_file() -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        result = _google_svc.drive.create_file(uid, name=name, content=payload.get("content", ""))
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return result, 201
+
+    @app.patch("/api/drive/files/<file_id>")
+    def drive_update_file(file_id: str) -> tuple[dict, int]:
+        if _google_svc is None:
+            return {"error": "Google integration not configured"}, 503
+        uid = _uid()
+        if uid is None:
+            return {"error": "unauthorized"}, 401
+        payload = request.get_json(silent=True) or {}
+        if "name" in payload:
+            result = _google_svc.drive.rename_file(uid, file_id, payload["name"])
+        elif "folder_id" in payload:
+            result = _google_svc.drive.move_file(uid, file_id, payload["folder_id"])
+        else:
+            return {"error": "Provide 'name' to rename or 'folder_id' to move"}, 400
+        if isinstance(result, str):
+            return {"error": result}, 400
+        return result, 200
 
     return app
 
