@@ -533,23 +533,29 @@ def create_app() -> Flask:
         if not text:
             return {"error": "text is required"}, 400
 
-        # ── ElevenLabs (primary) ──────────────────────────────────────────────
+        # ── ElevenLabs (primary, with voice fallback) ────────────────────────
         api_key = os.getenv("ELEVENLABS_API_KEY")
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        # Support two voice IDs: primary and fallback (e.g. if one hits quota)
+        voice_ids = [v.strip() for v in [
+            os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM"),
+            os.getenv("ELEVENLABS_VOICE_ID_2", "yhf80q1381zd2JJQ4tM7"),
+        ] if v.strip()]
         if api_key:
-            try:
-                from elevenlabs.client import ElevenLabs as _EL
-                client = _EL(api_key=api_key)
-                chunks = client.text_to_speech.convert(
-                    voice_id=voice_id,
-                    text=text,
-                    model_id="eleven_multilingual_v2",
-                    output_format="mp3_44100_128",
-                )
-                audio_bytes = b"".join(chunks)
-                return FlaskResponse(audio_bytes, mimetype="audio/mpeg")
-            except Exception as exc:
-                logger.warning("ElevenLabs TTS failed, falling back: %s", exc)
+            from elevenlabs.client import ElevenLabs as _EL
+            client = _EL(api_key=api_key)
+            for voice_id in voice_ids:
+                try:
+                    chunks = client.text_to_speech.convert(
+                        voice_id=voice_id,
+                        text=text,
+                        model_id="eleven_multilingual_v2",
+                        output_format="mp3_44100_128",
+                    )
+                    audio_bytes = b"".join(chunks)
+                    return FlaskResponse(audio_bytes, mimetype="audio/mpeg")
+                except Exception as exc:
+                    logger.warning("ElevenLabs voice %s failed, trying next: %s", voice_id, exc)
+            logger.warning("All ElevenLabs voices exhausted, falling back to local TTS")
 
         # ── macOS say (local dev fallback) ────────────────────────────────────
         # `say` outputs AIFF-C which Chrome's decodeAudioData() cannot decode.

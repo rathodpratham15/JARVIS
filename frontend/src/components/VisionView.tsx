@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { DetectedFace, VisionSnapshot } from "../types";
 import { playUiSound } from "../utils/audio";
-import { API_BASE } from "../utils/api";
+import { API_BASE, apiFetch } from "../utils/api";
 
 interface EnrolledPerson {
   name: string;
@@ -53,7 +53,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
   const fetchEnrolled = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/face/list`);
+      const res = await apiFetch(`/api/face/list`);
       if (res.ok) {
         const data = await res.json();
         setEnrolledPeople(data.people ?? []);
@@ -76,7 +76,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       for (let i = 0; i < enrollFiles.length; i++) {
         form.append("image", enrollFiles[i]);
       }
-      const res = await fetch(`${API_BASE}/api/face/add-person`, { method: "POST", body: form });
+      const res = await apiFetch(`/api/face/add-person`, { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Enrollment failed");
       playUiSound("success");
@@ -95,7 +95,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const handleDelete = async (name: string) => {
     if (!confirm(`Remove ${name} from face recognition?`)) return;
     try {
-      const res = await fetch(`${API_BASE}/api/face/person/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/face/person/${encodeURIComponent(name)}`, { method: "DELETE" });
       if (res.ok) {
         setEnrolledPeople(prev => prev.filter(p => p.name !== name));
       }

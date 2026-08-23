@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { API_BASE } from '../utils/api'
+import { apiFetch } from '../utils/api'
 
 export interface PermissionItem {
   id: string
@@ -18,7 +18,7 @@ export function usePermissions() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/api/permissions`)
+      const res = await apiFetch('/api/permissions')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setPermissions(data.permissions ?? [])
@@ -30,7 +30,7 @@ export function usePermissions() {
   }, [])
 
   const toggle = useCallback(async (id: string, granted: boolean) => {
-    const res = await fetch(`${API_BASE}/api/permissions`, {
+    const res = await apiFetch('/api/permissions', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, granted }),
@@ -41,14 +41,14 @@ export function usePermissions() {
   }, [])
 
   const grantAll = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/permissions/grant-all`, { method: 'POST' })
+    const res = await apiFetch('/api/permissions/grant-all', { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     setPermissions(data.permissions ?? [])
   }, [])
 
   const revokeAll = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/permissions/revoke-all`, { method: 'POST' })
+    const res = await apiFetch('/api/permissions/revoke-all', { method: 'POST' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     setPermissions(data.permissions ?? [])
