@@ -98,36 +98,28 @@ def create_app() -> Flask:
         db_path=os.getenv("JARVIS_AUTH_DB", "data/auth.db"),
         secret=os.getenv("JARVIS_AUTH_SECRET", ""),
     )
+    _google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    _allowed_emails_raw = os.getenv("JARVIS_ALLOWED_EMAILS", "")
+    _allowed_emails: set[str] = {
+        e.strip().lower() for e in _allowed_emails_raw.split(",") if e.strip()
+    }
+
     if _auth_enabled:
-        _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
-        _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
-        logger.info("Auth enabled — admin user bootstrapped")
+        # Bootstrap admin only if no Google OAuth configured (local fallback)
+        if not _google_client_id:
+            _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
+            _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
+        logger.info(
+            "Auth enabled — Google OAuth: %s, allowed emails: %s",
+            "yes" if _google_client_id else "no",
+            _allowed_emails or "any",
+        )
     else:
         logger.info("Auth disabled (set JARVIS_AUTH_ENABLED=true to enable)")
 
-    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/refresh", "/api/health"}
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
 
-    def require_auth(f):
-        """Decorator: verify Bearer JWT when auth is enabled."""
-        import functools
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            if not _auth_enabled:
-                return f(*args, **kwargs)
-            if request.path in _PUBLIC_ROUTES:
-                return f(*args, **kwargs)
-            auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer "):
-                return {"error": "unauthorized"}, 401
-            token = auth_header[7:]
-            payload = _auth_mgr.decode_access_token(token)
-            if payload is None:
-                return {"error": "token expired or invalid"}, 401
-            request.current_user = payload
-            return f(*args, **kwargs)
-        return wrapper
-
-    # Apply require_auth globally via before_request
+    # Apply auth globally via before_request
     @app.before_request
     def _check_auth():
         if not _auth_enabled:
@@ -274,6 +266,46 @@ def create_app() -> Flask:
         tokens = _auth_mgr.create_tokens(user)
         return {**tokens, "user": user}, 200
 
+    @app.post("/api/auth/google")
+    def auth_google() -> tuple[dict, int]:
+        """Exchange a Google ID token for JARVIS JWT tokens.
+
+        Body: { "token": "<Google ID token from frontend>" }
+        """
+        if not _google_client_id:
+            return {"error": "Google OAuth is not configured on this server"}, 501
+
+        payload = request.get_json(silent=True) or {}
+        id_token_str = (payload.get("token") or "").strip()
+        if not id_token_str:
+            return {"error": "token is required"}, 400
+
+        try:
+            from google.oauth2 import id_token as _id_token
+            from google.auth.transport import requests as _grequests
+            idinfo = _id_token.verify_oauth2_token(
+                id_token_str, _grequests.Request(), _google_client_id
+            )
+        except ValueError as exc:
+            logger.warning("Google token verification failed: %s", exc)
+            return {"error": "invalid Google token"}, 401
+
+        email = idinfo.get("email", "").lower()
+        if not email or not idinfo.get("email_verified"):
+            return {"error": "Google account email not verified"}, 401
+
+        if _allowed_emails and email not in _allowed_emails:
+            logger.warning("Login attempt from non-allowed email: %s", email)
+            return {"error": "this Google account is not authorised to access JARVIS"}, 403
+
+        user = _auth_mgr.create_or_get_google_user(
+            email=email,
+            name=idinfo.get("name", email.split("@")[0]),
+            google_sub=idinfo["sub"],
+        )
+        tokens = _auth_mgr.create_tokens(user)
+        return {**tokens, "user": user}, 200
+
     @app.post("/api/auth/refresh")
     def auth_refresh() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -300,29 +332,14 @@ def create_app() -> Flask:
             return {"error": "not authenticated"}, 401
         return {"user": user}, 200
 
-    @app.get("/api/auth/users")
-    def auth_list_users() -> tuple[dict, int]:
-        user = getattr(request, "current_user", None)
-        if user and user.get("role") != "admin":
-            return {"error": "admin only"}, 403
-        return {"users": _auth_mgr.list_users()}, 200
-
-    @app.post("/api/auth/users")
-    def auth_create_user() -> tuple[dict, int]:
-        user = getattr(request, "current_user", None)
-        if user and user.get("role") != "admin":
-            return {"error": "admin only"}, 403
-        payload = request.get_json(silent=True) or {}
-        username = (payload.get("username") or "").strip()
-        password = payload.get("password") or ""
-        role = payload.get("role", "user")
-        if not username or not password:
-            return {"error": "username and password are required"}, 400
-        try:
-            new_user = _auth_mgr.create_user(username, password, role=role)
-        except Exception as exc:
-            return {"error": str(exc)}, 400
-        return {"user": new_user}, 201
+    @app.get("/api/auth/config")
+    def auth_config() -> tuple[dict, int]:
+        """Tell the frontend which login methods are available."""
+        return {
+            "google_enabled": bool(_google_client_id),
+            "google_client_id": _google_client_id,
+            "password_enabled": not bool(_google_client_id),
+        }, 200
 
     @app.get("/api/permissions")
     def get_permissions() -> tuple[dict, int]:

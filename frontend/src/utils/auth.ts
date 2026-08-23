@@ -120,6 +120,38 @@ export async function login(username: string, password: string): Promise<{ ok: b
   }
 }
 
+export async function loginWithGoogle(googleIdToken: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: googleIdToken }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data.error ?? "Google sign-in failed" };
+    storeTokens(data.access_token, data.refresh_token, data.user);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export interface AuthConfig {
+  google_enabled: boolean;
+  google_client_id: string;
+  password_enabled: boolean;
+}
+
+export async function fetchAuthConfig(): Promise<AuthConfig> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/config`);
+    if (!res.ok) return { google_enabled: false, google_client_id: "", password_enabled: true };
+    return await res.json();
+  } catch {
+    return { google_enabled: false, google_client_id: "", password_enabled: true };
+  }
+}
+
 export async function logout(apiBase = API_BASE): Promise<void> {
   const refreshToken = getRefreshToken();
   try {
