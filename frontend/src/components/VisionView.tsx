@@ -47,6 +47,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
   const [enrolledPeople, setEnrolledPeople] = useState<EnrolledPerson[]>([]);
   const [enrollName, setEnrollName] = useState("");
+  const [enrollOrg, setEnrollOrg] = useState("");
   const [enrollFiles, setEnrollFiles] = useState<FileList | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
@@ -178,6 +179,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
     try {
       const form = new FormData();
       form.append("name", enrollName.trim());
+      if (enrollOrg.trim()) form.append("organization", enrollOrg.trim());
       for (let i = 0; i < enrollFiles.length; i++) {
         form.append("image", enrollFiles[i]);
       }
@@ -186,6 +188,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       if (!res.ok || !data.success) throw new Error(data.error ?? "Enrollment failed");
       playUiSound("success");
       setEnrollName("");
+      setEnrollOrg("");
       setEnrollFiles(null);
       if (enrollFileRef.current) enrollFileRef.current.value = "";
       setShowEnrollForm(false);
@@ -278,7 +281,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setSavedToDb(false);
       setCapturedFrame(imageBase64 ?? null);
       if (res.faceMatch) {
-        runOsint(res.faceMatch);
+        const org = res.facePerson?.additional_data?.organization || res.facePerson?.profession || undefined;
+        runOsint(res.faceMatch, org);
       } else if (imageBase64) {
         runReverseSearch(imageBase64);
       } else {
@@ -703,10 +707,17 @@ export const VisionView: React.FC<VisionViewProps> = ({
             <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
-                placeholder="Full name (e.g. Pratham)"
+                placeholder="Full name (e.g. Pratham Rathod)"
                 value={enrollName}
                 onChange={e => setEnrollName(e.target.value)}
                 className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
+              />
+              <input
+                type="text"
+                placeholder="Organization (e.g. Northeastern, Swapt)"
+                value={enrollOrg}
+                onChange={e => setEnrollOrg(e.target.value)}
+                className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
               />
               <label className="flex items-center gap-2 px-3 py-2 border-2 border-black bg-white font-mono text-[10px] font-black cursor-pointer hover:bg-[#00e5ff] transition">
                 <Upload className="w-3.5 h-3.5" />

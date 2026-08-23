@@ -1048,6 +1048,7 @@ export default function App() {
                   threatLevel: "Nominal (0%)",
                   environmentDetails: "",
                   faceMatch: face.matched ? face.person?.name : null,
+                  facePerson: face.matched ? face.person : null,
                 };
               }}
               accentColor={accentColor}

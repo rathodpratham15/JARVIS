@@ -954,6 +954,7 @@ class MyPlugin(BasePlugin):
         name = (request.form.get("name") or "").strip()
         if not name:
             return {"success": False, "error": "name is required"}, 400
+        organization = (request.form.get("organization") or "").strip() or None
         uploads = request.files.getlist("image")
         uploads = [f for f in uploads if f and f.filename]
         if not uploads:
@@ -977,7 +978,8 @@ class MyPlugin(BasePlugin):
                 os.replace(tmp, dest)
                 saved_paths.append(dest)
 
-            person = face_engine.add_person(name=name, image_paths=saved_paths)
+            metadata = {"organization": organization} if organization else {}
+            person = face_engine.add_person(name=name, image_paths=saved_paths, metadata=metadata)
             if person is None:
                 # Clean up saved images if encoding failed
                 for p in saved_paths:
