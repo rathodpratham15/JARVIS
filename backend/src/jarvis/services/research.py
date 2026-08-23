@@ -168,7 +168,10 @@ class ResearchPipeline:
             # placeholders and {{ }} escapes remain intact for _synthesise's .format() call.
             note = (
                 f"IMPORTANT: The user is looking for {name} who works at {company}. "
-                f"Ignore any people named {name} who are unrelated to {company}.\n\n"
+                f"Ignore any people named {name} who are unrelated to {company}. "
+                f"Only include social media profiles (Instagram, Twitter, etc.) that are "
+                f"explicitly and verifiably linked to {name} at {company} — do not include "
+                f"handles from snippets about other people with the same name.\n\n"
             )
             prompt_template = _PERSON_SYNTHESIS_PROMPT.replace(
                 "Using ONLY the web search snippets", note + "Using ONLY the web search snippets", 1
