@@ -120,6 +120,22 @@ export async function login(username: string, password: string): Promise<{ ok: b
   }
 }
 
+export async function signup(username: string, email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data.error ?? "Signup failed" };
+    storeTokens(data.access_token, data.refresh_token, data.user);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function loginWithGoogle(googleIdToken: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/api/auth/google`, {
@@ -137,6 +153,7 @@ export async function loginWithGoogle(googleIdToken: string): Promise<{ ok: bool
 }
 
 export interface AuthConfig {
+  auth_enabled: boolean;
   google_enabled: boolean;
   google_client_id: string;
   password_enabled: boolean;
@@ -145,10 +162,10 @@ export interface AuthConfig {
 export async function fetchAuthConfig(): Promise<AuthConfig> {
   try {
     const res = await fetch(`${API_BASE}/api/auth/config`);
-    if (!res.ok) return { google_enabled: false, google_client_id: "", password_enabled: true };
+    if (!res.ok) return { auth_enabled: false, google_enabled: false, google_client_id: "", password_enabled: true };
     return await res.json();
   } catch {
-    return { google_enabled: false, google_client_id: "", password_enabled: true };
+    return { auth_enabled: false, google_enabled: false, google_client_id: "", password_enabled: true };
   }
 }
 

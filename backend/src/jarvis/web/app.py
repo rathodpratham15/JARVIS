@@ -105,10 +105,8 @@ def create_app() -> Flask:
     }
 
     if _auth_enabled:
-        # Bootstrap admin only if no Google OAuth configured (local fallback)
-        if not _google_client_id:
-            _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
-            _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
+        _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
+        _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
         logger.info(
             "Auth enabled — Google OAuth: %s, allowed emails: %s",
             "yes" if _google_client_id else "no",
@@ -117,7 +115,7 @@ def create_app() -> Flask:
     else:
         logger.info("Auth disabled (set JARVIS_AUTH_ENABLED=true to enable)")
 
-    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
 
     # Apply auth globally via before_request
     @app.before_request
@@ -266,6 +264,24 @@ def create_app() -> Flask:
         tokens = _auth_mgr.create_tokens(user)
         return {**tokens, "user": user}, 200
 
+    @app.post("/api/auth/signup")
+    def auth_signup() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        username = (payload.get("username") or "").strip()
+        email = (payload.get("email") or "").strip().lower()
+        password = payload.get("password") or ""
+        if not username or not password:
+            return {"error": "username and password are required"}, 400
+        if len(password) < 6:
+            return {"error": "password must be at least 6 characters"}, 400
+        try:
+            user = _auth_mgr.create_user(username, password, role="user", email=email)
+        except Exception:
+            return {"error": "username already taken"}, 409
+        tokens = _auth_mgr.create_tokens(user)
+        logger.info("New user signed up: %s", username)
+        return {**tokens, "user": user}, 201
+
     @app.post("/api/auth/google")
     def auth_google() -> tuple[dict, int]:
         """Exchange a Google ID token for JARVIS JWT tokens.
@@ -336,9 +352,10 @@ def create_app() -> Flask:
     def auth_config() -> tuple[dict, int]:
         """Tell the frontend which login methods are available."""
         return {
+            "auth_enabled": _auth_enabled,
             "google_enabled": bool(_google_client_id),
             "google_client_id": _google_client_id,
-            "password_enabled": not bool(_google_client_id),
+            "password_enabled": True,
         }, 200
 
     @app.get("/api/permissions")

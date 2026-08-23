@@ -39,7 +39,7 @@ import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
-import { isLoggedIn, getStoredUser, clearTokens, logout as authLogout, apiFetch } from "./utils/auth";
+import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, apiFetch, fetchAuthConfig } from "./utils/auth";
 import { LoginView } from "./components/LoginView";
 import { API_BASE } from "./utils/api";
 
@@ -137,11 +137,28 @@ export default function App() {
   const [authedUser, setAuthedUser] = useState(getStoredUser);
 
   useEffect(() => {
-    // Detect if backend requires auth by checking /api/health
-    fetch(`${API_BASE}/api/health`).then(r => {
-      if (r.status === 401) setAuthRequired(true);
-    }).catch(() => {});
+    fetchAuthConfig().then(async cfg => {
+      if (!cfg.auth_enabled) return;
+      setAuthRequired(true);
+      const token = getAccessToken();
+      if (!token) { setAuthedUser(null); return; }
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (!res.ok) { clearTokens(); setAuthedUser(null); }
+      } catch {
+        clearTokens(); setAuthedUser(null);
+      }
+    });
   }, []);
+
+  // Keep URL in sync with auth state
+  useEffect(() => {
+    if (authRequired && !authedUser) {
+      navigate("/login", { replace: true });
+    } else if (authedUser && location.pathname === "/login") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [authRequired, authedUser]);
 
   useEffect(() => {
     const handler = () => {
@@ -153,16 +170,6 @@ export default function App() {
     return () => window.removeEventListener("jarvis:unauthenticated", handler);
   }, []);
 
-  if (authRequired && !authedUser) {
-    return (
-      <LoginView
-        onLoginSuccess={() => {
-          setAuthedUser(getStoredUser());
-          setAuthRequired(false);
-        }}
-      />
-    );
-  }
 
   const [currentPage, setCurrentPageState] = useState<PageId>(
     PATH_TO_PAGE[location.pathname] ?? "dashboard"
@@ -807,6 +814,18 @@ export default function App() {
     });
     return await res.json();
   };
+
+  if (authRequired && !authedUser) {
+    return (
+      <LoginView
+        onLoginSuccess={() => {
+          setAuthedUser(getStoredUser());
+          setAuthRequired(false);
+          navigate("/dashboard", { replace: true });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">

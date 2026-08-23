@@ -32,10 +32,22 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+import bcrypt as _bcrypt_lib
 import jwt
-from passlib.context import CryptContext
 
 logger = logging.getLogger(__name__)
+
+
+def _hash_password(password: str) -> str:
+    return _bcrypt_lib.hashpw(password.encode(), _bcrypt_lib.gensalt()).decode()
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    try:
+        return _bcrypt_lib.checkpw(password.encode(), hashed.encode())
+    except Exception:
+        return False
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -56,8 +68,6 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 _ACCESS_EXPIRE_MINUTES = 60
 _REFRESH_EXPIRE_DAYS   = 30
-
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthManager:
@@ -86,7 +96,7 @@ class AuthManager:
 
     def create_user(self, username: str, password: str, role: str = "user", email: str = "") -> dict:
         uid = str(uuid.uuid4())
-        hashed = _pwd.hash(password) if password else None
+        hashed = _hash_password(password) if password else None
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             conn.execute(
@@ -130,7 +140,7 @@ class AuthManager:
             ).fetchone()
         if row is None or not row["password"]:
             return None
-        if not _pwd.verify(password, row["password"]):
+        if not _verify_password(password, row["password"]):
             return None
         return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
 
