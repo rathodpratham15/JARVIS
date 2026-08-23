@@ -2,11 +2,11 @@ name: Build JARVIS APK
 
 on:
   push:
-    branches: [main, feature/**]
+    branches: [main]
     paths:
       - 'frontend/**'
       - '.github/workflows/build-apk.yml'
-  workflow_dispatch:   # lets you trigger manually from GitHub UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -38,10 +38,11 @@ jobs:
         working-directory: frontend
         run: pnpm install
 
-      - name: Build frontend
+      - name: Build frontend (production)
         working-directory: frontend
         env:
           VITE_API_BASE: https://jarvis-backend-production-e737.up.railway.app
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: pnpm run build
 
       - name: Sync Capacitor
@@ -52,13 +53,42 @@ jobs:
         working-directory: frontend/android
         run: chmod +x gradlew
 
+      # ── Signed release APK (requires keystore secrets) ──────────────────
+      - name: Decode keystore
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > frontend/android/app/jarvis-release.jks
+
+      - name: Build release APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        working-directory: frontend/android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/jarvis-release.jks \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+
+      - name: Upload release APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-release-${{ github.sha }}
+          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
+      # ── Debug APK fallback (always built) ───────────────────────────────
       - name: Build debug APK
         working-directory: frontend/android
         run: ./gradlew assembleDebug
 
-      - name: Upload APK artifact
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-debug
+          name: jarvis-debug-${{ github.sha }}
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          retention-days: 7
