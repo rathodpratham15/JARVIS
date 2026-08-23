@@ -959,33 +959,46 @@ class MyPlugin(BasePlugin):
         if not uploads:
             return {"success": False, "error": "at least one image file is required"}, 400
 
+        # Save images permanently under data/faces/<name>/
+        person_dir = face_engine.data_dir / secure_filename(name)
+        person_dir.mkdir(parents=True, exist_ok=True)
+        saved_paths: list[str] = []
         tmp_paths: list[str] = []
         try:
-            for upload in uploads:
+            for i, upload in enumerate(uploads):
                 original = secure_filename(upload.filename or "face.jpg")
                 suffix = Path(original).suffix or ".jpg"
+                # Write to temp first, then move to permanent location
                 fd, tmp = tempfile.mkstemp(suffix=suffix)
                 os.close(fd)
                 upload.save(tmp)
-                # Rename so add_person stores the file with its original name
-                named = os.path.join(os.path.dirname(tmp), original)
-                os.replace(tmp, named)
-                tmp_paths.append(named)
+                tmp_paths.append(tmp)
+                dest = str(person_dir / f"{i:03d}{suffix}")
+                os.replace(tmp, dest)
+                saved_paths.append(dest)
 
-            person = face_engine.add_person(name=name, image_paths=tmp_paths)
+            person = face_engine.add_person(name=name, image_paths=saved_paths)
             if person is None:
+                # Clean up saved images if encoding failed
+                for p in saved_paths:
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
                 return {"success": False, "error": "No valid face images processed"}, 422
 
             return {
                 "success": True,
                 "name": person.name,
-                "images_added": len(tmp_paths),
+                "images_added": len(saved_paths),
                 "statistics": face_engine.get_statistics(),
             }, 200
         finally:
+            # Only clean up any remaining temp files (already replaced above)
             for p in tmp_paths:
                 try:
-                    os.unlink(p)
+                    if os.path.exists(p):
+                        os.unlink(p)
                 except OSError:
                     pass
 
