@@ -122,9 +122,13 @@ export async function speakJarvisText(text: string, onEnd?: () => void): Promise
 
   // ── Backend TTS via AudioContext (bypasses Chrome autoplay restrictions) ──
   try {
+    const token = localStorage.getItem("jarvis_access_token");
     const res = await fetch(`${API_BASE}/api/tts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ text: cleanText }),
     });
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);

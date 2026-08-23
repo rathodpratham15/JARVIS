@@ -34,9 +34,13 @@ function unlockAudio(): void {
 async function speak(text: string): Promise<void> {
   // Fetch audio from backend (ElevenLabs or macOS say fallback)
   try {
+    const token = localStorage.getItem("jarvis_access_token");
     const res = await fetch('/api/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ text }),
     })
     if (res.ok && _audioCtx) {
