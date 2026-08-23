@@ -1087,6 +1087,17 @@ class MyPlugin(BasePlugin):
             "processing_time": scene.processing_time,
         }, 200
 
+    @app.post("/api/vision/reverse-search")
+    def vision_reverse_search() -> tuple[dict, int]:
+        """Reverse image search via Google Vision Web Detection."""
+        image = request.files.get("image")
+        if image is None:
+            return {"error": "image file required"}, 400
+        image_bytes = image.read()
+        from jarvis.services.reverse_image_search import reverse_search_image
+        result = reverse_search_image(image_bytes)
+        return result, 200
+
     @app.get("/api/vision/history")
     def vision_history() -> tuple[dict, int]:
         try:

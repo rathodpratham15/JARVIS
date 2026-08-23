@@ -63,6 +63,12 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [showUnknownForm, setShowUnknownForm] = useState(false);
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
   const [lensToast, setLensToast] = useState<string | null>(null);
+  // Reverse image search state
+  const [reverseResults, setReverseResults] = useState<{name: string; score: number}[]>([]);
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [confirmedName, setConfirmedName] = useState<string | null>(null);
+  const [savingToDb, setSavingToDb] = useState(false);
+  const [savedToDb, setSavedToDb] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -105,6 +111,54 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setLensToast("Image downloaded — upload it to Google Lens");
     }
     setTimeout(() => setLensToast(null), 5000);
+  };
+
+  const runReverseSearch = async (imageBase64: string) => {
+    setReverseLoading(true);
+    setReverseResults([]);
+    try {
+      const blob = await (await fetch(imageBase64)).blob();
+      const form = new FormData();
+      form.append("image", blob, "frame.jpg");
+      const res = await apiFetch("/api/vision/reverse-search", { method: "POST", body: form });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.available && data.candidates?.length > 0) {
+        setReverseResults(data.candidates);
+        setShowUnknownForm(false);
+      } else {
+        setShowUnknownForm(true);
+      }
+    } catch {
+      setShowUnknownForm(true);
+    } finally {
+      setReverseLoading(false);
+    }
+  };
+
+  const handleConfirmCandidate = (name: string) => {
+    setConfirmedName(name);
+    setReverseResults([]);
+    setShowUnknownForm(false);
+    runOsint(name);
+  };
+
+  const handleSaveToDb = async () => {
+    if (!confirmedName || !capturedFrame) return;
+    setSavingToDb(true);
+    try {
+      const blob = await (await fetch(capturedFrame)).blob();
+      const form = new FormData();
+      form.append("name", confirmedName);
+      form.append("image", blob, "face.jpg");
+      const res = await apiFetch("/api/face/add-person", { method: "POST", body: form });
+      if (res.ok) {
+        setSavedToDb(true);
+        fetchEnrolled();
+      }
+    } finally {
+      setSavingToDb(false);
+    }
   };
 
   const fetchEnrolled = async () => {
@@ -220,13 +274,18 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setIsAnalyzingScene(true);  // scene is still loading in background
       playUiSound("success");
 
-      // OSINT: auto-research known match, show manual form for unknown
+      // OSINT: auto-research known match, reverse-search for unknown
       setOsintDossier(null);
       setOsintError(null);
       setShowUnknownForm(false);
+      setReverseResults([]);
+      setConfirmedName(null);
+      setSavedToDb(false);
       setCapturedFrame(imageBase64 ?? null);
       if (res.faceMatch) {
         runOsint(res.faceMatch);
+      } else if (imageBase64) {
+        runReverseSearch(imageBase64);
       } else {
         setShowUnknownForm(true);
       }
@@ -407,12 +466,41 @@ export const VisionView: React.FC<VisionViewProps> = ({
             </div>
           </div>
 
-          {/* Unknown face — manual research form */}
-          {showUnknownForm && !osintLoading && !osintDossier && (
+          {/* Reverse search loading */}
+          {reverseLoading && (
+            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Searching the web for identity…
+            </div>
+          )}
+
+          {/* Reverse search candidates */}
+          {!reverseLoading && reverseResults.length > 0 && !osintDossier && (
+            <div className="border-t-2 border-black pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-black text-black/70 uppercase">Possible matches — confirm identity:</p>
+              {reverseResults.map((c, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleConfirmCandidate(c.name)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#f3f3ee] border-2 border-black hover:bg-[#00e5ff] hover:border-black transition text-left font-mono text-xs font-bold shadow-[1px_1px_0px_#000]"
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[10px] text-black/50">{Math.round(c.score * 100)}%</span>
+                </button>
+              ))}
+              <button
+                onClick={() => { setReverseResults([]); setShowUnknownForm(true); }}
+                className="w-full text-[10px] font-mono text-black/50 hover:text-black transition py-1"
+              >
+                None of these — enter manually
+              </button>
+            </div>
+          )}
+
+          {/* Manual form fallback */}
+          {showUnknownForm && !osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && (
             <div className="border-t-2 border-black pt-3 space-y-2">
               <p className="text-[10px] font-mono font-bold text-black/70 uppercase">No match — research manually:</p>
-
-              {/* Google Lens fallback */}
               <button
                 onClick={handleGoogleLens}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition"
@@ -421,17 +509,13 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 SEARCH ON GOOGLE LENS
               </button>
               {lensToast && (
-                <p className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-1.5">
-                  {lensToast}
-                </p>
+                <p className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-1.5">{lensToast}</p>
               )}
-
               <div className="flex items-center gap-2 text-[10px] font-mono text-black/40">
                 <div className="flex-1 border-t border-black/20" />
                 <span>OR ENTER NAME MANUALLY</span>
                 <div className="flex-1 border-t border-black/20" />
               </div>
-
               <input
                 type="text"
                 value={unknownName}
@@ -447,7 +531,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
               />
               <button
-                onClick={() => { if (unknownName.trim()) runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}
+                onClick={() => { if (unknownName.trim()) { setConfirmedName(unknownName.trim()); runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}}
                 disabled={!unknownName.trim()}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00e5ff] border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition disabled:opacity-50"
               >
@@ -491,6 +575,29 @@ export const VisionView: React.FC<VisionViewProps> = ({
           <p className="text-xs font-mono text-black leading-relaxed bg-[#f3f3ee] border-2 border-black p-3">
             {osintDossier.summary}
           </p>
+
+          {/* Save to DB offer — only for unknown faces confirmed via reverse search or manual form */}
+          {confirmedName && !savedToDb && capturedFrame && (
+            <div className="flex items-center justify-between p-3 bg-[#f3f3ee] border-2 border-black">
+              <div>
+                <p className="text-[11px] font-mono font-black text-black">Remember this face?</p>
+                <p className="text-[10px] font-mono text-black/60">Saves to local DB — future scans will match instantly.</p>
+              </div>
+              <button
+                onClick={handleSaveToDb}
+                disabled={savingToDb}
+                className="flex items-center gap-1.5 px-3 py-2 bg-black text-[#00e5ff] border-2 border-black font-mono font-black text-xs disabled:opacity-50 hover:bg-[#1a1a1a] transition shrink-0"
+              >
+                {savingToDb ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                SAVE FACE
+              </button>
+            </div>
+          )}
+          {savedToDb && (
+            <p className="text-[11px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-3 py-2">
+              ✓ Face saved — will be recognised instantly next time.
+            </p>
+          )}
 
           {/* Sections */}
           {Object.keys(osintDossier.sections).length > 0 && (
