@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { apiFetch } from '../utils/api'
 
 export interface CUStep {
   step: number
@@ -37,7 +38,7 @@ export function useComputerUse() {
     stopPoll()
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/computer-use/${id}`)
+        const res = await apiFetch(`/api/computer-use/${id}`)
         if (!res.ok) return
         const data: CUTask = await res.json()
         setTask(data)
@@ -55,7 +56,7 @@ export function useComputerUse() {
     setTask(null)
     stopPoll()
     try {
-      const res = await fetch('/api/computer-use', {
+      const res = await apiFetch('/api/computer-use', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goal }),
@@ -63,7 +64,6 @@ export function useComputerUse() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to start task')
       poll(data.task_id)
-      // seed initial state
       setTask({
         id: data.task_id,
         goal,
@@ -82,7 +82,7 @@ export function useComputerUse() {
   const cancel = useCallback(async () => {
     if (!task) return
     stopPoll()
-    await fetch(`/api/computer-use/${task.id}`, { method: 'DELETE' }).catch(() => {})
+    await apiFetch(`/api/computer-use/${task.id}`, { method: 'DELETE' }).catch(() => {})
     setTask(prev => prev ? { ...prev, status: 'failed', error: 'Cancelled.' } : null)
   }, [task, stopPoll])
 

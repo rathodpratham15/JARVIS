@@ -1,10 +1,6 @@
 // Web Speech API and Web Audio API helper for J.A.R.V.I.S audio feedback
 
-const API_BASE = (
-  typeof import.meta !== "undefined"
-    ? ((import.meta as any).env?.VITE_API_BASE ?? "")
-    : ""
-).replace(/\/$/, "");
+import { apiFetch } from "./api";
 
 let audioCtx: AudioContext | null = null;
 
@@ -122,13 +118,9 @@ export async function speakJarvisText(text: string, onEnd?: () => void): Promise
 
   // ── Backend TTS via AudioContext (bypasses Chrome autoplay restrictions) ──
   try {
-    const token = localStorage.getItem("jarvis_access_token");
-    const res = await fetch(`${API_BASE}/api/tts`, {
+    const res = await apiFetch("/api/tts", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: cleanText }),
     });
     if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { SpeechRecognition } from '@capacitor-community/speech-recognition'
+import { apiFetch } from '../utils/api'
 
 export type VoiceState = 'listening' | 'processing' | 'speaking'
 
@@ -34,13 +35,9 @@ function unlockAudio(): void {
 async function speak(text: string): Promise<void> {
   // Fetch audio from backend (ElevenLabs or macOS say fallback)
   try {
-    const token = localStorage.getItem("jarvis_access_token");
-    const res = await fetch('/api/tts', {
+    const res = await apiFetch('/api/tts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     })
     if (res.ok && _audioCtx) {
@@ -119,7 +116,7 @@ async function listenNative(): Promise<string | null> {
 }
 
 async function sendToBackend(message: string): Promise<string> {
-  const res = await fetch('/api/voice-chat', {
+  const res = await apiFetch('/api/voice-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),

@@ -39,9 +39,9 @@ import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
-import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, apiFetch, fetchAuthConfig } from "./utils/auth";
+import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
 import { LoginView } from "./components/LoginView";
-import { API_BASE } from "./utils/api";
+import { API_BASE, apiFetch } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -201,7 +201,7 @@ export default function App() {
 
   // Load persisted settings on mount
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings`)
+    apiFetch(`/api/settings`)
       .then(r => r.json())
       .then(d => {
         const s = d.settings ?? {};
@@ -213,7 +213,7 @@ export default function App() {
   }, []);
 
   const persistSettings = useCallback((patch: Record<string, unknown>) => {
-    fetch(`${API_BASE}/api/settings`, {
+    apiFetch(`/api/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
@@ -273,7 +273,7 @@ export default function App() {
   // ── bootstrap from backend ───────────────────────────────────────────────
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/health`)
+    apiFetch(`/api/health`)
       .then(r => r.json())
       .then(d => {
         const svcMap = d.services ?? {};
@@ -292,7 +292,7 @@ export default function App() {
   useEffect(() => {
     // Backend returns {interactions: [{id, user_input, response, timestamp, ...}]}
     // Each interaction expands into 2 chat messages: user + jarvis
-    fetch(`${API_BASE}/api/history?limit=30`)
+    apiFetch(`/api/history?limit=30`)
       .then(r => r.json())
       .then(d => {
         const interactions: any[] = d.interactions ?? [];
@@ -318,7 +318,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchSchedules = () => {
-      fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
+      apiFetch(`/api/schedules`).then(r => r.json()).then(d => {
         if (!d.jobs) return;
         const jobs: ScheduleJob[] = d.jobs.map(mapBackendSchedule);
         setSchedules(jobs);
@@ -361,13 +361,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/permissions`).then(r => r.json()).then(d => {
+    apiFetch(`/api/permissions`).then(r => r.json()).then(d => {
       if (d.permissions) setPermissions(d.permissions.map(mapBackendPermission));
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/notes`).then(r => r.json()).then(d => {
+    apiFetch(`/api/notes`).then(r => r.json()).then(d => {
       if (d.notes) setNotes(d.notes.map((n: any): NoteEntry => ({
         id: n.id, title: n.title, content: n.content,
         priority: "High", isReminder: false, completed: false,
@@ -377,7 +377,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/reminders`).then(r => r.json()).then(d => {
+    apiFetch(`/api/reminders`).then(r => r.json()).then(d => {
       if (d.reminders) setReminders(d.reminders.map((r: any): ReminderItem => ({
         id: r.id, title: r.title,
         targetTime: r.target_time ?? r.targetTime ?? new Date().toISOString(),
@@ -389,7 +389,7 @@ export default function App() {
   }, []);
 
   const refreshPlugins = useCallback(() => {
-    fetch(`${API_BASE}/api/plugins`).then(r => r.json()).then(d => {
+    apiFetch(`/api/plugins`).then(r => r.json()).then(d => {
       if (d.plugins) setPlugins(d.plugins.map((p: any): PluginItem => ({
         id: p.name,
         name: p.name,
@@ -410,7 +410,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchTasks = () => {
-      fetch(`${API_BASE}/api/tasks`)
+      apiFetch(`/api/tasks`)
         .then(r => r.json())
         .then(d => {
           const list: any[] = Array.isArray(d) ? d : (d.tasks ?? []);
@@ -429,7 +429,7 @@ export default function App() {
     const plugin = plugins.find(p => p.name === name);
     const newEnabled = !plugin?.enabled;
     try {
-      await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(name)}/toggle`, {
+      await apiFetch(`/api/plugins/${encodeURIComponent(name)}/toggle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: newEnabled }),
@@ -442,7 +442,7 @@ export default function App() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch(`${API_BASE}/api/plugins/install`, { method: "POST", body: form });
+      const res = await apiFetch(`/api/plugins/install`, { method: "POST", body: form });
       const data = await res.json();
       if (data.plugins) setPlugins(data.plugins.map((p: any): PluginItem => ({
         id: p.name, name: p.name, description: p.description ?? "",
@@ -458,7 +458,7 @@ export default function App() {
 
   const handleDeletePlugin = useCallback(async (name: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/plugins/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/plugins/${encodeURIComponent(name)}`, { method: "DELETE" });
       const data = await res.json();
       if (data.plugins) setPlugins(data.plugins.map((p: any): PluginItem => ({
         id: p.name, name: p.name, description: p.description ?? "",
@@ -518,7 +518,7 @@ export default function App() {
 
     let finalText = "";
     try {
-      const res = await fetch(`${API_BASE}/api/chat/stream`, {
+      const res = await apiFetch(`/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -568,7 +568,7 @@ export default function App() {
   const handleExecuteAgentTask = async (taskDescription: string): Promise<AgentTask> => {
     addLog("AGENT", "Autonomous Task Launched", taskDescription.slice(0, 40));
     try {
-      const res = await fetch(`${API_BASE}/api/tasks`, {
+      const res = await apiFetch(`/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goal: taskDescription }),
@@ -608,13 +608,13 @@ export default function App() {
   };
 
   const handleDeleteTask = async (id: string) => {
-    try { await fetch(`${API_BASE}/api/tasks/${id}`, { method: "DELETE" }); } catch {}
+    try { await apiFetch(`/api/tasks/${id}`, { method: "DELETE" }); } catch {}
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   const handleRenameTask = async (id: string, label: string) => {
     try {
-      await fetch(`${API_BASE}/api/tasks/${id}`, {
+      await apiFetch(`/api/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label }),
@@ -629,7 +629,7 @@ export default function App() {
     const job = schedules.find(s => s.id === id);
     const newEnabled = !job?.enabled;
     try {
-      await fetch(`${API_BASE}/api/schedules/${id}`, {
+      await apiFetch(`/api/schedules/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: newEnabled }),
@@ -643,12 +643,12 @@ export default function App() {
     const job = schedules.find(s => s.id === id);
     setSchedules(prev => prev.map(s => s.id === id ? { ...s, status: "running" as const } : s));
     try {
-      await fetch(`${API_BASE}/api/schedules/${id}/run`, { method: "POST" });
+      await apiFetch(`/api/schedules/${id}/run`, { method: "POST" });
     } catch {}
     addLog("SCHEDULE", `Job Run: ${job?.title ?? id}`, "Autonomous routine dispatched.");
     // Poll for result after a brief delay then refresh the full list
     setTimeout(() => {
-      fetch(`${API_BASE}/api/schedules`).then(r => r.json()).then(d => {
+      apiFetch(`/api/schedules`).then(r => r.json()).then(d => {
         if (d.jobs) setSchedules(d.jobs.map(mapBackendSchedule));
       }).catch(() => {});
     }, 3000);
@@ -656,14 +656,14 @@ export default function App() {
 
   const handleDeleteSchedule = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/api/schedules/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/schedules/${id}`, { method: "DELETE" });
     } catch {}
     setSchedules(prev => prev.filter(s => s.id !== id));
   };
 
   const handleCreateSchedule = async (job: Omit<ScheduleJob, "id" | "lastRun" | "status">) => {
     try {
-      const res = await fetch(`${API_BASE}/api/schedules`, {
+      const res = await apiFetch(`/api/schedules`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -689,7 +689,7 @@ export default function App() {
     const perm = permissions.find(p => p.id === id);
     const newVal = !perm?.enabled;
     try {
-      await fetch(`${API_BASE}/api/permissions`, {
+      await apiFetch(`/api/permissions`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ permissions: { [id]: newVal } }),
@@ -703,7 +703,7 @@ export default function App() {
 
   const handleAddReminder = async (item: Omit<ReminderItem, "id" | "isTriggered">) => {
     try {
-      const res = await fetch(`${API_BASE}/api/reminders`, {
+      const res = await apiFetch(`/api/reminders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: item.title, target_time: item.targetTime, priority: item.priority }),
@@ -732,7 +732,7 @@ export default function App() {
   };
 
   const handleDeleteReminder = async (id: string) => {
-    try { await fetch(`${API_BASE}/api/reminders/${id}`, { method: "DELETE" }); } catch {}
+    try { await apiFetch(`/api/reminders/${id}`, { method: "DELETE" }); } catch {}
     setReminders(prev => prev.filter(r => r.id !== id));
   };
 
@@ -740,7 +740,7 @@ export default function App() {
 
   const handleAddNote = async (note: Omit<NoteEntry, "id" | "createdAt">) => {
     try {
-      const res = await fetch(`${API_BASE}/api/notes`, {
+      const res = await apiFetch(`/api/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: note.title, content: note.content }),
@@ -756,7 +756,7 @@ export default function App() {
 
   const handleEditNote = async (id: string, title: string, content: string) => {
     try {
-      await fetch(`${API_BASE}/api/notes/${id}`, {
+      await apiFetch(`/api/notes/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content }),
@@ -770,7 +770,7 @@ export default function App() {
   };
 
   const handleDeleteNote = async (id: string) => {
-    try { await fetch(`${API_BASE}/api/notes/${id}`, { method: "DELETE" }); } catch {}
+    try { await apiFetch(`/api/notes/${id}`, { method: "DELETE" }); } catch {}
     setNotes(prev => prev.filter(n => n.id !== id));
   };
 
@@ -791,7 +791,7 @@ export default function App() {
 
   const handleSearchSemanticMemory = async (query: string): Promise<string> => {
     try {
-      const res = await fetch(`${API_BASE}/api/memory/search`, {
+      const res = await apiFetch(`/api/memory/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
@@ -807,7 +807,7 @@ export default function App() {
 
   const handleRunResearch = async (targetName: string, targetType: "person" | "company"): Promise<ResearchDossier> => {
     addLog("AGENT", "Intelligence Crawler Initiated", `Target: ${targetName}`);
-    const res = await fetch(`${API_BASE}/api/research/pipeline`, {
+    const res = await apiFetch(`/api/research/pipeline`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetName, targetType }),
@@ -995,7 +995,7 @@ export default function App() {
                 // ① Face recognition — await it (fast, ~200ms)
                 const faceForm = new FormData();
                 faceForm.append("image", blob, "frame.jpg");
-                const faceRes = await fetch(`${API_BASE}/api/face/identify`, { method: "POST", body: faceForm })
+                const faceRes = await apiFetch(`/api/face/identify`, { method: "POST", body: faceForm })
                   .then(async r => ({ ok: r.ok, status: r.status, data: await r.json() }))
                   .catch(() => ({ ok: false, status: 0, data: {} }));
                 const face = faceRes.data;
@@ -1022,7 +1022,7 @@ export default function App() {
                 // ② Scene analysis — fire in background, don't block (slow, ~10-25s)
                 const sceneForm = new FormData();
                 sceneForm.append("image", blob, "frame.jpg");
-                fetch(`${API_BASE}/api/vision/analyze`, { method: "POST", body: sceneForm })
+                apiFetch(`/api/vision/analyze`, { method: "POST", body: sceneForm })
                   .then(async r => {
                     if (r.status === 503) throw new Error("Scene analysis not available on this server");
                     if (!r.ok) throw new Error(`Server error ${r.status}`);
