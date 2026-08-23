@@ -23,6 +23,10 @@ frontend/.vite/
 .env.*
 !.env.example
 
+# Android signing keystore — never commit
+*.jks
+*.keystore
+
 # Data (local SQLite DBs)
 data/*.db
 data/settings.json
