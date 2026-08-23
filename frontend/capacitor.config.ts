@@ -1,7 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 const config: CapacitorConfig = {
   appId: 'com.jarvis.app',
   appName: 'JARVIS',
@@ -10,19 +8,17 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchShowDuration: 0,
     },
-  },
-  android: {
-    allowMixedContent: false,
-    // Use https scheme so cookies/localStorage behave like a real origin
-    buildOptions: {
-      keystorePath: process.env.KEYSTORE_PATH,
-      keystorePassword: process.env.KEYSTORE_PASSWORD,
-      keystoreAlias: process.env.KEYSTORE_ALIAS,
-      keystoreAliasPassword: process.env.KEYSTORE_ALIAS_PASSWORD,
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      // Web client ID used as serverClientId so the idToken is verifiable
+      // by the backend (same client the /api/auth/google endpoint already uses)
+      serverClientId: '363737081592-hhjhi9lsu7u6mfg02pqu48ii113bmj3v.apps.googleusercontent.com',
+      forceCodeForRefreshToken: true,
     },
   },
-  // In production builds the web assets are bundled into the APK and
-  // call the Railway backend via VITE_API_BASE.  No server.url override needed.
+  android: {
+    allowMixedContent: true,
+  },
 };
 
 export default config;

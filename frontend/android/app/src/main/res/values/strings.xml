@@ -4,4 +4,5 @@
     <string name="title_activity_main">JARVIS</string>
     <string name="package_name">com.jarvis.app</string>
     <string name="custom_url_scheme">com.jarvis.app</string>
+    <string name="server_client_id">363737081592-hhjhi9lsu7u6mfg02pqu48ii113bmj3v.apps.googleusercontent.com</string>
 </resources>
