@@ -369,6 +369,148 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "gmail_list",
+            "description": "List recent emails from the user's Gmail inbox. Use when asked to check email, show inbox, or list messages.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "query": {"type": "string", "description": "Gmail search query, e.g. 'from:boss@company.com' or 'subject:meeting'. Leave empty for inbox."},
+                    "max_results": {"type": "integer", "description": "Number of emails to fetch (default 10)"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "gmail_send",
+            "description": "Send an email via Gmail. Use when the user asks to send, compose, or write an email.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "to": {"type": "string", "description": "Recipient email address"},
+                    "subject": {"type": "string", "description": "Email subject line"},
+                    "body": {"type": "string", "description": "Email body text"},
+                },
+                "required": ["to", "subject", "body"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "gmail_search",
+            "description": "Search Gmail for emails matching a query.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "query": {"type": "string", "description": "Gmail search query, e.g. 'from:alice@example.com subject:invoice'"},
+                    "max_results": {"type": "integer", "description": "Max results (default 20)"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_list",
+            "description": "List upcoming calendar events. Use when asked about schedule, meetings, what's on the calendar today/this week.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "time_min": {"type": "string", "description": "Start of time range in ISO 8601 format (default: now)"},
+                    "time_max": {"type": "string", "description": "End of time range in ISO 8601 format (default: 7 days from now)"},
+                    "max_results": {"type": "integer", "description": "Max events (default 10)"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_create",
+            "description": "Create a new Google Calendar event. Use when the user asks to schedule a meeting, add an event, or book time.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "title": {"type": "string", "description": "Event title"},
+                    "start": {"type": "string", "description": "Start datetime in ISO 8601 format, e.g. '2026-08-24T10:00:00Z'"},
+                    "end": {"type": "string", "description": "End datetime in ISO 8601 format"},
+                    "description": {"type": "string", "description": "Event description (optional)"},
+                    "location": {"type": "string", "description": "Event location (optional)"},
+                    "attendees": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of attendee email addresses (optional)",
+                    },
+                },
+                "required": ["title", "start", "end"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_update",
+            "description": "Update or reschedule an existing calendar event by its ID. Use after listing events to get the event ID.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "event_id": {"type": "string", "description": "Google Calendar event ID"},
+                    "title": {"type": "string", "description": "New event title (optional)"},
+                    "start": {"type": "string", "description": "New start datetime ISO 8601 (optional)"},
+                    "end": {"type": "string", "description": "New end datetime ISO 8601 (optional)"},
+                    "description": {"type": "string", "description": "New description (optional)"},
+                    "location": {"type": "string", "description": "New location (optional)"},
+                },
+                "required": ["event_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "drive_list",
+            "description": "List or search files in the user's Google Drive.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "query": {"type": "string", "description": "File name search term (optional)"},
+                    "max_results": {"type": "integer", "description": "Max files to return (default 20)"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "drive_create",
+            "description": "Create a new file in Google Drive with the given content.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string", "description": "File name including extension, e.g. 'meeting_notes.txt'"},
+                    "content": {"type": "string", "description": "File text content"},
+                },
+                "required": ["name", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "system_api",
             "description": (
                 "Control system-level settings: volume, screen brightness, Do Not Disturb (Focus mode), and WiFi. "
@@ -497,5 +639,29 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "system_api":
         return {**base, "type": "system_api", "action": args.get("action", ""), "level": args.get("level")}
+
+    if name == "gmail_list":
+        return {**base, "type": "gmail_list", "query": args.get("query", ""), "max_results": int(args.get("max_results", 10))}
+
+    if name == "gmail_send":
+        return {**base, "type": "gmail_send", "to": args.get("to", ""), "subject": args.get("subject", ""), "body": args.get("body", "")}
+
+    if name == "gmail_search":
+        return {**base, "type": "gmail_search", "query": args.get("query", ""), "max_results": int(args.get("max_results", 20))}
+
+    if name == "calendar_list":
+        return {**base, "type": "calendar_list", "time_min": args.get("time_min"), "time_max": args.get("time_max"), "max_results": int(args.get("max_results", 10))}
+
+    if name == "calendar_create":
+        return {**base, "type": "calendar_create", "title": args.get("title", ""), "start": args.get("start", ""), "end": args.get("end", ""), "description": args.get("description", ""), "location": args.get("location", ""), "attendees": args.get("attendees", [])}
+
+    if name == "calendar_update":
+        return {**base, "type": "calendar_update", "event_id": args.get("event_id", ""), "title": args.get("title"), "start": args.get("start"), "end": args.get("end"), "description": args.get("description"), "location": args.get("location")}
+
+    if name == "drive_list":
+        return {**base, "type": "drive_list", "query": args.get("query", ""), "max_results": int(args.get("max_results", 20))}
+
+    if name == "drive_create":
+        return {**base, "type": "drive_create", "name": args.get("name", ""), "content": args.get("content", "")}
 
     return {**base, "type": "conversation"}

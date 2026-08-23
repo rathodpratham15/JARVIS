@@ -9,6 +9,12 @@ import {
   Check,
   Download,
   RotateCcw,
+  Mail,
+  Calendar,
+  HardDrive,
+  Link2,
+  Link2Off,
+  Loader2,
 } from "lucide-react";
 import { PersonalityMode, ThemeAccent } from "../types";
 import { THEME_CONFIGS } from "../utils/theme";
@@ -40,6 +46,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [selectedVoice, setSelectedVoice] = useState("Kore (British Male - J.A.R.V.I.S.)");
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [providerName, setProviderName] = useState("—");
+  const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; gmail: boolean; calendar: boolean; drive: boolean } | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/settings`)
@@ -50,6 +58,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         if (s.llm_provider) setProviderName(s.llm_provider.toUpperCase());
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/google/status`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("jarvis_access_token")}` },
+    })
+      .then((r) => r.json())
+      .then(setGoogleStatus)
+      .catch(() => {});
+
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get("google");
+    if (googleParam === "connected") {
+      window.history.replaceState({}, "", "/settings");
+      fetch(`${API_BASE}/api/google/status`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("jarvis_access_token")}` },
+      })
+        .then((r) => r.json())
+        .then(setGoogleStatus)
+        .catch(() => {});
+    }
   }, []);
 
   const handleSave = async () => {
@@ -63,6 +92,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     playUiSound("success");
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
+  const handleConnectGoogle = async () => {
+    setGoogleLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/google/connect`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("jarvis_access_token")}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setGoogleLoading(false);
+      }
+    } catch {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    setGoogleLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/google/disconnect`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("jarvis_access_token")}` },
+      });
+      setGoogleStatus((s) => s ? { ...s, connected: false, gmail: false, calendar: false, drive: false } : s);
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleExportDiagnostics = () => {
@@ -300,6 +359,83 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span className="font-bold text-[#1a1a1a]">LOCAL STORAGE PERSISTENCE</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Integrations */}
+      <div className="editorial-panel space-y-6">
+        <div>
+          <div className="overline-cyan">PANEL 03</div>
+          <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+            Integrations
+          </h2>
+          <p className="text-xs text-[#555] font-sans mt-0.5">
+            Connect external services to enable Gmail, Calendar, and Drive access
+          </p>
+        </div>
+
+        <div className="border-b border-[#1a1a1a]" />
+
+        {/* Google Workspace */}
+        <div className="flex items-start justify-between gap-6">
+          <div className="space-y-3 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold text-[#1a1a1a] uppercase">Google Workspace</span>
+              {googleStatus?.connected && (
+                <span className="px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a] text-[10px] font-mono">
+                  CONNECTED
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { icon: Mail, label: "Gmail", key: "gmail" as const },
+                { icon: Calendar, label: "Calendar", key: "calendar" as const },
+                { icon: HardDrive, label: "Drive", key: "drive" as const },
+              ].map(({ icon: Icon, label, key }) => (
+                <div
+                  key={key}
+                  className={`p-2.5 border border-[#1a1a1a] flex items-center gap-2 font-mono text-xs ${
+                    googleStatus?.[key]
+                      ? "bg-[#00E5FF]/20 text-[#1a1a1a]"
+                      : "bg-[#EBEBEA] text-[#888]"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{label}</span>
+                  {googleStatus?.[key] && (
+                    <span className="ml-auto text-[10px]">✓</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-[#555] font-sans">
+              {googleStatus?.connected
+                ? "JARVIS can read/send emails, manage calendar events, and access Drive files."
+                : "Connect to enable Gmail, Calendar, and Drive in chat and agent mode."}
+            </p>
+          </div>
+          <div>
+            {googleStatus?.connected ? (
+              <button
+                onClick={handleDisconnectGoogle}
+                disabled={googleLoading}
+                className="editorial-btn-outline flex items-center gap-1.5"
+              >
+                {googleLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2Off className="w-3.5 h-3.5" />}
+                <span>DISCONNECT</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleConnectGoogle}
+                disabled={googleLoading}
+                className="editorial-btn-primary flex items-center gap-1.5"
+              >
+                {googleLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                <span>CONNECT GOOGLE</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

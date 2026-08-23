@@ -151,6 +151,7 @@ class ActionEngine:
         llm=None,
         scheduler: "Optional[Scheduler]" = None,
         permissions: "Optional[PermissionsManager]" = None,
+        google_service=None,
     ) -> None:
         if notes_store is None:
             from jarvis.dashboard.notes import NotesStore
@@ -167,6 +168,7 @@ class ActionEngine:
         self._llm = llm
         self._scheduler = scheduler
         self._permissions = permissions
+        self._google = google_service
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -200,6 +202,14 @@ class ActionEngine:
             "delete_schedule": self._delete_schedule,
             "system_api": self._system_api,
             "conversation": self._conversation,
+            "gmail_list": self._gmail_list,
+            "gmail_send": self._gmail_send,
+            "gmail_search": self._gmail_search,
+            "calendar_list": self._calendar_list,
+            "calendar_create": self._calendar_create,
+            "calendar_update": self._calendar_update,
+            "drive_list": self._drive_list,
+            "drive_create": self._drive_create,
         }
 
     def _require(self, perm_name: str, label: str) -> Optional[str]:
@@ -304,7 +314,7 @@ class ActionEngine:
             return "What would you like me to remind you about?"
         time_info = intent.get("time")
         due = _parse_due_time(time_info)
-        self._reminders.add(text, due_at=due)
+        self._reminders.add(text, due_at=due, user_id=intent.get("_user_id"))
         if due:
             return f"Reminder set: '{text}' at {due.strftime('%I:%M %p')}."
         return f"Reminder saved: '{text}'."
@@ -316,7 +326,7 @@ class ActionEngine:
         text = (intent.get("note_text") or "").strip()
         if not text:
             return "What would you like me to note down?"
-        self._notes.add(content=text)
+        self._notes.add(content=text, user_id=intent.get("_user_id"))
         return f"Saved your note: '{text}'"
 
     @staticmethod
@@ -364,7 +374,7 @@ class ActionEngine:
         if delta is None:
             return f"I didn't understand the duration '{duration_str}'. Try '5 minutes' or '30 seconds'."
         due = (datetime.now(timezone.utc) + delta)
-        self._reminders.add(text=f"Timer: {duration_str}", due_at=due, kind="timer")
+        self._reminders.add(text=f"Timer: {duration_str}", due_at=due, kind="timer", user_id=intent.get("_user_id"))
         # Human-readable duration
         total = int(delta.total_seconds())
         if total >= 3600:
@@ -517,7 +527,7 @@ class ActionEngine:
         if not name or not goal or not expr:
             return "Please provide a name, goal, and schedule expression for the job."
         try:
-            job_id = self._scheduler.add(name=name, goal=goal, schedule_expr=expr, enabled=True)
+            job_id = self._scheduler.add(name=name, goal=goal, schedule_expr=expr, enabled=True, user_id=intent.get("_user_id"))
             return f"Scheduled job '{name}' created (ID: {job_id[:8]}…). It will run {expr}."
         except ValueError as exc:
             return f"Invalid schedule expression: {exc}"
@@ -528,7 +538,7 @@ class ActionEngine:
             return err
         if self._scheduler is None:
             return "Scheduler is not available."
-        jobs = self._scheduler.list_all()
+        jobs = self._scheduler.list_all(user_id=intent.get("_user_id"))
         if not jobs:
             return "No scheduled jobs configured yet."
         lines = [f"Found {len(jobs)} scheduled job(s):"]
@@ -545,14 +555,14 @@ class ActionEngine:
         if self._scheduler is None:
             return "Scheduler is not available."
         job_id = (intent.get("job_id") or "").strip()
+        uid = intent.get("_user_id")
         if not job_id:
             return "Please provide the job ID to delete. Use list_schedules to find it."
-        if self._scheduler.remove(job_id):
+        if self._scheduler.remove(job_id, user_id=uid):
             return f"Scheduled job {job_id[:8]}… has been deleted."
-        # Try prefix match for short IDs the LLM may pass
-        jobs = self._scheduler.list_all()
+        jobs = self._scheduler.list_all(user_id=uid)
         matches = [j for j in jobs if j["id"].startswith(job_id)]
-        if len(matches) == 1 and self._scheduler.remove(matches[0]["id"]):
+        if len(matches) == 1 and self._scheduler.remove(matches[0]["id"], user_id=uid):
             return f"Scheduled job '{matches[0]['name']}' has been deleted."
         return f"No job found with ID starting with '{job_id}'."
 
@@ -569,6 +579,155 @@ class ActionEngine:
                 "I'm listening. What do you need?",
             ]
         )
+
+    def _gmail_list(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot access Gmail without a logged-in user."
+        result = self._google.gmail.list_messages(uid, query=intent.get("query", ""), max_results=intent.get("max_results", 10))
+        if isinstance(result, str):
+            return result
+        if not result:
+            return "Your inbox is empty."
+        lines = [f"Found {len(result)} message(s):"]
+        for m in result:
+            lines.append(f"• {m['date'][:16]} | From: {m['from'][:30]} | {m['subject']} — {m['snippet'][:60]}")
+        return "\n".join(lines)
+
+    def _gmail_send(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot send email without a logged-in user."
+        to = intent.get("to", "")
+        subject = intent.get("subject", "")
+        body = intent.get("body", "")
+        if not to or not subject or not body:
+            return "Please provide 'to', 'subject', and 'body' to send an email."
+        result = self._google.gmail.send_message(uid, to=to, subject=subject, body=body)
+        if isinstance(result, str):
+            return result
+        return f"Email sent to {to} with subject '{subject}'."
+
+    def _gmail_search(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot search Gmail without a logged-in user."
+        result = self._google.gmail.search_messages(uid, query=intent.get("query", ""), max_results=intent.get("max_results", 20))
+        if isinstance(result, str):
+            return result
+        if not result:
+            return "No emails found matching that search."
+        lines = [f"Found {len(result)} result(s):"]
+        for m in result:
+            lines.append(f"• {m['date'][:16]} | From: {m['from'][:30]} | {m['subject']} — {m['snippet'][:60]}")
+        return "\n".join(lines)
+
+    def _calendar_list(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot access Calendar without a logged-in user."
+        result = self._google.calendar.list_events(
+            uid,
+            time_min=intent.get("time_min"),
+            time_max=intent.get("time_max"),
+            max_results=intent.get("max_results", 10),
+        )
+        if isinstance(result, str):
+            return result
+        if not result:
+            return "No upcoming events found."
+        lines = [f"Found {len(result)} upcoming event(s):"]
+        for e in result:
+            attendees = ", ".join(e["attendees"]) if e["attendees"] else "no attendees"
+            lines.append(f"• {e['start'][:16]} — {e['title']} ({attendees}){' @ ' + e['location'] if e['location'] else ''}")
+        return "\n".join(lines)
+
+    def _calendar_create(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot create Calendar event without a logged-in user."
+        title = intent.get("title", "")
+        start = intent.get("start", "")
+        end = intent.get("end", "")
+        if not title or not start or not end:
+            return "Please provide a title, start time, and end time for the event."
+        result = self._google.calendar.create_event(
+            uid, title=title, start=start, end=end,
+            description=intent.get("description", ""),
+            location=intent.get("location", ""),
+            attendees=intent.get("attendees", []),
+        )
+        if isinstance(result, str):
+            return result
+        attendees = intent.get("attendees", [])
+        msg = f"Event '{title}' created for {start[:16]}."
+        if attendees:
+            msg += f" Invite sent to: {', '.join(attendees)}."
+        if result.get("link"):
+            msg += f" View: {result['link']}"
+        return msg
+
+    def _calendar_update(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot update Calendar event without a logged-in user."
+        event_id = intent.get("event_id", "")
+        if not event_id:
+            return "Please provide the event ID to update."
+        result = self._google.calendar.update_event(
+            uid, event_id=event_id,
+            title=intent.get("title"),
+            start=intent.get("start"),
+            end=intent.get("end"),
+            description=intent.get("description"),
+            location=intent.get("location"),
+        )
+        if isinstance(result, str):
+            return result
+        return f"Event '{result.get('title', event_id)}' updated."
+
+    def _drive_list(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot access Drive without a logged-in user."
+        result = self._google.drive.list_files(uid, query=intent.get("query", ""), max_results=intent.get("max_results", 20))
+        if isinstance(result, str):
+            return result
+        if not result:
+            return "No files found in Drive."
+        lines = [f"Found {len(result)} file(s):"]
+        for f in result:
+            lines.append(f"• {f['name']} ({f['type'].split('.')[-1] if '.' in f['type'] else f['type']}) — modified {f['modified'][:10]}")
+        return "\n".join(lines)
+
+    def _drive_create(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot create Drive file without a logged-in user."
+        name = intent.get("name", "")
+        content = intent.get("content", "")
+        if not name:
+            return "Please provide a file name."
+        result = self._google.drive.create_file(uid, name=name, content=content)
+        if isinstance(result, str):
+            return result
+        return f"File '{name}' created in Drive." + (f" View: {result['link']}" if result.get("link") else "")
 
     def get_reminders(self) -> list[dict]:
         return self._reminders.list_pending()
