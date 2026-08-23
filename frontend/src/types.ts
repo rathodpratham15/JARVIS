@@ -11,7 +11,8 @@ export type PageId =
   | "voice"
   | "vision"
   | "memory"
-  | "plugins";
+  | "plugins"
+  | "research";
 
 export type PersonalityMode = "Standard" | "Tactical" | "Formal" | "Concise";
 
@@ -117,14 +118,11 @@ export interface ActivityLog {
 }
 
 export interface ResearchDossier {
-  targetName: string;
-  targetType: "person" | "company" | "technology";
-  executiveSummary: string;
-  keyInsights: string[];
-  riskScore: string;
-  networkAffiliations: string[];
-  recommendedActions: string[];
-  lastUpdated: string;
+  subject: string;
+  kind: "person" | "company" | "topic";
+  summary: string;
+  sections: Record<string, string>;
+  sources: { title: string; url: string; snippet: string }[];
 }
 
 export interface AgentStep {

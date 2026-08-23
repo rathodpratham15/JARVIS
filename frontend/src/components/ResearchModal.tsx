@@ -122,13 +122,13 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
           <div className="p-5 bg-[#f3f3ee] border-2 border-black space-y-4 text-xs font-mono text-black shadow-[3px_3px_0px_#000000]">
             <div className="flex items-center justify-between border-b-2 border-black pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-base font-heading font-black text-black">{dossier.targetName}</span>
+                <span className="text-base font-heading font-black text-black">{dossier.subject}</span>
                 <span className="px-2 py-0.5 bg-black text-[#00e5ff] text-[10px] font-black uppercase">
-                  {dossier.targetType}
+                  {dossier.kind}
                 </span>
               </div>
               <span className="text-[10px] font-bold text-black/70">
-                RISK SCORE: <strong className="text-black bg-amber-300 px-1.5 py-0.5 border border-black">{dossier.riskScore || "Low"}</strong>
+                {dossier.sources.length} SOURCE{dossier.sources.length !== 1 ? "S" : ""}
               </span>
             </div>
 
@@ -137,18 +137,18 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
                 EXECUTIVE SUMMARY:
               </span>
               <p className="text-black leading-relaxed bg-white p-3 border-2 border-black shadow-[2px_2px_0px_#000000]">
-                {dossier.executiveSummary}
+                {dossier.summary}
               </p>
             </div>
 
-            {dossier.keyInsights && dossier.keyInsights.length > 0 && (
+            {Object.keys(dossier.sections).length > 0 && (
               <div className="space-y-1">
                 <span className="font-mono font-black text-black text-[10px] uppercase">
-                  STRATEGIC INSIGHTS:
+                  SECTIONS:
                 </span>
                 <ul className="space-y-1 pl-4 list-disc text-black font-bold">
-                  {dossier.keyInsights.map((insight, idx) => (
-                    <li key={idx}>{insight}</li>
+                  {Object.entries(dossier.sections).map(([title, content]) => (
+                    <li key={title}><span className="uppercase">{title}:</span> {content}</li>
                   ))}
                 </ul>
               </div>

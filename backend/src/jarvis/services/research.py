@@ -62,6 +62,16 @@ _PERSON_QUERIES = [
     "{name} publications research work",
 ]
 
+# When a company hint is provided, all queries are anchored to that company
+# so common-name collisions (e.g. an actor vs a tech employee) are avoided.
+_PERSON_QUERIES_WITH_COMPANY = [
+    "{name} {company}",
+    "{name} {company} professional background",
+    "{name} {company} role title position",
+    "{name} {company} LinkedIn",
+    "{name} {company} work experience",
+]
+
 _COMPANY_QUERIES = [
     "{name}",
     "{name} company overview founding",
@@ -150,11 +160,26 @@ class ResearchPipeline:
     ) -> ResearchProfile:
         """Aggregate public information about a person."""
         company = (hints or {}).get("company", "")
-        queries = [
-            q.format(name=name, company=company)
-            for q in _PERSON_QUERIES
-        ]
-        return self._run(name, "person", queries, _PERSON_SYNTHESIS_PROMPT, results_per_query)
+        query_templates = _PERSON_QUERIES_WITH_COMPANY if company else _PERSON_QUERIES
+        queries = [q.format(name=name, company=company) for q in query_templates]
+
+        if company:
+            # Inject disambiguation note via .replace() so {subject}/{snippets}
+            # placeholders and {{ }} escapes remain intact for _synthesise's .format() call.
+            note = (
+                f"IMPORTANT: The user is looking for {name} who works at {company}. "
+                f"Ignore any people named {name} who are unrelated to {company}. "
+                f"Only include social media profiles (Instagram, Twitter, etc.) that are "
+                f"explicitly and verifiably linked to {name} at {company} — do not include "
+                f"handles from snippets about other people with the same name.\n\n"
+            )
+            prompt_template = _PERSON_SYNTHESIS_PROMPT.replace(
+                "Using ONLY the web search snippets", note + "Using ONLY the web search snippets", 1
+            )
+        else:
+            prompt_template = _PERSON_SYNTHESIS_PROMPT
+
+        return self._run(name, "person", queries, prompt_template, results_per_query)
 
     def research_company(
         self,

@@ -36,6 +36,7 @@ import { VisionView } from "./components/VisionView";
 import { MemoryView } from "./components/MemoryView";
 import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
+import { ResearchView } from "./components/ResearchView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
@@ -120,12 +121,14 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   "/schedules": "schedules", "/permissions": "permissions",
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
   "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
+  "/research": "research",
 };
 const PAGE_TO_PATH: Record<PageId, string> = {
   dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
   tasks: "/tasks", schedules: "/schedules", permissions: "/permissions",
   computer: "/computer", notes: "/notes", reminders: "/reminders",
   settings: "/settings", memory: "/memory", plugins: "/plugins",
+  research: "/research",
 };
 
 export default function App() {
@@ -807,10 +810,10 @@ export default function App() {
 
   const handleRunResearch = async (targetName: string, targetType: "person" | "company"): Promise<ResearchDossier> => {
     addLog("AGENT", "Intelligence Crawler Initiated", `Target: ${targetName}`);
-    const res = await apiFetch(`/api/research/pipeline`, {
+    const res = await apiFetch(`/api/research`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetName, targetType }),
+      body: JSON.stringify({ subject: targetName, kind: targetType }),
     });
     return await res.json();
   };
@@ -1068,6 +1071,8 @@ export default function App() {
               onDeletePlugin={handleDeletePlugin}
             />
           )}
+
+          {currentPage === "research" && <ResearchView />}
         </main>
       </div>
 
