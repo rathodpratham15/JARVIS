@@ -9,9 +9,11 @@ import {
   CheckCheck,
   AlertCircle,
   Info,
+  LogOut,
 } from "lucide-react";
 import { PageId, PersonalityMode, ServiceHealth, ThemeAccent, AppNotification } from "../types";
 import { stopJarvisSpeech } from "../utils/audio";
+import { AuthUser } from "../utils/auth";
 
 interface HeaderProps {
   currentPage: PageId;
@@ -28,6 +30,8 @@ interface HeaderProps {
   notifications?: AppNotification[];
   onMarkAllRead?: () => void;
   onNotificationClick?: (n: AppNotification) => void;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 const typeIcon = (type: AppNotification["type"]) => {
@@ -48,6 +52,8 @@ export const Header: React.FC<HeaderProps> = ({
   notifications = [],
   onMarkAllRead,
   onNotificationClick,
+  currentUser,
+  onLogout,
 }) => {
   const [currentTime, setCurrentTime] = useState<string>("");
   const [personalityDropdownOpen, setPersonalityDropdownOpen] = useState(false);
@@ -239,6 +245,24 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
           </div>
+
+          {/* User chip + logout */}
+          {currentUser && (
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="font-mono text-[10px] text-[#555] border border-[#1a1a1a]/30 px-2 py-1 bg-[#EBEBEA]">
+                {currentUser.username}
+              </span>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="h-8 w-8 border border-[#1a1a1a] flex items-center justify-center bg-[#EBEBEA] text-[#555] hover:text-[#1a1a1a] hover:bg-rose-50 transition"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Audio TTS Toggle */}
           <button

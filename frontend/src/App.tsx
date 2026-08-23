@@ -39,6 +39,8 @@ import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
+import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, apiFetch, fetchAuthConfig } from "./utils/auth";
+import { LoginView } from "./components/LoginView";
 import { API_BASE } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -129,6 +131,45 @@ const PAGE_TO_PATH: Record<PageId, string> = {
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Auth: check on mount; listen for token expiry events
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authedUser, setAuthedUser] = useState(getStoredUser);
+
+  useEffect(() => {
+    fetchAuthConfig().then(async cfg => {
+      if (!cfg.auth_enabled) return;
+      setAuthRequired(true);
+      const token = getAccessToken();
+      if (!token) { setAuthedUser(null); return; }
+      try {
+        const res = await apiFetch("/api/auth/me");
+        if (!res.ok) { clearTokens(); setAuthedUser(null); }
+      } catch {
+        clearTokens(); setAuthedUser(null);
+      }
+    });
+  }, []);
+
+  // Keep URL in sync with auth state
+  useEffect(() => {
+    if (authRequired && !authedUser) {
+      navigate("/login", { replace: true });
+    } else if (authedUser && location.pathname === "/login") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [authRequired, authedUser]);
+
+  useEffect(() => {
+    const handler = () => {
+      clearTokens();
+      setAuthedUser(null);
+      setAuthRequired(true);
+    };
+    window.addEventListener("jarvis:unauthenticated", handler);
+    return () => window.removeEventListener("jarvis:unauthenticated", handler);
+  }, []);
+
 
   const [currentPage, setCurrentPageState] = useState<PageId>(
     PATH_TO_PAGE[location.pathname] ?? "dashboard"
@@ -774,6 +815,18 @@ export default function App() {
     return await res.json();
   };
 
+  if (authRequired && !authedUser) {
+    return (
+      <LoginView
+        onLoginSuccess={() => {
+          setAuthedUser(getStoredUser());
+          setAuthRequired(false);
+          navigate("/dashboard", { replace: true });
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
       <Sidebar
@@ -806,6 +859,12 @@ export default function App() {
           notifications={notifications}
           onMarkAllRead={handleMarkAllRead}
           onNotificationClick={handleNotificationClick}
+          currentUser={authedUser}
+          onLogout={async () => {
+            await authLogout();
+            setAuthedUser(null);
+            setAuthRequired(true);
+          }}
         />
 
         <StatusBar

@@ -26,6 +26,7 @@ from werkzeug.utils import secure_filename
 
 from jarvis.ai import EmotionAnalyzer, KnowledgeBase
 from jarvis.core.action_engine import ActionEngine
+from jarvis.core.auth import AuthManager
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
@@ -90,6 +91,47 @@ def _build_context(memory: Memory, n: int = 5, query: str = "", sem: "SemanticMe
 def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+
+    # ── Auth (opt-in via JARVIS_AUTH_ENABLED=true) ────────────────────────
+    _auth_enabled = os.getenv("JARVIS_AUTH_ENABLED", "false").lower() in ("1", "true", "yes")
+    _auth_mgr = AuthManager(
+        db_path=os.getenv("JARVIS_AUTH_DB", "data/auth.db"),
+        secret=os.getenv("JARVIS_AUTH_SECRET", ""),
+    )
+    _google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    _allowed_emails_raw = os.getenv("JARVIS_ALLOWED_EMAILS", "")
+    _allowed_emails: set[str] = {
+        e.strip().lower() for e in _allowed_emails_raw.split(",") if e.strip()
+    }
+
+    if _auth_enabled:
+        _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
+        _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
+        logger.info(
+            "Auth enabled — Google OAuth: %s, allowed emails: %s",
+            "yes" if _google_client_id else "no",
+            _allowed_emails or "any",
+        )
+    else:
+        logger.info("Auth disabled (set JARVIS_AUTH_ENABLED=true to enable)")
+
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health"}
+
+    # Apply auth globally via before_request
+    @app.before_request
+    def _check_auth():
+        if not _auth_enabled:
+            return
+        if request.path in _PUBLIC_ROUTES or request.method == "OPTIONS":
+            return
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return {"error": "unauthorized"}, 401
+        token = auth_header[7:]
+        payload = _auth_mgr.decode_access_token(token)
+        if payload is None:
+            return {"error": "token expired or invalid"}, 401
+        request.current_user = payload  # type: ignore[attr-defined]
 
     notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
     reminders = RemindersStore(db_path=os.getenv("JARVIS_REMINDERS_DB", "data/reminders.db"))
@@ -206,6 +248,115 @@ def create_app() -> Flask:
     synthesizer = Synthesizer() if _speech_available else None
 
     _start_reminder_poller(reminders)
+
+    # ── auth endpoints ────────────────────────────────────────────────────
+
+    @app.post("/api/auth/login")
+    def auth_login() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+        if not username or not password:
+            return {"error": "username and password are required"}, 400
+        user = _auth_mgr.verify_password(username, password)
+        if user is None:
+            return {"error": "invalid credentials"}, 401
+        tokens = _auth_mgr.create_tokens(user)
+        return {**tokens, "user": user}, 200
+
+    @app.post("/api/auth/signup")
+    def auth_signup() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        username = (payload.get("username") or "").strip()
+        email = (payload.get("email") or "").strip().lower()
+        password = payload.get("password") or ""
+        if not username or not password:
+            return {"error": "username and password are required"}, 400
+        if len(password) < 6:
+            return {"error": "password must be at least 6 characters"}, 400
+        try:
+            user = _auth_mgr.create_user(username, password, role="user", email=email)
+        except Exception:
+            return {"error": "username already taken"}, 409
+        tokens = _auth_mgr.create_tokens(user)
+        logger.info("New user signed up: %s", username)
+        return {**tokens, "user": user}, 201
+
+    @app.post("/api/auth/google")
+    def auth_google() -> tuple[dict, int]:
+        """Exchange a Google ID token for JARVIS JWT tokens.
+
+        Body: { "token": "<Google ID token from frontend>" }
+        """
+        if not _google_client_id:
+            return {"error": "Google OAuth is not configured on this server"}, 501
+
+        payload = request.get_json(silent=True) or {}
+        id_token_str = (payload.get("token") or "").strip()
+        if not id_token_str:
+            return {"error": "token is required"}, 400
+
+        try:
+            from google.oauth2 import id_token as _id_token
+            from google.auth.transport import requests as _grequests
+            idinfo = _id_token.verify_oauth2_token(
+                id_token_str, _grequests.Request(), _google_client_id
+            )
+        except ValueError as exc:
+            logger.warning("Google token verification failed: %s", exc)
+            return {"error": "invalid Google token"}, 401
+
+        email = idinfo.get("email", "").lower()
+        if not email or not idinfo.get("email_verified"):
+            return {"error": "Google account email not verified"}, 401
+
+        if _allowed_emails and email not in _allowed_emails:
+            logger.warning("Login attempt from non-allowed email: %s", email)
+            return {"error": "this Google account is not authorised to access JARVIS"}, 403
+
+        user = _auth_mgr.create_or_get_google_user(
+            email=email,
+            name=idinfo.get("name", email.split("@")[0]),
+            google_sub=idinfo["sub"],
+        )
+        tokens = _auth_mgr.create_tokens(user)
+        return {**tokens, "user": user}, 200
+
+    @app.post("/api/auth/refresh")
+    def auth_refresh() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        refresh_token = (payload.get("refresh_token") or "").strip()
+        if not refresh_token:
+            return {"error": "refresh_token is required"}, 400
+        tokens = _auth_mgr.refresh_access_token(refresh_token)
+        if tokens is None:
+            return {"error": "invalid or expired refresh token"}, 401
+        return tokens, 200
+
+    @app.post("/api/auth/logout")
+    def auth_logout() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        refresh_token = payload.get("refresh_token") or ""
+        if refresh_token:
+            _auth_mgr.revoke_refresh_token(refresh_token)
+        return {"ok": True}, 200
+
+    @app.get("/api/auth/me")
+    def auth_me() -> tuple[dict, int]:
+        user = getattr(request, "current_user", None)
+        if user is None:
+            return {"error": "not authenticated"}, 401
+        return {"user": user}, 200
+
+    @app.get("/api/auth/config")
+    def auth_config() -> tuple[dict, int]:
+        """Tell the frontend which login methods are available."""
+        return {
+            "auth_enabled": _auth_enabled,
+            "google_enabled": bool(_google_client_id),
+            "google_client_id": _google_client_id,
+            "password_enabled": True,
+        }, 200
 
     @app.get("/api/permissions")
     def get_permissions() -> tuple[dict, int]:
