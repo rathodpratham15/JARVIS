@@ -67,7 +67,6 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [reverseResults, setReverseResults] = useState<{name: string; score: number}[]>([]);
   const [reverseLoading, setReverseLoading] = useState(false);
   const [confirmedName, setConfirmedName] = useState<string | null>(null);
-  const [savingToDb, setSavingToDb] = useState(false);
   const [savedToDb, setSavedToDb] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -136,28 +135,24 @@ export const VisionView: React.FC<VisionViewProps> = ({
     }
   };
 
-  const handleConfirmCandidate = (name: string) => {
+  const handleConfirmCandidate = async (name: string, frame: string | null) => {
     setConfirmedName(name);
     setReverseResults([]);
     setShowUnknownForm(false);
     runOsint(name);
-  };
-
-  const handleSaveToDb = async () => {
-    if (!confirmedName || !capturedFrame) return;
-    setSavingToDb(true);
+    if (!frame) return;
     try {
-      const blob = await (await fetch(capturedFrame)).blob();
+      const blob = await (await fetch(frame)).blob();
       const form = new FormData();
-      form.append("name", confirmedName);
+      form.append("name", name);
       form.append("image", blob, "face.jpg");
       const res = await apiFetch("/api/face/add-person", { method: "POST", body: form });
       if (res.ok) {
         setSavedToDb(true);
         fetchEnrolled();
       }
-    } finally {
-      setSavingToDb(false);
+    } catch {
+      // silently ignore DB save failure — research still shows
     }
   };
 
@@ -481,7 +476,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {reverseResults.map((c, i) => (
                 <button
                   key={i}
-                  onClick={() => handleConfirmCandidate(c.name)}
+                  onClick={() => handleConfirmCandidate(c.name, capturedFrame)}
                   className="w-full flex items-center justify-between px-3 py-2 bg-[#f3f3ee] border-2 border-black hover:bg-[#00e5ff] hover:border-black transition text-left font-mono text-xs font-bold shadow-[1px_1px_0px_#000]"
                 >
                   <span>{c.name}</span>
@@ -576,23 +571,6 @@ export const VisionView: React.FC<VisionViewProps> = ({
             {osintDossier.summary}
           </p>
 
-          {/* Save to DB offer — only for unknown faces confirmed via reverse search or manual form */}
-          {confirmedName && !savedToDb && capturedFrame && (
-            <div className="flex items-center justify-between p-3 bg-[#f3f3ee] border-2 border-black">
-              <div>
-                <p className="text-[11px] font-mono font-black text-black">Remember this face?</p>
-                <p className="text-[10px] font-mono text-black/60">Saves to local DB — future scans will match instantly.</p>
-              </div>
-              <button
-                onClick={handleSaveToDb}
-                disabled={savingToDb}
-                className="flex items-center gap-1.5 px-3 py-2 bg-black text-[#00e5ff] border-2 border-black font-mono font-black text-xs disabled:opacity-50 hover:bg-[#1a1a1a] transition shrink-0"
-              >
-                {savingToDb ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
-                SAVE FACE
-              </button>
-            </div>
-          )}
           {savedToDb && (
             <p className="text-[11px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-3 py-2">
               ✓ Face saved — will be recognised instantly next time.
