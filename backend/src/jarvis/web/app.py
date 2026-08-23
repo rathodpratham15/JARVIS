@@ -26,6 +26,7 @@ from werkzeug.utils import secure_filename
 
 from jarvis.ai import EmotionAnalyzer, KnowledgeBase
 from jarvis.core.action_engine import ActionEngine
+from jarvis.core.auth import AuthManager
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
@@ -90,6 +91,57 @@ def _build_context(memory: Memory, n: int = 5, query: str = "", sem: "SemanticMe
 def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+
+    # ── Auth (opt-in via JARVIS_AUTH_ENABLED=true) ────────────────────────
+    _auth_enabled = os.getenv("JARVIS_AUTH_ENABLED", "false").lower() in ("1", "true", "yes")
+    _auth_mgr = AuthManager(
+        db_path=os.getenv("JARVIS_AUTH_DB", "data/auth.db"),
+        secret=os.getenv("JARVIS_AUTH_SECRET", ""),
+    )
+    if _auth_enabled:
+        _admin_pass = os.getenv("JARVIS_ADMIN_PASSWORD", "")
+        _auth_mgr.ensure_admin(username="admin", password=_admin_pass)
+        logger.info("Auth enabled — admin user bootstrapped")
+    else:
+        logger.info("Auth disabled (set JARVIS_AUTH_ENABLED=true to enable)")
+
+    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/refresh", "/api/health"}
+
+    def require_auth(f):
+        """Decorator: verify Bearer JWT when auth is enabled."""
+        import functools
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            if not _auth_enabled:
+                return f(*args, **kwargs)
+            if request.path in _PUBLIC_ROUTES:
+                return f(*args, **kwargs)
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return {"error": "unauthorized"}, 401
+            token = auth_header[7:]
+            payload = _auth_mgr.decode_access_token(token)
+            if payload is None:
+                return {"error": "token expired or invalid"}, 401
+            request.current_user = payload
+            return f(*args, **kwargs)
+        return wrapper
+
+    # Apply require_auth globally via before_request
+    @app.before_request
+    def _check_auth():
+        if not _auth_enabled:
+            return
+        if request.path in _PUBLIC_ROUTES or request.method == "OPTIONS":
+            return
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return {"error": "unauthorized"}, 401
+        token = auth_header[7:]
+        payload = _auth_mgr.decode_access_token(token)
+        if payload is None:
+            return {"error": "token expired or invalid"}, 401
+        request.current_user = payload  # type: ignore[attr-defined]
 
     notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
     reminders = RemindersStore(db_path=os.getenv("JARVIS_REMINDERS_DB", "data/reminders.db"))
@@ -206,6 +258,71 @@ def create_app() -> Flask:
     synthesizer = Synthesizer() if _speech_available else None
 
     _start_reminder_poller(reminders)
+
+    # ── auth endpoints ────────────────────────────────────────────────────
+
+    @app.post("/api/auth/login")
+    def auth_login() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+        if not username or not password:
+            return {"error": "username and password are required"}, 400
+        user = _auth_mgr.verify_password(username, password)
+        if user is None:
+            return {"error": "invalid credentials"}, 401
+        tokens = _auth_mgr.create_tokens(user)
+        return {**tokens, "user": user}, 200
+
+    @app.post("/api/auth/refresh")
+    def auth_refresh() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        refresh_token = (payload.get("refresh_token") or "").strip()
+        if not refresh_token:
+            return {"error": "refresh_token is required"}, 400
+        tokens = _auth_mgr.refresh_access_token(refresh_token)
+        if tokens is None:
+            return {"error": "invalid or expired refresh token"}, 401
+        return tokens, 200
+
+    @app.post("/api/auth/logout")
+    def auth_logout() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        refresh_token = payload.get("refresh_token") or ""
+        if refresh_token:
+            _auth_mgr.revoke_refresh_token(refresh_token)
+        return {"ok": True}, 200
+
+    @app.get("/api/auth/me")
+    def auth_me() -> tuple[dict, int]:
+        user = getattr(request, "current_user", None)
+        if user is None:
+            return {"error": "not authenticated"}, 401
+        return {"user": user}, 200
+
+    @app.get("/api/auth/users")
+    def auth_list_users() -> tuple[dict, int]:
+        user = getattr(request, "current_user", None)
+        if user and user.get("role") != "admin":
+            return {"error": "admin only"}, 403
+        return {"users": _auth_mgr.list_users()}, 200
+
+    @app.post("/api/auth/users")
+    def auth_create_user() -> tuple[dict, int]:
+        user = getattr(request, "current_user", None)
+        if user and user.get("role") != "admin":
+            return {"error": "admin only"}, 403
+        payload = request.get_json(silent=True) or {}
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+        role = payload.get("role", "user")
+        if not username or not password:
+            return {"error": "username and password are required"}, 400
+        try:
+            new_user = _auth_mgr.create_user(username, password, role=role)
+        except Exception as exc:
+            return {"error": str(exc)}, 400
+        return {"user": new_user}, 201
 
     @app.get("/api/permissions")
     def get_permissions() -> tuple[dict, int]:

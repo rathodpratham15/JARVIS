@@ -39,6 +39,8 @@ import { ResearchModal } from "./components/ResearchModal";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
+import { isLoggedIn, getStoredUser, clearTokens, logout as authLogout, apiFetch } from "./utils/auth";
+import { LoginView } from "./components/LoginView";
 import { API_BASE } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -129,6 +131,38 @@ const PAGE_TO_PATH: Record<PageId, string> = {
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Auth: check on mount; listen for token expiry events
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authedUser, setAuthedUser] = useState(getStoredUser);
+
+  useEffect(() => {
+    // Detect if backend requires auth by checking /api/health
+    fetch(`${API_BASE}/api/health`).then(r => {
+      if (r.status === 401) setAuthRequired(true);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      clearTokens();
+      setAuthedUser(null);
+      setAuthRequired(true);
+    };
+    window.addEventListener("jarvis:unauthenticated", handler);
+    return () => window.removeEventListener("jarvis:unauthenticated", handler);
+  }, []);
+
+  if (authRequired && !authedUser) {
+    return (
+      <LoginView
+        onLoginSuccess={() => {
+          setAuthedUser(getStoredUser());
+          setAuthRequired(false);
+        }}
+      />
+    );
+  }
 
   const [currentPage, setCurrentPageState] = useState<PageId>(
     PATH_TO_PAGE[location.pathname] ?? "dashboard"
@@ -806,6 +840,12 @@ export default function App() {
           notifications={notifications}
           onMarkAllRead={handleMarkAllRead}
           onNotificationClick={handleNotificationClick}
+          currentUser={authedUser}
+          onLogout={async () => {
+            await authLogout();
+            setAuthedUser(null);
+            setAuthRequired(true);
+          }}
         />
 
         <StatusBar
