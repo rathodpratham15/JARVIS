@@ -649,6 +649,75 @@ def create_app() -> Flask:
             return {"error": f"plugin {name!r} not found"}, 404
         return {"name": name, "enabled": enabled}, 200
 
+    @app.post("/api/plugins/install")
+    def install_plugin() -> tuple[dict, int]:
+        """Upload a .py file and hot-load it as a new plugin."""
+        file = request.files.get("file")
+        if file is None or not file.filename:
+            return {"error": "file is required"}, 400
+        filename = Path(file.filename).name
+        if not filename.endswith(".py"):
+            return {"error": "only .py files are accepted"}, 400
+        plugins_dir = plugins.plugins_dir
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        dest = plugins_dir / filename
+        file.save(str(dest))
+        before = set(plugins.plugins)
+        plugins._load_file(dest)
+        new_names = list(set(plugins.plugins) - before)
+        return {"installed": new_names, "plugins": plugins.list()}, 201
+
+    @app.delete("/api/plugins/<name>")
+    def delete_plugin(name: str) -> tuple[dict, int]:
+        """Unload and delete a plugin's source file."""
+        plugin = plugins.get(name)
+        if plugin is None:
+            return {"error": f"plugin {name!r} not found"}, 404
+        # Find the file by inspecting the module path
+        import inspect as _inspect
+        try:
+            src_file = Path(_inspect.getfile(type(plugin)))
+        except (TypeError, OSError):
+            return {"error": "cannot determine source file for built-in plugin"}, 400
+        plugins.plugins.pop(name, None)
+        plugins._enabled.pop(name, None)
+        plugins._save_state()
+        try:
+            src_file.unlink(missing_ok=True)
+        except OSError as exc:
+            return {"error": str(exc)}, 500
+        return {"deleted": name, "plugins": plugins.list()}, 200
+
+    @app.post("/api/plugins/reload")
+    def reload_plugins() -> tuple[dict, int]:
+        """Re-scan the plugins directory and hot-load any new files."""
+        plugins.discover()
+        return {"plugins": plugins.list()}, 200
+
+    @app.get("/api/plugins/template")
+    def plugin_template() -> tuple[dict, int]:
+        """Return the example plugin template source."""
+        template_path = Path(__file__).parent.parent.parent.parent / "plugins" / "example_template.py"
+        if template_path.exists():
+            return {"template": template_path.read_text(encoding="utf-8")}, 200
+        # Inline fallback
+        return {"template": '''from jarvis.plugins import BasePlugin, PluginManifest
+
+class MyPlugin(BasePlugin):
+    def get_manifest(self) -> PluginManifest:
+        return PluginManifest(
+            name="my_plugin",
+            version="0.1.0",
+            description="Describe what this plugin does.",
+            author="your-name",
+            keywords=["trigger", "word"],
+            priority=100,
+        )
+
+    def run(self, query: str, **kwargs) -> str:
+        return f"My plugin handled: {query}"
+'''}, 200
+
     @app.post("/api/face/identify")
     def identify_face() -> tuple[dict, int]:
         """Match an uploaded image against the known-faces DB."""
