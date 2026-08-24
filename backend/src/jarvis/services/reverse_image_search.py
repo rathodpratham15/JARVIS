@@ -34,6 +34,20 @@ def _is_person_name(text: str) -> bool:
     )
 
 
+def _extract_name_from_page_title(title: str) -> str | None:
+    """Extract a person name from a page title like 'John Smith | LinkedIn'."""
+    import re
+    # Strip common suffixes after separators
+    clean = re.split(r"[|\-–—•@]", title)[0].strip()
+    # Remove parenthetical qualifiers like "(CEO)" or "(He/Him)"
+    clean = re.sub(r"\(.*?\)", "", clean).strip()
+    # Must look like a name: 2–4 words, title case, no numbers
+    words = clean.split()
+    if 2 <= len(words) <= 4 and _is_person_name(clean):
+        return clean
+    return None
+
+
 def _google_vision(image_bytes: bytes) -> list[dict]:
     api_key = os.getenv("GOOGLE_VISION_API_KEY")
     if not api_key:
@@ -42,7 +56,7 @@ def _google_vision(image_bytes: bytes) -> list[dict]:
     payload = {
         "requests": [{
             "image": {"content": b64},
-            "features": [{"type": "WEB_DETECTION", "maxResults": 10}],
+            "features": [{"type": "WEB_DETECTION", "maxResults": 20}],
         }]
     }
     try:
@@ -50,15 +64,33 @@ def _google_vision(image_bytes: bytes) -> list[dict]:
         resp.raise_for_status()
         web = resp.json().get("responses", [{}])[0].get("webDetection", {})
         results = []
+
+        # 1. Web entities (works well for celebrities)
         for entity in web.get("webEntities", []):
             name = entity.get("description", "").strip()
             score = entity.get("score", 0.0)
             if name and score >= 0.3 and _is_person_name(name):
-                results.append({"name": name, "score": round(score, 2), "source": "google_vision"})
+                results.append({"name": name, "score": round(score, 2), "source": "google_entity"})
+
+        # 2. Page titles — "John Smith | LinkedIn", "John Smith - Portfolio"
+        #    This is the key signal for semi-public people with LinkedIn/GitHub profiles
+        for page in web.get("pagesWithMatchingImages", []):
+            title = page.get("pageTitle", "").strip()
+            if not title:
+                continue
+            name = _extract_name_from_page_title(title)
+            if name:
+                # Boost score if the page is LinkedIn/GitHub/Twitter (high signal)
+                url = page.get("url", "")
+                boost = 0.15 if any(s in url for s in ("linkedin.com", "github.com", "twitter.com", "instagram.com")) else 0.0
+                results.append({"name": name, "score": round(0.65 + boost, 2), "source": "google_page_title"})
+
+        # 3. Best-guess labels (last resort)
         for label in web.get("bestGuessLabels", []):
             text = label.get("label", "").strip()
             if text and _is_person_name(text):
-                results.append({"name": text, "score": 0.5, "source": "google_best_guess"})
+                results.append({"name": text, "score": 0.50, "source": "google_best_guess"})
+
         return results
     except Exception as exc:
         logger.warning("Google Vision reverse search failed: %s", exc)
