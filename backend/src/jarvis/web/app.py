@@ -954,38 +954,53 @@ class MyPlugin(BasePlugin):
         name = (request.form.get("name") or "").strip()
         if not name:
             return {"success": False, "error": "name is required"}, 400
+        organization = (request.form.get("organization") or "").strip() or None
         uploads = request.files.getlist("image")
         uploads = [f for f in uploads if f and f.filename]
         if not uploads:
             return {"success": False, "error": "at least one image file is required"}, 400
 
+        # Save images permanently under data/faces/<name>/
+        person_dir = face_engine.data_dir / secure_filename(name)
+        person_dir.mkdir(parents=True, exist_ok=True)
+        saved_paths: list[str] = []
         tmp_paths: list[str] = []
         try:
-            for upload in uploads:
+            for i, upload in enumerate(uploads):
                 original = secure_filename(upload.filename or "face.jpg")
                 suffix = Path(original).suffix or ".jpg"
+                # Write to temp first, then move to permanent location
                 fd, tmp = tempfile.mkstemp(suffix=suffix)
                 os.close(fd)
                 upload.save(tmp)
-                # Rename so add_person stores the file with its original name
-                named = os.path.join(os.path.dirname(tmp), original)
-                os.replace(tmp, named)
-                tmp_paths.append(named)
+                tmp_paths.append(tmp)
+                dest = str(person_dir / f"{i:03d}{suffix}")
+                os.replace(tmp, dest)
+                saved_paths.append(dest)
 
-            person = face_engine.add_person(name=name, image_paths=tmp_paths)
+            metadata = {"organization": organization} if organization else {}
+            person = face_engine.add_person(name=name, image_paths=saved_paths, metadata=metadata)
             if person is None:
+                # Clean up saved images if encoding failed
+                for p in saved_paths:
+                    try:
+                        os.unlink(p)
+                    except OSError:
+                        pass
                 return {"success": False, "error": "No valid face images processed"}, 422
 
             return {
                 "success": True,
                 "name": person.name,
-                "images_added": len(tmp_paths),
+                "images_added": len(saved_paths),
                 "statistics": face_engine.get_statistics(),
             }, 200
         finally:
+            # Only clean up any remaining temp files (already replaced above)
             for p in tmp_paths:
                 try:
-                    os.unlink(p)
+                    if os.path.exists(p):
+                        os.unlink(p)
                 except OSError:
                     pass
 
@@ -1087,6 +1102,17 @@ class MyPlugin(BasePlugin):
             "processing_time": scene.processing_time,
         }, 200
 
+    @app.post("/api/vision/reverse-search")
+    def vision_reverse_search() -> tuple[dict, int]:
+        """Reverse image search via Google Vision Web Detection."""
+        image = request.files.get("image")
+        if image is None:
+            return {"error": "image file required"}, 400
+        image_bytes = image.read()
+        from jarvis.services.reverse_image_search import reverse_search_image
+        result = reverse_search_image(image_bytes)
+        return result, 200
+
     @app.get("/api/vision/history")
     def vision_history() -> tuple[dict, int]:
         try:
@@ -1121,6 +1147,26 @@ class MyPlugin(BasePlugin):
         if not removed:
             return {"success": False, "error": f"Person '{name}' not found"}, 404
         return {"success": True, "remaining": len(face_engine.known_faces)}, 200
+
+    @app.post("/api/face/reencode-all")
+    def face_reencode_all() -> tuple[dict, int]:
+        """Re-run InsightFace encoding on every person's stored image paths.
+
+        Called after upgrading from dlib to InsightFace — all existing
+        128-dim encodings are empty; this rebuilds them from the saved images.
+        """
+        if face_engine is None:
+            return {"error": "Face recognition unavailable"}, 503
+        results = []
+        for person in face_engine.known_faces:
+            valid_paths = [p for p in person.image_paths if os.path.exists(p)]
+            new_encs = [enc for p in valid_paths if (enc := face_engine.encode(p)) is not None]
+            person.face_encodings = new_encs
+            results.append({"name": person.name, "encodings": len(new_encs), "paths_found": len(valid_paths)})
+        face_engine.save()
+        ok = [r for r in results if r["encodings"] > 0]
+        failed = [r for r in results if r["encodings"] == 0]
+        return {"reencoded": len(ok), "failed": len(failed), "details": results}, 200
 
     @app.post("/api/face/export")
     def face_export() -> tuple[dict, int]:

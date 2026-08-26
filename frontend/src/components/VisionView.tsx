@@ -9,8 +9,13 @@ import {
   UserPlus,
   Trash2,
   Upload,
+  Search,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react";
-import { DetectedFace, VisionSnapshot } from "../types";
+import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
 import { API_BASE, apiFetch } from "../utils/api";
 
@@ -42,14 +47,115 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
   const [enrolledPeople, setEnrolledPeople] = useState<EnrolledPerson[]>([]);
   const [enrollName, setEnrollName] = useState("");
+  const [enrollOrg, setEnrollOrg] = useState("");
   const [enrollFiles, setEnrollFiles] = useState<FileList | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [showEnrollForm, setShowEnrollForm] = useState(false);
 
+  // OSINT / research state
+  const [osintDossier, setOsintDossier] = useState<ResearchDossier | null>(null);
+  const [osintLoading, setOsintLoading] = useState(false);
+  const [osintError, setOsintError] = useState<string | null>(null);
+  const [osintSourcesOpen, setOsintSourcesOpen] = useState(false);
+  // For unknown-face manual lookup
+  const [unknownName, setUnknownName] = useState("");
+  const [unknownCompany, setUnknownCompany] = useState("");
+  const [showUnknownForm, setShowUnknownForm] = useState(false);
+  const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const [lensToast, setLensToast] = useState<string | null>(null);
+  // Reverse image search state
+  const [reverseResults, setReverseResults] = useState<{name: string; score: number}[]>([]);
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [confirmedName, setConfirmedName] = useState<string | null>(null);
+  const [savedToDb, setSavedToDb] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enrollFileRef = useRef<HTMLInputElement>(null);
+
+  const runOsint = async (subject: string, company?: string) => {
+    setOsintLoading(true);
+    setOsintError(null);
+    setOsintDossier(null);
+    setOsintSourcesOpen(false);
+    try {
+      const res = await apiFetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, kind: "person", ...(company ? { company } : {}) }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ResearchDossier = await res.json();
+      setOsintDossier(data);
+    } catch (err: any) {
+      setOsintError(err.message ?? "Research failed");
+    } finally {
+      setOsintLoading(false);
+    }
+  };
+
+  const handleGoogleLens = async () => {
+    if (!capturedFrame) return;
+    window.open("https://lens.google.com/", "_blank");
+    try {
+      const blob = await (await fetch(capturedFrame)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ "image/jpeg": blob })]);
+      setLensToast("Image copied — paste it into Google Lens (Ctrl+V / ⌘V)");
+    } catch {
+      // Clipboard API not supported — fall back to downloading the image
+      const a = document.createElement("a");
+      a.href = capturedFrame;
+      a.download = "face-scan.jpg";
+      a.click();
+      setLensToast("Image downloaded — upload it to Google Lens");
+    }
+    setTimeout(() => setLensToast(null), 5000);
+  };
+
+  const runReverseSearch = async (imageBase64: string) => {
+    setReverseLoading(true);
+    setReverseResults([]);
+    try {
+      const blob = await (await fetch(imageBase64)).blob();
+      const form = new FormData();
+      form.append("image", blob, "frame.jpg");
+      const res = await apiFetch("/api/vision/reverse-search", { method: "POST", body: form });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.available && data.candidates?.length > 0) {
+        setReverseResults(data.candidates);
+        setShowUnknownForm(false);
+      } else {
+        setShowUnknownForm(true);
+      }
+    } catch {
+      setShowUnknownForm(true);
+    } finally {
+      setReverseLoading(false);
+    }
+  };
+
+  const handleConfirmCandidate = async (name: string, frame: string | null) => {
+    setConfirmedName(name);
+    setReverseResults([]);
+    setShowUnknownForm(false);
+    runOsint(name);
+    if (!frame) return;
+    try {
+      const blob = await (await fetch(frame)).blob();
+      const form = new FormData();
+      form.append("name", name);
+      form.append("image", blob, "face.jpg");
+      const res = await apiFetch("/api/face/add-person", { method: "POST", body: form });
+      if (res.ok) {
+        setSavedToDb(true);
+        fetchEnrolled();
+      }
+    } catch {
+      // silently ignore DB save failure — research still shows
+    }
+  };
 
   const fetchEnrolled = async () => {
     try {
@@ -73,6 +179,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
     try {
       const form = new FormData();
       form.append("name", enrollName.trim());
+      if (enrollOrg.trim()) form.append("organization", enrollOrg.trim());
       for (let i = 0; i < enrollFiles.length; i++) {
         form.append("image", enrollFiles[i]);
       }
@@ -81,6 +188,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       if (!res.ok || !data.success) throw new Error(data.error ?? "Enrollment failed");
       playUiSound("success");
       setEnrollName("");
+      setEnrollOrg("");
       setEnrollFiles(null);
       if (enrollFileRef.current) enrollFileRef.current.value = "";
       setShowEnrollForm(false);
@@ -163,6 +271,23 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setAnalysisResult(res);
       setIsAnalyzingScene(true);  // scene is still loading in background
       playUiSound("success");
+
+      // OSINT: auto-research known match, reverse-search for unknown
+      setOsintDossier(null);
+      setOsintError(null);
+      setShowUnknownForm(false);
+      setReverseResults([]);
+      setConfirmedName(null);
+      setSavedToDb(false);
+      setCapturedFrame(imageBase64 ?? null);
+      if (res.faceMatch) {
+        const org = res.facePerson?.additional_data?.organization || res.facePerson?.profession || undefined;
+        runOsint(res.faceMatch, org);
+      } else if (imageBase64) {
+        runReverseSearch(imageBase64);
+      } else {
+        setShowUnknownForm(true);
+      }
 
       const newSnap: VisionSnapshot = {
         id: Date.now().toString(),
@@ -339,8 +464,171 @@ export const VisionView: React.FC<VisionViewProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Reverse search loading */}
+          {reverseLoading && (
+            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Searching the web for identity…
+            </div>
+          )}
+
+          {/* Reverse search candidates */}
+          {!reverseLoading && reverseResults.length > 0 && !osintDossier && (
+            <div className="border-t-2 border-black pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-black text-black/70 uppercase">Possible matches — confirm identity:</p>
+              {reverseResults.map((c, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleConfirmCandidate(c.name, capturedFrame)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#f3f3ee] border-2 border-black hover:bg-[#00e5ff] hover:border-black transition text-left font-mono text-xs font-bold shadow-[1px_1px_0px_#000]"
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[10px] text-black/50">{Math.min(100, Math.round(c.score * 100))}%</span>
+                </button>
+              ))}
+              <button
+                onClick={() => { setReverseResults([]); setShowUnknownForm(true); }}
+                className="w-full text-[10px] font-mono text-black/50 hover:text-black transition py-1"
+              >
+                None of these — enter manually
+              </button>
+            </div>
+          )}
+
+          {/* Manual form fallback */}
+          {showUnknownForm && !osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && (
+            <div className="border-t-2 border-black pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-bold text-black/70 uppercase">No match — research manually:</p>
+              <button
+                onClick={handleGoogleLens}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                SEARCH ON GOOGLE LENS
+              </button>
+              {lensToast && (
+                <p className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-1.5">{lensToast}</p>
+              )}
+              <div className="flex items-center gap-2 text-[10px] font-mono text-black/40">
+                <div className="flex-1 border-t border-black/20" />
+                <span>OR ENTER NAME MANUALLY</span>
+                <div className="flex-1 border-t border-black/20" />
+              </div>
+              <input
+                type="text"
+                value={unknownName}
+                onChange={e => setUnknownName(e.target.value)}
+                placeholder="Person's name"
+                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+              />
+              <input
+                type="text"
+                value={unknownCompany}
+                onChange={e => setUnknownCompany(e.target.value)}
+                placeholder="Company (optional)"
+                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+              />
+              <button
+                onClick={() => { if (unknownName.trim()) { setConfirmedName(unknownName.trim()); runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}}
+                disabled={!unknownName.trim()}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00e5ff] border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition disabled:opacity-50"
+              >
+                <Search className="w-3.5 h-3.5" />
+                COMPILE DOSSIER
+              </button>
+            </div>
+          )}
+
+          {/* OSINT loading */}
+          {osintLoading && (
+            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Running OSINT pipeline…
+            </div>
+          )}
+
+          {/* OSINT error */}
+          {osintError && (
+            <p className="border-t-2 border-black pt-2 text-[11px] font-mono text-red-600">{osintError}</p>
+          )}
         </div>
       </div>
+
+      {/* OSINT Dossier panel */}
+      {osintDossier && (
+        <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[5px_5px_0px_#000000]">
+          <div className="flex items-center justify-between border-b-2 border-black pb-3">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#00a8bb]" />
+              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black">
+                INTELLIGENCE DOSSIER — {osintDossier.subject.toUpperCase()}
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">
+              {osintDossier.sources.length} SOURCES
+            </span>
+          </div>
+
+          {/* Summary */}
+          <p className="text-xs font-mono text-black leading-relaxed bg-[#f3f3ee] border-2 border-black p-3">
+            {osintDossier.summary}
+          </p>
+
+          {savedToDb && (
+            <p className="text-[11px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-3 py-2">
+              ✓ Face saved — will be recognised instantly next time.
+            </p>
+          )}
+
+          {/* Sections */}
+          {Object.keys(osintDossier.sections).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(osintDossier.sections).map(([title, content]) => (
+                <div key={title} className="border-2 border-black p-3 space-y-1">
+                  <div className="text-[10px] font-mono font-black text-black/60 uppercase tracking-widest border-b border-black/20 pb-1">
+                    {title}
+                  </div>
+                  <p className="text-[11px] font-mono text-black leading-relaxed">{content}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Sources toggle */}
+          {osintDossier.sources.length > 0 && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setOsintSourcesOpen(o => !o)}
+                className="flex items-center gap-1.5 text-[10px] font-mono font-black text-black/60 uppercase tracking-widest hover:text-black transition"
+              >
+                {osintSourcesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                {osintDossier.sources.length} Sources
+              </button>
+              {osintSourcesOpen && (
+                <div className="space-y-1.5">
+                  {osintDossier.sources.map((src, i) => (
+                    <a
+                      key={i}
+                      href={src.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 p-2 border border-black/20 hover:border-black transition group"
+                    >
+                      <span className="font-mono text-[10px] text-black/40 shrink-0 mt-0.5">[{i + 1}]</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-[11px] font-bold text-black truncate group-hover:text-[#00a8bb] transition">{src.title}</div>
+                        <div className="font-mono text-[10px] text-black/50 line-clamp-1">{src.snippet}</div>
+                      </div>
+                      <ExternalLink className="w-3 h-3 text-black/30 shrink-0 mt-0.5" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI Scene Analysis Result Card */}
       {(analysisResult || isAnalyzingScene) && (
@@ -386,13 +674,28 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {enrolledPeople.length} PROFILES
             </span>
           </h3>
-          <button
-            onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
-            className="px-3 py-1.5 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
-          >
-            <UserPlus className="w-3 h-3" />
-            {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const res = await apiFetch("/api/face/reencode-all", { method: "POST" });
+                const data = await res.json();
+                alert(`Re-encoded ${data.reencoded} people. Failed: ${data.failed}.\n\n${data.details.map((d: {name:string;encodings:number}) => `${d.name}: ${d.encodings} encoding(s)`).join("\n")}`);
+                fetchEnrolled();
+              }}
+              className="px-3 py-1.5 bg-white border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+              title="Re-run InsightFace on existing photos (fixes dlib→InsightFace migration)"
+            >
+              <RefreshCw className="w-3 h-3" />
+              RE-ENCODE ALL
+            </button>
+            <button
+              onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
+              className="px-3 py-1.5 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+            >
+              <UserPlus className="w-3 h-3" />
+              {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
+            </button>
+          </div>
         </div>
 
         {/* Enroll form */}
@@ -404,10 +707,17 @@ export const VisionView: React.FC<VisionViewProps> = ({
             <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
-                placeholder="Full name (e.g. Pratham)"
+                placeholder="Full name (e.g. Pratham Rathod)"
                 value={enrollName}
                 onChange={e => setEnrollName(e.target.value)}
                 className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
+              />
+              <input
+                type="text"
+                placeholder="Organization (e.g. Northeastern, Swapt)"
+                value={enrollOrg}
+                onChange={e => setEnrollOrg(e.target.value)}
+                className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
               />
               <label className="flex items-center gap-2 px-3 py-2 border-2 border-black bg-white font-mono text-[10px] font-black cursor-pointer hover:bg-[#00e5ff] transition">
                 <Upload className="w-3.5 h-3.5" />
