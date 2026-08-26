@@ -121,7 +121,9 @@ def _gemini_identify(image_bytes: bytes) -> list[dict]:
                     "type": "text",
                     "text": (
                         "Look at this image. If you can identify the person, "
-                        "reply with their full name ONLY (e.g. 'Deepika Padukone'). "
+                        "reply with their FULL name including first AND last name "
+                        "(e.g. 'Deepika Padukone', 'Shah Rukh Khan', 'Hrithik Roshan'). "
+                        "Never reply with just a first name — always include the last name. "
                         "Do not add any explanation. If you cannot identify them, "
                         "reply with the single word 'unknown'."
                     ),
@@ -148,12 +150,24 @@ def _gemini_identify(image_bytes: bytes) -> list[dict]:
             .get("content", "")
             .strip()
         )
-        if not text or text.lower() == "unknown" or len(text) > 80:
+        logger.info("Gemini vision raw response: %r", text)
+        if not text or len(text) > 80:
+            return []
+        low = text.lower()
+        # Filter refusals and unknowns
+        if any(w in low for w in ("unknown", "cannot", "can't", "unable", "sorry", "identify", "i'm not")):
+            logger.info("Gemini declined to identify person")
             return []
         # Strip trailing punctuation and surrounding quotes
         name = text.strip(".,!?\"'")
         if _is_person_name(name):
             return [{"name": name, "score": 0.88, "source": "gemini_vision"}]
+        # Single title-case word fallback (e.g. Gemini returns "Deepika" despite prompt)
+        words = name.split()
+        if len(words) == 1 and name[0].isupper() and not name.isdigit():
+            logger.info("Gemini returned single name %r — using at lower confidence", name)
+            return [{"name": name, "score": 0.60, "source": "gemini_vision"}]
+        logger.info("Gemini response not a person name: %r", name)
         return []
     except Exception as exc:
         logger.warning("Gemini vision identify failed: %s", exc)
