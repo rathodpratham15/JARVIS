@@ -484,7 +484,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                   className="w-full flex items-center justify-between px-3 py-2 bg-[#f3f3ee] border-2 border-black hover:bg-[#00e5ff] hover:border-black transition text-left font-mono text-xs font-bold shadow-[1px_1px_0px_#000]"
                 >
                   <span>{c.name}</span>
-                  <span className="text-[10px] text-black/50">{Math.round(c.score * 100)}%</span>
+                  <span className="text-[10px] text-black/50">{Math.min(100, Math.round(c.score * 100))}%</span>
                 </button>
               ))}
               <button

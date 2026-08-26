@@ -246,10 +246,10 @@ class ResearchPipeline:
                 raw_snippets="",
             )
 
-        # Build snippet block for the LLM
+        # Build snippet block for the LLM — keep under ~5k tokens for Groq free-tier limit
         snippets = "\n\n".join(
-            f"[{i+1}] {r.get('title', '')}\n{r.get('snippet', '')}\nURL: {r.get('url', '')}"
-            for i, r in enumerate(unique[:15])  # cap at 15 snippets to stay within context
+            f"[{i+1}] {r.get('title', '')}\n{r.get('snippet', '')[:400]}\nURL: {r.get('url', '')}"
+            for i, r in enumerate(unique[:8])
         )
 
         summary, sections = self._synthesise(subject, snippets, prompt_template)
@@ -259,7 +259,7 @@ class ResearchPipeline:
             kind=kind,
             summary=summary,
             sections=sections,
-            sources=unique[:15],
+            sources=unique[:8],
             raw_snippets=snippets,
         )
 

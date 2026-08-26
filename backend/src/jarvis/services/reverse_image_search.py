@@ -68,7 +68,7 @@ def _google_vision(image_bytes: bytes) -> list[dict]:
         # 1. Web entities (works well for celebrities)
         for entity in web.get("webEntities", []):
             name = entity.get("description", "").strip()
-            score = entity.get("score", 0.0)
+            score = min(1.0, entity.get("score", 0.0))  # API can return > 1.0
             if name and score >= 0.3 and _is_person_name(name):
                 results.append({"name": name, "score": round(score, 2), "source": "google_entity"})
 
@@ -94,6 +94,69 @@ def _google_vision(image_bytes: bytes) -> list[dict]:
         return results
     except Exception as exc:
         logger.warning("Google Vision reverse search failed: %s", exc)
+        return []
+
+
+def _gemini_identify(image_bytes: bytes) -> list[dict]:
+    """Ask Gemini Vision to name the person in the image directly.
+
+    This is the most accurate path for celebrities/public figures — Gemini's
+    knowledge base can recognise them from visual features alone, much like
+    Google Lens, without needing any indexed web page.
+    """
+    # GEMINI_API_KEY may be a semicolon-separated pool (key1;key2;...); use the first one
+    api_key = os.getenv("GEMINI_API_KEY", "").split(";")[0].strip()
+    if not api_key:
+        return []
+    b64 = base64.b64encode(image_bytes).decode()
+    # Use the OpenAI-compatible endpoint — works with the AQ.* key format the pool uses
+    payload = {
+        "model": os.getenv("JARVIS_FACE_MODEL", "gemini-3.6-flash"),
+        "max_tokens": 30,
+        "temperature": 0,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        "Look at this image. If you can identify the person, "
+                        "reply with their full name ONLY (e.g. 'Deepika Padukone'). "
+                        "Do not add any explanation. If you cannot identify them, "
+                        "reply with the single word 'unknown'."
+                    ),
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
+                },
+            ],
+        }],
+    }
+    try:
+        resp = httpx.post(
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=payload,
+            timeout=15,
+        )
+        resp.raise_for_status()
+        text = (
+            resp.json()
+            .get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        )
+        if not text or text.lower() == "unknown" or len(text) > 80:
+            return []
+        # Strip trailing punctuation and surrounding quotes
+        name = text.strip(".,!?\"'")
+        if _is_person_name(name):
+            return [{"name": name, "score": 0.88, "source": "gemini_vision"}]
+        return []
+    except Exception as exc:
+        logger.warning("Gemini vision identify failed: %s", exc)
         return []
 
 
@@ -147,14 +210,17 @@ def reverse_search_image(image_bytes: bytes) -> dict:
     """
     has_google = bool(os.getenv("GOOGLE_VISION_API_KEY"))
     has_bing = bool(os.getenv("BING_SEARCH_API_KEY"))
+    has_gemini = bool(os.getenv("GEMINI_API_KEY"))
 
-    if not has_google and not has_bing:
+    if not has_google and not has_bing and not has_gemini:
         return {"available": False, "candidates": [], "error": "No reverse search API key configured"}
 
     all_results: list[dict] = []
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {}
+        if has_gemini:
+            futures[pool.submit(_gemini_identify, image_bytes)] = "gemini"
         if has_google:
             futures[pool.submit(_google_vision, image_bytes)] = "google"
         if has_bing:
@@ -175,8 +241,9 @@ def reverse_search_image(image_bytes: bytes) -> dict:
 
     candidates = sorted(merged.values(), key=lambda x: x["score"], reverse=True)[:5]
 
-    return {
-        "available": True,
-        "candidates": candidates,
-        "sources_used": (["google"] if has_google else []) + (["bing"] if has_bing else []),
-    }
+    sources = (
+        (["gemini"] if has_gemini else [])
+        + (["google"] if has_google else [])
+        + (["bing"] if has_bing else [])
+    )
+    return {"available": True, "candidates": candidates, "sources_used": sources}
