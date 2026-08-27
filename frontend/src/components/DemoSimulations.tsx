@@ -109,93 +109,148 @@ export const VoiceDemo: React.FC = () => {
 
 // ── Vision & OSINT ────────────────────────────────────────────────────────────
 
+const DOSSIER_LINES = [
+  ["NAME", "Arjun Mehra"],
+  ["ROLE", "Software Engineer @ Google"],
+  ["EDUCATION", "IIT Bombay · CS 2019"],
+  ["LOCATION", "San Francisco, CA"],
+  ["LINKEDIN", "linkedin.com/in/arjunmehra"],
+  ["GITHUB", "github.com/arjunm"],
+];
+
 export const VisionDemo: React.FC = () => {
   const [phase, setPhase] = useState<"scan" | "lock" | "dossier">("scan");
   const [scanY, setScanY] = useState(0);
   const [confidence, setConfidence] = useState(0);
-  const [dossierLines, setDossierLines] = useState<string[]>([]);
-
-  const DOSSIER = [
-    "NAME: Arjun Mehra",
-    "ROLE: Software Engineer @ Google",
-    "EDUCATION: IIT Bombay, CS 2019",
-    "LOCATION: San Francisco, CA",
-    "LINKEDIN: linkedin.com/in/arjunmehra",
-    "GITHUB: github.com/arjunm",
-  ];
+  const [dossierLines, setDossierLines] = useState<string[][]>([]);
+  const activeRef = useRef(true);
 
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    let interval: ReturnType<typeof setInterval>;
+    activeRef.current = true;
+    let rafId: number;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    const t = (fn: () => void, ms: number) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
+    const clearAll = () => { timers.forEach(clearTimeout); cancelAnimationFrame(rafId); };
 
     const reset = () => {
+      if (!activeRef.current) return;
       setPhase("scan"); setScanY(0); setConfidence(0); setDossierLines([]);
-      interval = setInterval(() => setScanY(p => { if (p >= 100) { clearInterval(interval); t = setTimeout(lockOn, 400); return 100; } return p + 2; }), 40);
+      let y = 0;
+      const sweep = () => {
+        if (!activeRef.current) return;
+        y += 1.8;
+        setScanY(Math.min(y, 100));
+        if (y < 100) rafId = requestAnimationFrame(sweep);
+        else t(lockOn, 400);
+      };
+      t(() => { rafId = requestAnimationFrame(sweep); }, 300);
     };
 
     const lockOn = () => {
+      if (!activeRef.current) return;
       setPhase("lock");
       let c = 0;
-      interval = setInterval(() => { c += 3; setConfidence(Math.min(c, 97)); if (c >= 97) { clearInterval(interval); t = setTimeout(showDossier, 500); } }, 30);
+      const tick = () => {
+        if (!activeRef.current) return;
+        c = Math.min(c + 4, 97);
+        setConfidence(c);
+        if (c < 97) t(tick, 28);
+        else t(showDossier, 600);
+      };
+      t(tick, 30);
     };
 
     const showDossier = () => {
+      if (!activeRef.current) return;
       setPhase("dossier");
-      DOSSIER.forEach((line, i) => { t = setTimeout(() => setDossierLines(p => [...p, line]), i * 280); });
-      t = setTimeout(reset, DOSSIER.length * 280 + 3000);
+      DOSSIER_LINES.forEach((line, i) => {
+        t(() => { if (activeRef.current) setDossierLines(p => [...p, line]); }, i * 320);
+      });
+      t(reset, DOSSIER_LINES.length * 320 + 3200);
     };
 
     reset();
-    return () => { clearInterval(interval); clearTimeout(t); };
+    return () => { activeRef.current = false; clearAll(); };
   }, []);
 
+  const showLock = phase === "lock" || phase === "dossier";
+
   return (
-    <div className="flex gap-3 h-full p-2">
-      {/* Face panel */}
-      <div className="relative w-40 shrink-0 bg-[#080808] border border-white/10 overflow-hidden flex items-center justify-center">
-        {/* Silhouette */}
-        <svg viewBox="0 0 80 100" className="w-24 opacity-20 fill-white">
-          <ellipse cx="40" cy="35" rx="22" ry="26" />
-          <path d="M10 100 Q10 65 40 62 Q70 65 70 100Z" />
+    <div className="flex h-full p-3 gap-4 overflow-hidden">
+      {/* Face panel — wider, more cinematic */}
+      <div className="relative w-44 shrink-0 bg-[#050608] border border-white/10 overflow-hidden flex flex-col items-center justify-center gap-2">
+        {/* Corner frame decoration */}
+        <div className="absolute top-2 left-2 w-4 h-4 border-t border-l border-white/20" />
+        <div className="absolute top-2 right-2 w-4 h-4 border-t border-r border-white/20" />
+        <div className="absolute bottom-2 left-2 w-4 h-4 border-b border-l border-white/20" />
+        <div className="absolute bottom-2 right-2 w-4 h-4 border-b border-r border-white/20" />
+
+        {/* Face silhouette */}
+        <svg viewBox="0 0 80 96" className="w-28 opacity-25 fill-white relative z-10">
+          <ellipse cx="40" cy="32" rx="20" ry="24" />
+          <path d="M12 96 Q12 62 40 58 Q68 62 68 96Z" />
         </svg>
 
-        {/* Scan line */}
+        {/* Scan line — only during scan phase */}
         {phase === "scan" && (
-          <div className="absolute left-0 right-0 h-px bg-[#00E5FF] shadow-[0_0_8px_#00E5FF] pointer-events-none"
-            style={{ top: `${scanY}%`, transition: "top 0.04s linear" }} />
+          <div className="absolute left-0 right-0 h-px bg-[#00E5FF] shadow-[0_0_10px_#00E5FF] pointer-events-none z-20"
+            style={{ top: `${scanY}%` }} />
         )}
 
-        {/* Lock box */}
-        {(phase === "lock" || phase === "dossier") && (
-          <div className="absolute inset-4 border-2 border-[#00E5FF] shadow-[0_0_12px_#00E5FF]">
-            <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-[#00E5FF]" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-[#00E5FF]" />
-            <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-[#00E5FF]" />
-            <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-[#00E5FF]" />
+        {/* Bounding box — lock + dossier */}
+        {showLock && (
+          <div className="absolute inset-5 border border-[#00E5FF] shadow-[0_0_14px_rgba(0,229,255,0.5)] z-20">
+            <div className="absolute -top-px -left-px w-3 h-3 border-t-2 border-l-2 border-[#00E5FF]" />
+            <div className="absolute -top-px -right-px w-3 h-3 border-t-2 border-r-2 border-[#00E5FF]" />
+            <div className="absolute -bottom-px -left-px w-3 h-3 border-b-2 border-l-2 border-[#00E5FF]" />
+            <div className="absolute -bottom-px -right-px w-3 h-3 border-b-2 border-r-2 border-[#00E5FF]" />
           </div>
         )}
 
-        {(phase === "lock" || phase === "dossier") && (
-          <div className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-[#00E5FF] font-bold tracking-widest">
-            {confidence}% MATCH
-          </div>
-        )}
+        {/* Status bar */}
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 text-center text-[10px] font-bold tracking-widest z-20">
+          {phase === "scan" && <span className="text-white/40 animate-pulse">SCANNING...</span>}
+          {phase === "lock" && <span className="text-yellow-400">{confidence}% MATCH</span>}
+          {phase === "dossier" && <span className="text-[#00E5FF]">97% MATCH</span>}
+        </div>
       </div>
 
       {/* Dossier panel */}
-      <div className="flex-1 space-y-1.5 overflow-hidden">
-        <div className="text-[10px] text-[#00E5FF] tracking-widest mb-2 uppercase">
-          {phase === "scan" ? "SCANNING..." : phase === "lock" ? "LOCKING TARGET..." : "DOSSIER ASSEMBLED"}
+      <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] font-bold tracking-widest uppercase ${
+            phase === "scan" ? "text-white/40" : phase === "lock" ? "text-yellow-400" : "text-[#00E5FF]"
+          }`}>
+            {phase === "scan" ? "// AWAITING LOCK" : phase === "lock" ? "// ACQUIRING TARGET" : "// DOSSIER ASSEMBLED"}
+          </span>
+          {phase !== "scan" && <span className="w-1.5 h-1.5 bg-[#00E5FF] animate-pulse" />}
         </div>
-        {dossierLines.map((line, i) => (
-          <div key={i} className="text-[11px] text-white/80 flex items-center gap-2">
-            <span className="text-[#00E5FF] text-[9px]">▸</span>
-            <span className="font-mono">{line}</span>
-          </div>
-        ))}
-        {phase === "dossier" && dossierLines.length < DOSSIER.length && (
-          <div className="text-[10px] text-[#00E5FF] animate-pulse">POPULATING...</div>
-        )}
+
+        <div className="flex-1 space-y-2 overflow-hidden">
+          {dossierLines.map(([k, v], i) => (
+            <div key={i} className="flex gap-2 text-[11px] font-mono items-baseline">
+              <span className="text-[#00E5FF]/60 w-20 shrink-0 text-[10px]">{k}</span>
+              <span className="text-white/85">{v}</span>
+            </div>
+          ))}
+          {phase === "dossier" && dossierLines.length < DOSSIER_LINES.length && (
+            <div className="text-[10px] text-[#00E5FF] animate-pulse tracking-widest">POPULATING...</div>
+          )}
+          {phase === "lock" && (
+            <div className="space-y-1.5 mt-2">
+              {[70, 50, 85].map((w, i) => (
+                <div key={i} className="h-2 bg-white/5 overflow-hidden">
+                  <div className="h-full bg-[#00E5FF]/30 animate-pulse" style={{ width: `${w}%`, animationDelay: `${i * 0.2}s` }} />
+                </div>
+              ))}
+              <div className="text-[10px] text-white/30 tracking-widest">CROSS-REFERENCING SOURCES...</div>
+            </div>
+          )}
+        </div>
+
+        <div className="text-[10px] text-white/25 tracking-widest border-t border-white/10 pt-2">
+          INSIGHTFACE → GEMINI VISION → TAVILY SEARCH
+        </div>
       </div>
     </div>
   );
