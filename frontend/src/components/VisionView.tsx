@@ -232,18 +232,19 @@ export const VisionView: React.FC<VisionViewProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setCameraActive(true);
+        setFacingMode(facing); // only update after stream opens successfully
       }
     } catch (err: any) {
       console.warn("Camera access denied or unavailable, using simulated feed:", err);
       setCameraError("Physical camera unavailable. Switched to simulated high-resolution HUD optical sensor.");
       setCameraActive(false);
+      // facingMode intentionally left unchanged — label stays accurate
     }
   };
 
   const handleSwitchCamera = async () => {
     const next = facingMode === "user" ? "environment" : "user";
-    setFacingMode(next);
-    await startCamera(next);
+    await startCamera(next); // setFacingMode happens inside on success only
   };
 
   useEffect(() => {
