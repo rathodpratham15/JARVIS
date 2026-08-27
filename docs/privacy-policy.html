@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — JARVIS AI Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #080808;
+      color: #e4e4e7;
+      line-height: 1.75;
+      padding: 2rem 1rem 4rem;
+    }
+    .container { max-width: 760px; margin: 0 auto; }
+    header { border-bottom: 1px solid #27272a; padding-bottom: 2rem; margin-bottom: 2.5rem; }
+    header .brand {
+      font-family: monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      color: #00E5FF;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    h1 { font-size: 1.75rem; font-weight: 700; color: #fff; }
+    .meta { margin-top: 0.5rem; font-size: 0.8rem; color: #71717a; }
+    h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #00E5FF;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 2.5rem 0 0.75rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid #27272a;
+    }
+    p { margin-bottom: 1rem; color: #a1a1aa; font-size: 0.925rem; }
+    ul { margin: 0.5rem 0 1rem 1.5rem; color: #a1a1aa; font-size: 0.925rem; }
+    li { margin-bottom: 0.4rem; }
+    a { color: #00E5FF; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .highlight {
+      background: #111318;
+      border: 1px solid #27272a;
+      border-left: 3px solid #00E5FF;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-size: 0.875rem;
+      color: #d4d4d8;
+      border-radius: 2px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.875rem;
+    }
+    th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      background: #111318;
+      color: #fff;
+      font-weight: 600;
+      border: 1px solid #27272a;
+    }
+    td {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #27272a;
+      color: #a1a1aa;
+      vertical-align: top;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #27272a;
+      font-size: 0.8rem;
+      color: #52525b;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">J.A.R.V.I.S. — Personal AI Operating System</div>
+      <h1>Privacy Policy</h1>
+      <p class="meta">Effective date: August 27, 2026 &nbsp;·&nbsp; Last updated: August 27, 2026</p>
+    </header>
+
+    <div class="highlight">
+      <strong>Short version:</strong> JARVIS is a self-hosted AI assistant. Your data is processed by the third-party AI APIs you configure (OpenAI, Google Gemini, ElevenLabs, etc.) and stored on your own backend. We do not collect, sell, or share your personal data.
+    </div>
+
+    <h2>1. Who We Are</h2>
+    <p>
+      JARVIS – AI Assistant ("JARVIS", "the App", "we") is an open-source personal AI operating system
+      developed by Pratham Rathod. The App connects your mobile device to a backend server that you
+      control (self-hosted or deployed via Railway). Questions can be directed to
+      <a href="mailto:rathod.pr@northeastern.edu">rathod.pr@northeastern.edu</a>.
+    </p>
+
+    <h2>2. Data We Collect</h2>
+    <p>We collect only what is necessary to provide the App's functionality:</p>
+
+    <table>
+      <thead>
+        <tr><th>Data type</th><th>Purpose</th><th>Stored where</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Account credentials (email, hashed password)</td>
+          <td>Authentication</td>
+          <td>Your backend database</td>
+        </tr>
+        <tr>
+          <td>Chat messages</td>
+          <td>AI response generation</td>
+          <td>Your backend; forwarded to AI API (OpenAI / Gemini)</td>
+        </tr>
+        <tr>
+          <td>Voice audio</td>
+          <td>Speech-to-text transcription</td>
+          <td>Processed in memory; not persisted beyond the request</td>
+        </tr>
+        <tr>
+          <td>Camera images / video frames</td>
+          <td>Face recognition, scene analysis, OSINT</td>
+          <td>Processed in memory; face embeddings stored on your backend if enrolled</td>
+        </tr>
+        <tr>
+          <td>Enrolled face photos</td>
+          <td>Biometric recognition of people you add</td>
+          <td>Your backend database (opt-in, you control who is enrolled)</td>
+        </tr>
+        <tr>
+          <td>Task, schedule, reminder data</td>
+          <td>Agent and productivity features</td>
+          <td>Your backend database</td>
+        </tr>
+        <tr>
+          <td>Research queries</td>
+          <td>Web research via Tavily / Exa</td>
+          <td>Forwarded to search API; not persisted by JARVIS</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>We do <strong>not</strong> collect analytics, advertising identifiers, or device telemetry.</p>
+
+    <h2>3. Third-Party AI Services</h2>
+    <p>
+      JARVIS routes requests to third-party AI providers depending on your configuration.
+      Each provider has its own privacy policy:
+    </p>
+    <ul>
+      <li><strong>OpenAI</strong> — chat, agents, STT &nbsp;<a href="https://openai.com/policies/privacy-policy" target="_blank">openai.com/policies/privacy-policy</a></li>
+      <li><strong>Google Gemini / Vertex AI</strong> — vision, chat &nbsp;<a href="https://policies.google.com/privacy" target="_blank">policies.google.com/privacy</a></li>
+      <li><strong>Groq</strong> — fast inference &nbsp;<a href="https://groq.com/privacy-policy/" target="_blank">groq.com/privacy-policy</a></li>
+      <li><strong>ElevenLabs</strong> — text-to-speech &nbsp;<a href="https://elevenlabs.io/privacy" target="_blank">elevenlabs.io/privacy</a></li>
+      <li><strong>Tavily / Exa</strong> — web search for research &nbsp;<a href="https://tavily.com/privacy" target="_blank">tavily.com/privacy</a></li>
+    </ul>
+    <p>
+      You control which providers are active by configuring API keys on your backend.
+      Data sent to these providers is governed by their terms, not ours.
+    </p>
+
+    <h2>4. Camera and Microphone</h2>
+    <p>
+      The App requests camera and microphone permissions only when you actively use Vision Mode or
+      Voice Mode respectively. Camera frames and audio are sent to your backend over HTTPS for
+      processing. We do not record or store raw audio or video on device beyond the current session.
+    </p>
+    <p>
+      Face enrollment is strictly opt-in. You explicitly add people by name and photo. You can
+      delete any enrolled identity at any time from the Vision screen.
+    </p>
+
+    <h2>5. Data Sharing</h2>
+    <p>We do not sell, rent, or share your data with any third party for advertising or commercial purposes.</p>
+    <p>Data is shared only in these circumstances:</p>
+    <ul>
+      <li>With the AI APIs listed in Section 3, solely to fulfil your request.</li>
+      <li>If required by law or to protect legal rights.</li>
+    </ul>
+
+    <h2>6. Data Retention</h2>
+    <p>
+      Because JARVIS is self-hosted, <strong>you control retention</strong>. Chat history, tasks,
+      schedules, and enrolled faces are stored in your database and can be deleted at any time.
+      We have no access to your database and cannot recover data on your behalf.
+    </p>
+
+    <h2>7. Security</h2>
+    <p>
+      All communication between the App and your backend is encrypted via HTTPS/TLS.
+      Passwords are hashed using bcrypt before storage. API keys are stored server-side only and
+      never sent to the mobile client.
+    </p>
+
+    <h2>8. Children's Privacy</h2>
+    <p>
+      JARVIS is not directed at children under 13 (or under 16 in the EU). We do not knowingly
+      collect personal data from children. If you believe a child has provided us with personal
+      information, contact us and we will delete it.
+    </p>
+
+    <h2>9. Your Rights</h2>
+    <p>Depending on your jurisdiction you may have the right to:</p>
+    <ul>
+      <li>Access the personal data we hold about you</li>
+      <li>Request correction or deletion of your data</li>
+      <li>Withdraw consent at any time (by uninstalling the App and clearing your backend database)</li>
+      <li>Lodge a complaint with a supervisory authority (EU/UK users)</li>
+    </ul>
+    <p>
+      Because JARVIS is self-hosted, exercising these rights is typically as simple as deleting
+      records from your own database. For any further requests contact
+      <a href="mailto:rathod.pr@northeastern.edu">rathod.pr@northeastern.edu</a>.
+    </p>
+
+    <h2>10. Changes to This Policy</h2>
+    <p>
+      We may update this policy as the App evolves. Material changes will be noted in the App's
+      release notes. The "Last updated" date at the top of this page reflects the most recent revision.
+      Continued use of the App after changes constitutes acceptance of the updated policy.
+    </p>
+
+    <h2>11. Contact</h2>
+    <p>
+      Pratham Rathod<br />
+      MS Computer Science, Northeastern University<br />
+      <a href="mailto:rathod.pr@northeastern.edu">rathod.pr@northeastern.edu</a><br />
+      <a href="https://github.com/rathodpratham15/JARVIS" target="_blank">github.com/rathodpratham15/JARVIS</a>
+    </p>
+
+    <footer>
+      &copy; 2026 Pratham Rathod · JARVIS – AI Assistant · Open Source (MIT)
+    </footer>
+  </div>
+</body>
+</html>
