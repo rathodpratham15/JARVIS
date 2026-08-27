@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { VoiceDemo, VisionDemo, AgentDemo, ResearchDemo, ComputerDemo } from "./DemoSimulations";
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -140,7 +141,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
   const [activeTab, setActiveTab] = useState<TabKey>("voice");
   const [typed, setTyped] = useState("");
   const [blink, setBlink] = useState(true);
-  const [hudStatus, setHudStatus] = useState(FEATURE_DATA.voice.hudStatus);
   const typingDone = useRef(false);
 
   const full = "Personal AI Operating System";
@@ -161,15 +161,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
     return () => clearInterval(t);
   }, []);
 
-  const switchTab = (tab: TabKey) => {
-    setActiveTab(tab);
-    setHudStatus(FEATURE_DATA[tab].hudStatus);
-  };
-
-  const triggerDemo = () => {
-    setHudStatus(`[TRIGGERED] DISPATCHING ${FEATURE_DATA[activeTab].title} PROTOCOL...`);
-    setTimeout(() => setHudStatus(FEATURE_DATA[activeTab].hudStatus), 2500);
-  };
+  const switchTab = (tab: TabKey) => setActiveTab(tab);
 
   const data = FEATURE_DATA[activeTab];
 
@@ -346,44 +338,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                     </div>
                   </div>
 
-                  <div className="relative w-full aspect-video bg-[#050608] flex items-center justify-center overflow-hidden scanline-fx">
-                    {data.videoSrc ? (
-                      <video autoPlay muted loop playsInline className="w-full h-full object-cover" src={data.videoSrc} />
-                    ) : (
-                      <div className="absolute inset-0 p-6 flex flex-col justify-between select-none">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <div className="text-[10px] text-[#00E5FF] tracking-widest uppercase font-bold">{data.hudMode}</div>
-                            <div className="text-[11px] text-white/60">{data.hudSub}</div>
-                          </div>
-                          <div className="text-[10px] text-emerald-400 border border-emerald-500/30 px-2 py-0.5 bg-emerald-950/40">TELEMETRY: STABLE</div>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center space-y-4 my-auto">
-                          <div className="relative w-32 h-32 flex items-center justify-center">
-                            <div className="absolute inset-0 border border-[#00E5FF]/30 rounded-full animate-ping opacity-25" />
-                            <div className="absolute inset-2 border border-dashed border-[#00E5FF]/60 rounded-full radar-sweep" />
-                            <div className="w-16 h-16 bg-[#00E5FF]/10 border border-[#00E5FF] flex items-center justify-center shadow-[0_0_16px_#00E5FF]">
-                              <span className="text-2xl">{data.hudIcon}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 h-10">
-                            {[4, 8, 10, 6, 9, 5, 8, 3].map((h, i) => (
-                              <div key={i} className="w-1 bg-[#00E5FF] animate-pulse" style={{ height: `${h * 4}px`, animationDelay: `${i * 0.1}s` }} />
-                            ))}
-                          </div>
-                          <div className="text-center">
-                            <div className="text-xs text-[#00E5FF] tracking-widest font-bold animate-pulse">{hudStatus}</div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-end justify-between text-[10px] text-white/50 border-t border-white/10 pt-3">
-                          <span>LATENCY: 14MS</span>
-                          <span className="text-[#00E5FF]">STREAM ACTIVE</span>
-                          <span>SECURITY: ENCRYPTED</span>
-                        </div>
-                      </div>
-                    )}
+                  <div className="relative w-full aspect-video bg-[#050608] overflow-hidden scanline-fx">
+                    <div className="absolute inset-0">
+                      {activeTab === "voice"    && <VoiceDemo />}
+                      {activeTab === "vision"   && <VisionDemo />}
+                      {activeTab === "agent"    && <AgentDemo />}
+                      {activeTab === "research" && <ResearchDemo />}
+                      {activeTab === "computer" && <ComputerDemo />}
+                    </div>
                   </div>
 
                   <div className="p-3 bg-[#080808] border-t border-[#00E5FF]/20 flex items-center justify-between text-xs">
@@ -392,7 +354,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                       <span className="text-white/20">|</span>
                       <span className="text-white/60">PROMPT READY // 1080P 8S</span>
                     </div>
-                    <button onClick={triggerDemo} className="text-[11px] text-white/70 hover:text-[#00E5FF] border border-white/10 px-2 py-0.5 transition-colors">
+                    <button onClick={onEnter} className="text-[11px] text-white/70 hover:text-[#00E5FF] border border-white/10 px-2 py-0.5 transition-colors">
                       RUN SUBROUTINE ⚡
                     </button>
                   </div>
@@ -428,7 +390,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                     <p className="text-xs text-white/70 leading-relaxed">{data.techPipeline}</p>
                   </div>
 
-                  <button onClick={triggerDemo}
+                  <button onClick={onEnter}
                     className="w-full py-3 bg-[#00E5FF]/10 hover:bg-[#00E5FF] text-[#00E5FF] hover:text-black font-bold text-xs uppercase tracking-wider border border-[#00E5FF] transition-all flex items-center justify-center gap-2">
                     <span>RUN LIVE INTERACTION SUBROUTINE</span><span>⚡</span>
                   </button>
