@@ -15,6 +15,9 @@ import {
   ChevronUp,
   Loader2,
   SwitchCamera,
+  Linkedin,
+  Fingerprint,
+  FileText,
 } from "lucide-react";
 import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -437,228 +440,32 @@ export const VisionView: React.FC<VisionViewProps> = ({
           </div>
         </div>
 
-        {/* Biometric Face Recognition Drawer (1 Col) */}
-        <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-zinc-300" />
-                <span>BIOMETRIC MATCHES</span>
-              </h3>
-              <span className="text-[10px] font-mono font-bold bg-[#0d0f12] px-2 py-0.5 border border-zinc-800 text-zinc-300">
-                {faces.length > 0 ? `${faces.length} PROFILES` : "NO MATCHES"}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {faces.length === 0 && (
-                <div className="py-6 text-center text-[11px] font-mono text-zinc-500">
-                  Capture a scan to identify faces.
-                </div>
-              )}
-              {faces.map((face) => (
-                <div
-                  key={face.id}
-                  className="p-3 bg-[#0d0f12] border border-zinc-800 flex items-center justify-between gap-3 text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    {face.avatarUrl ? (
-                      <img
-                        src={face.avatarUrl}
-                        alt={face.name}
-                        className="w-10 h-10 border border-zinc-700 object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-zinc-700 flex items-center justify-center text-white font-mono font-black">
-                        ?
-                      </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <span className="font-black text-white font-mono block">
-                        {face.name}
-                      </span>
-                      <span className="text-[10px] text-zinc-400 font-mono block">{face.role}</span>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 text-[10px] font-mono font-black border uppercase ${
-                      face.status === "Authorized"
-                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-800"
-                        : "bg-amber-500/20 text-amber-400 border-amber-800"
-                    }`}
-                  >
-                    {face.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Reverse search loading */}
-          {reverseLoading && (
-            <div className="border-t border-zinc-800 pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-zinc-400">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Searching the web for identity…
-            </div>
-          )}
-
-          {/* Reverse search candidates */}
-          {!reverseLoading && reverseResults.length > 0 && !osintDossier && (
-            <div className="border-t border-zinc-800 pt-3 space-y-2">
-              <p className="text-[10px] font-mono font-black text-zinc-400 uppercase">Possible matches — confirm identity:</p>
-              {reverseResults.map((c, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleConfirmCandidate(c.name, capturedFrame)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-[#0d0f12] border border-zinc-800 hover:bg-zinc-700 hover:text-white transition text-left font-mono text-xs font-bold text-zinc-300"
-                >
-                  <span>{c.name}</span>
-                  <span className="text-[10px] text-zinc-500">{Math.min(100, Math.round(c.score * 100))}%</span>
-                </button>
-              ))}
-              <button
-                onClick={() => { setReverseResults([]); setShowUnknownForm(true); }}
-                className="w-full text-[10px] font-mono text-zinc-500 hover:text-white transition py-1"
-              >
-                None of these — enter manually
-              </button>
-            </div>
-          )}
-
-          {/* Manual form fallback */}
-          {showUnknownForm && !osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && (
-            <div className="border-t border-zinc-800 pt-3 space-y-2">
-              <p className="text-[10px] font-mono font-bold text-zinc-500 uppercase">No match — research manually:</p>
-              <button
-                onClick={handleGoogleLens}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#111318] border border-zinc-800 font-mono font-black text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                SEARCH ON GOOGLE LENS
-              </button>
-              {lensToast && (
-                <p className="text-[10px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-900 px-2 py-1.5">{lensToast}</p>
-              )}
-              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-600">
-                <div className="flex-1 border-t border-zinc-800" />
-                <span>OR ENTER NAME MANUALLY</span>
-                <div className="flex-1 border-t border-zinc-800" />
-              </div>
-              <input
-                type="text"
-                value={unknownName}
-                onChange={e => setUnknownName(e.target.value)}
-                placeholder="Person's name"
-                className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none"
-              />
-              <input
-                type="text"
-                value={unknownCompany}
-                onChange={e => setUnknownCompany(e.target.value)}
-                placeholder="Company (optional)"
-                className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none"
-              />
-              <button
-                onClick={() => { if (unknownName.trim()) { setConfirmedName(unknownName.trim()); runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}}
-                disabled={!unknownName.trim()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-zinc-100 border border-transparent font-mono font-black text-xs text-black transition disabled:opacity-50"
-              >
-                <Search className="w-3.5 h-3.5" />
-                COMPILE DOSSIER
-              </button>
-            </div>
-          )}
-
-          {/* OSINT loading */}
-          {osintLoading && (
-            <div className="border-t border-zinc-800 pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-zinc-400">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Running OSINT pipeline…
-            </div>
-          )}
-
-          {/* OSINT error */}
-          {osintError && (
-            <p className="border-t border-zinc-800 pt-2 text-[11px] font-mono text-red-400">{osintError}</p>
-          )}
-        </div>
+        {/* ── INTEL PANEL (right col) ──────────────────────────────── */}
+        <IntelPanel
+          faces={faces}
+          osintLoading={osintLoading}
+          osintDossier={osintDossier}
+          osintError={osintError}
+          osintSourcesOpen={osintSourcesOpen}
+          setOsintSourcesOpen={setOsintSourcesOpen}
+          savedToDb={savedToDb}
+          confirmedName={confirmedName}
+          reverseLoading={reverseLoading}
+          reverseResults={reverseResults}
+          showUnknownForm={showUnknownForm}
+          unknownName={unknownName}
+          unknownCompany={unknownCompany}
+          lensToast={lensToast}
+          capturedFrame={capturedFrame}
+          setUnknownName={setUnknownName}
+          setUnknownCompany={setUnknownCompany}
+          setReverseResults={setReverseResults}
+          setShowUnknownForm={setShowUnknownForm}
+          onConfirmCandidate={handleConfirmCandidate}
+          onGoogleLens={handleGoogleLens}
+          onRunOsint={runOsint}
+        />
       </div>
-
-      {/* OSINT Dossier panel */}
-      {osintDossier && (
-        <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-zinc-400" />
-              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white">
-                INTELLIGENCE DOSSIER — {osintDossier.subject.toUpperCase()}
-              </h3>
-            </div>
-            <span className="text-[10px] font-mono font-bold bg-[#0d0f12] px-2 py-0.5 border border-zinc-800 text-zinc-300">
-              {osintDossier.sources.length} SOURCES
-            </span>
-          </div>
-
-          {/* Summary */}
-          <p className="text-xs font-mono text-zinc-200 leading-relaxed bg-[#0d0f12] border border-zinc-800 p-3">
-            {osintDossier.summary}
-          </p>
-
-          {savedToDb && (
-            <p className="text-[11px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-900 px-3 py-2">
-              ✓ Face saved — will be recognised instantly next time.
-            </p>
-          )}
-
-          {/* Sections */}
-          {Object.keys(osintDossier.sections).length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(osintDossier.sections).map(([title, content]) => (
-                <div key={title} className="border border-zinc-800 p-3 space-y-1 bg-[#0d0f12]">
-                  <div className="text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800 pb-1">
-                    {title}
-                  </div>
-                  <p className="text-[11px] font-mono text-zinc-300 leading-relaxed">{content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Sources toggle */}
-          {osintDossier.sources.length > 0 && (
-            <div className="space-y-2">
-              <button
-                onClick={() => setOsintSourcesOpen(o => !o)}
-                className="flex items-center gap-1.5 text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest hover:text-white transition"
-              >
-                {osintSourcesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                {osintDossier.sources.length} Sources
-              </button>
-              {osintSourcesOpen && (
-                <div className="space-y-1.5">
-                  {osintDossier.sources.map((src, i) => (
-                    <a
-                      key={i}
-                      href={src.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-2 p-2 border border-zinc-800 hover:border-zinc-600 transition group"
-                    >
-                      <span className="font-mono text-[10px] text-zinc-600 shrink-0 mt-0.5">[{i + 1}]</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[11px] font-bold text-zinc-300 truncate group-hover:text-white transition">{src.title}</div>
-                        <div className="font-mono text-[10px] text-zinc-500 line-clamp-1">{src.snippet}</div>
-                      </div>
-                      <ExternalLink className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* AI Scene Analysis Result Card */}
       {(analysisResult || isAnalyzingScene) && (
@@ -841,6 +648,244 @@ export const VisionView: React.FC<VisionViewProps> = ({
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ── IntelPanel ────────────────────────────────────────────────────────────────
+
+function extractLinkedIn(text: string): string | null {
+  const m = text?.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[\w%-]+/i)
+    || text?.match(/linkedin\.com\/in\/[\w%-]+/i);
+  return m ? (m[0].startsWith("http") ? m[0] : `https://${m[0]}`) : null;
+}
+
+interface IntelPanelProps {
+  faces: any[];
+  osintLoading: boolean;
+  osintDossier: any;
+  osintError: string | null;
+  osintSourcesOpen: boolean;
+  setOsintSourcesOpen: (v: boolean | ((p: boolean) => boolean)) => void;
+  savedToDb: boolean;
+  confirmedName: string | null;
+  reverseLoading: boolean;
+  reverseResults: { name: string; score: number }[];
+  showUnknownForm: boolean;
+  unknownName: string;
+  unknownCompany: string;
+  lensToast: string | null;
+  capturedFrame: string | null;
+  setUnknownName: (v: string) => void;
+  setUnknownCompany: (v: string) => void;
+  setReverseResults: (v: any[]) => void;
+  setShowUnknownForm: (v: boolean) => void;
+  onConfirmCandidate: (name: string, frame: string | null) => void;
+  onGoogleLens: () => void;
+  onRunOsint: (name: string, org?: string) => void;
+}
+
+const IntelPanel: React.FC<IntelPanelProps> = ({
+  faces, osintLoading, osintDossier, osintError, osintSourcesOpen, setOsintSourcesOpen,
+  savedToDb, confirmedName, reverseLoading, reverseResults, showUnknownForm,
+  unknownName, unknownCompany, lensToast, capturedFrame,
+  setUnknownName, setUnknownCompany, setReverseResults, setShowUnknownForm,
+  onConfirmCandidate, onGoogleLens, onRunOsint,
+}) => {
+  const subject = osintDossier?.subject || confirmedName || faces[0]?.name;
+  const linkedIn = osintDossier
+    ? extractLinkedIn(osintDossier.sections?.["Online Presence"] || osintDossier.summary || "")
+    : null;
+
+  return (
+    <div className="bg-[#111318] border border-zinc-800 shadow-lg flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 shrink-0">
+        <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white flex items-center gap-2">
+          <Fingerprint className="w-4 h-4 text-zinc-400" />
+          OPTICAL INTEL
+        </h3>
+        <div className="flex items-center gap-2">
+          {(osintLoading) && (
+            <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
+              <Loader2 className="w-3 h-3 animate-spin" /> COMPILING
+            </span>
+          )}
+          {osintDossier && (
+            <span className="text-[10px] font-mono bg-emerald-900/30 text-emerald-400 border border-emerald-900 px-2 py-0.5">
+              DOSSIER READY
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+        {/* ── Idle state ── */}
+        {!osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && !showUnknownForm && !osintError && faces.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-40 text-center gap-3">
+            <UserCheck className="w-8 h-8 text-zinc-700" />
+            <p className="text-[11px] font-mono text-zinc-600 uppercase tracking-widest">Capture a scan<br />to identify faces</p>
+          </div>
+        )}
+
+        {/* ── Face match badge ── */}
+        {subject && (
+          <div className="flex items-center gap-3 p-3 bg-[#0d0f12] border border-zinc-700">
+            <div className="w-10 h-10 bg-zinc-700 border border-zinc-600 flex items-center justify-center text-white font-black text-lg shrink-0">
+              {subject[0]?.toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="text-white font-black font-mono text-sm truncate">{subject}</div>
+              {faces[0]?.role && <div className="text-zinc-400 text-[10px] font-mono truncate">{faces[0].role}</div>}
+              {savedToDb && <div className="text-emerald-400 text-[10px] font-mono">✓ Saved to face DB</div>}
+            </div>
+            {faces[0]?.status && (
+              <span className={`ml-auto text-[9px] px-2 py-0.5 font-mono font-black border shrink-0 ${
+                faces[0].status === "Authorized"
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-800"
+                  : "bg-amber-500/20 text-amber-400 border-amber-800"
+              }`}>{faces[0].status}</span>
+            )}
+          </div>
+        )}
+
+        {/* ── OSINT loading bars ── */}
+        {osintLoading && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Compiling intelligence…</p>
+            {["Searching web sources", "Cross-referencing profiles", "Synthesising dossier"].map((label, i) => (
+              <div key={i} className="space-y-1">
+                <div className="text-[10px] font-mono text-zinc-600">{label}</div>
+                <div className="h-1 bg-zinc-800 overflow-hidden">
+                  <div className="h-full bg-zinc-500 animate-pulse" style={{ width: `${60 + i * 15}%`, animationDelay: `${i * 0.3}s` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Dossier key facts ── */}
+        {osintDossier && (
+          <div className="space-y-3">
+            {/* LinkedIn quick-action */}
+            {linkedIn && (
+              <a href={linkedIn} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-between w-full px-3 py-2 bg-[#0d0f12] border border-zinc-700 hover:border-zinc-500 hover:bg-zinc-800 transition group">
+                <div className="flex items-center gap-2">
+                  <Linkedin className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white transition" />
+                  <span className="text-[11px] font-mono font-bold text-zinc-300 group-hover:text-white transition">OPEN LINKEDIN</span>
+                </div>
+                <ExternalLink className="w-3 h-3 text-zinc-600 group-hover:text-zinc-300 transition" />
+              </a>
+            )}
+
+            {/* Summary */}
+            <p className="text-[11px] font-mono text-zinc-300 leading-relaxed bg-[#0d0f12] border border-zinc-800 p-3">
+              {osintDossier.summary}
+            </p>
+
+            {/* Key sections as compact rows */}
+            {Object.entries(osintDossier.sections as Record<string, string>)
+              .filter(([, v]) => v && v.toLowerCase() !== "unavailable" && v.length > 5)
+              .map(([title, content]) => (
+                <div key={title} className="border border-zinc-800 bg-[#0d0f12] p-3 space-y-1">
+                  <div className="text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest">{title}</div>
+                  <p className="text-[11px] font-mono text-zinc-300 leading-relaxed">{content}</p>
+                </div>
+              ))}
+
+            {/* Sources toggle */}
+            {osintDossier.sources.length > 0 && (
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => setOsintSourcesOpen(o => !o)}
+                  className="flex items-center gap-1.5 text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest hover:text-white transition"
+                >
+                  {osintSourcesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {osintDossier.sources.length} Sources
+                </button>
+                {osintSourcesOpen && (
+                  <div className="space-y-1">
+                    {osintDossier.sources.map((src: any, i: number) => (
+                      <a key={i} href={src.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-start gap-2 p-2 border border-zinc-800 hover:border-zinc-600 transition group">
+                        <span className="font-mono text-[10px] text-zinc-600 shrink-0">[{i + 1}]</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-[10px] font-bold text-zinc-400 truncate group-hover:text-white transition">{src.title}</div>
+                          <div className="font-mono text-[10px] text-zinc-600 line-clamp-1">{src.snippet}</div>
+                        </div>
+                        <ExternalLink className="w-3 h-3 text-zinc-700 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Reverse image search loading ── */}
+        {reverseLoading && (
+          <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Running reverse image search…
+          </div>
+        )}
+
+        {/* ── Reverse search candidates ── */}
+        {!reverseLoading && reverseResults.length > 0 && !osintDossier && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-mono font-black text-zinc-400 uppercase">Possible matches — confirm:</p>
+            {reverseResults.map((c, i) => (
+              <button key={i} onClick={() => onConfirmCandidate(c.name, capturedFrame)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-[#0d0f12] border border-zinc-800 hover:bg-zinc-700 hover:text-white transition text-left font-mono text-xs font-bold text-zinc-300">
+                <span>{c.name}</span>
+                <span className="text-[10px] text-zinc-500">{Math.min(100, Math.round(c.score * 100))}%</span>
+              </button>
+            ))}
+            <button onClick={() => { setReverseResults([]); setShowUnknownForm(true); }}
+              className="w-full text-[10px] font-mono text-zinc-600 hover:text-white transition py-1">
+              None of these — enter manually
+            </button>
+          </div>
+        )}
+
+        {/* ── Manual lookup fallback ── */}
+        {showUnknownForm && !osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-mono font-bold text-zinc-500 uppercase">No match found</p>
+            <button onClick={onGoogleLens}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#111318] border border-zinc-800 font-mono font-black text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition">
+              <ExternalLink className="w-3.5 h-3.5" /> SEARCH GOOGLE LENS
+            </button>
+            {lensToast && (
+              <p className="text-[10px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-900 px-2 py-1.5">{lensToast}</p>
+            )}
+            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-700">
+              <div className="flex-1 border-t border-zinc-800" /><span>OR ENTER MANUALLY</span><div className="flex-1 border-t border-zinc-800" />
+            </div>
+            <input type="text" value={unknownName} onChange={e => setUnknownName(e.target.value)}
+              placeholder="Person's name"
+              className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none focus:border-zinc-600" />
+            <input type="text" value={unknownCompany} onChange={e => setUnknownCompany(e.target.value)}
+              placeholder="Company (optional)"
+              className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none focus:border-zinc-600" />
+            <button
+              onClick={() => { if (unknownName.trim()) { onRunOsint(unknownName.trim(), unknownCompany.trim() || undefined); } }}
+              disabled={!unknownName.trim()}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-zinc-100 border border-transparent font-mono font-black text-xs text-black transition disabled:opacity-50">
+              <FileText className="w-3.5 h-3.5" /> COMPILE DOSSIER
+            </button>
+          </div>
+        )}
+
+        {/* ── OSINT error ── */}
+        {osintError && (
+          <p className="text-[11px] font-mono text-red-400 bg-red-900/10 border border-red-900 px-3 py-2">{osintError}</p>
+        )}
+
       </div>
     </div>
   );
