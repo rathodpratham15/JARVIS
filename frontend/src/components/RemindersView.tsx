@@ -127,7 +127,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                 <div className="flex items-center border border-zinc-800 bg-[#111318] p-0.5">
                   {(["All", "Active", "Dismissed"] as const).map(f => (
                     <button key={f} onClick={() => setFilter(f)}
-                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${filter === f ? "bg-[#00E5FF] text-black" : "text-zinc-400 hover:text-white"}`}>
+                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${filter === f ? "bg-white text-black" : "text-zinc-400 hover:text-white"}`}>
                       {f}
                     </button>
                   ))}
@@ -159,7 +159,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                         <span
                           className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-zinc-800 ${
                             reminder.priority === "CRITICAL"
-                              ? "bg-[#1a1a1a] text-[#00E5FF]"
+                              ? "bg-zinc-700 text-white"
                               : reminder.priority === "HIGH"
                               ? "bg-amber-500/20 text-amber-400"
                               : "bg-zinc-800 text-zinc-300"
@@ -169,7 +169,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                         </span>
                         <span className="font-mono text-xs text-zinc-400 font-bold">
                           {new Date(reminder.targetTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          <span className="ml-1.5 text-[#00E5FF]">({relativeTime(reminder.targetTime)})</span>
+                          <span className="ml-1.5 text-zinc-400">({relativeTime(reminder.targetTime)})</span>
                         </span>
                       </div>
 
@@ -273,7 +273,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       key={qp.label}
                       type="button"
                       onClick={() => handleQuickPreset(qp.mins)}
-                      className="p-1.5 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[10px] font-bold text-white transition"
+                      className="p-1.5 bg-[#111318] hover:bg-zinc-700 border border-zinc-800 font-mono text-[10px] font-bold text-white transition"
                     >
                       {qp.label}
                     </button>

@@ -44,7 +44,7 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
       <div className="w-full max-w-2xl p-6 bg-[#111318] border border-zinc-800 space-y-5 shadow-xl max-h-[90vh] overflow-y-auto font-mono text-black">
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#00E5FF] text-black border border-transparent">
+            <div className="p-2.5 bg-zinc-700 text-white border border-zinc-800">
               <Search className="w-5 h-5" />
             </div>
             <div>
@@ -81,7 +81,7 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
                 onClick={() => setTargetType("company")}
                 className={`px-3 py-1.5 text-xs font-mono font-bold border transition ${
                   targetType === "company"
-                    ? "bg-[#00E5FF] text-black border-transparent"
+                    ? "bg-white text-black border-transparent"
                     : "text-zinc-400 border-transparent hover:text-white"
                 }`}
               >
@@ -92,7 +92,7 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
                 onClick={() => setTargetType("person")}
                 className={`px-3 py-1.5 text-xs font-mono font-bold border transition ${
                   targetType === "person"
-                    ? "bg-[#00E5FF] text-black border-transparent"
+                    ? "bg-white text-black border-transparent"
                     : "text-zinc-400 border-transparent hover:text-white"
                 }`}
               >
@@ -103,7 +103,7 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
             <button
               type="submit"
               disabled={isResearching || !targetName.trim()}
-              className="px-4 py-2 bg-[#00E5FF] hover:bg-[#00c5db] disabled:opacity-50 text-black border border-transparent font-mono font-black text-xs flex items-center justify-center gap-2 transition"
+              className="px-4 py-2 bg-white hover:bg-zinc-100 disabled:opacity-50 text-black border border-transparent font-mono font-black text-xs flex items-center justify-center gap-2 transition"
             >
               {isResearching ? (
                 <span>SYNTHESIZING...</span>
@@ -123,7 +123,7 @@ export const ResearchModal: React.FC<ResearchModalProps> = ({
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-base font-heading font-black text-white">{dossier.subject}</span>
-                <span className="px-2 py-0.5 bg-black text-[#00e5ff] text-[10px] font-black uppercase">
+                <span className="px-2 py-0.5 bg-zinc-700 text-white text-[10px] font-black uppercase">
                   {dossier.kind}
                 </span>
               </div>

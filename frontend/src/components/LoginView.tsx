@@ -76,7 +76,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         {/* Brand */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2.5">
-            <div className="w-3 h-3 bg-[#00E5FF] animate-pulse rounded-full" />
+            <div className="w-3 h-3 bg-emerald-400 animate-pulse rounded-full" />
             <span className="font-mono font-bold text-xl tracking-widest text-white uppercase">
               J.A.R.V.I.S.
             </span>

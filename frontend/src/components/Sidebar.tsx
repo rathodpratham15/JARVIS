@@ -96,14 +96,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-[10px] opacity-50 font-bold shrink-0">{item.code}</span>
-          <span className={`shrink-0 ${isActive ? "text-[#00E5FF]" : "text-zinc-500"}`}>{item.icon}</span>
+          <span className={`shrink-0 ${isActive ? "text-white" : "text-zinc-500"}`}>{item.icon}</span>
           <span className="truncate">{item.label}</span>
         </div>
         {item.badge && (
           <span
             className={`text-[9px] px-1.5 py-0.5 border font-mono font-bold shrink-0 ml-1 ${
               isActive
-                ? "bg-[#00E5FF] text-black border-transparent"
+                ? "bg-zinc-600 text-white border-transparent"
                 : "bg-zinc-800 text-zinc-400 border-zinc-700"
             }`}
           >
@@ -122,13 +122,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         title={item.label}
         className={`relative w-full flex items-center justify-center py-2.5 transition rounded-sm ${
           isActive
-            ? "bg-zinc-800 text-[#00E5FF]"
+            ? "bg-zinc-800 text-white"
             : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-100"
         }`}
       >
         {item.icon}
         {item.badge && (
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#00E5FF] rounded-full" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full" />
         )}
       </button>
     );
@@ -145,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="border-b border-zinc-800 bg-[#111318] shrink-0">
           {collapsed ? (
             <div className="flex items-center justify-center h-[68px]">
-              <div className="w-2 h-2 bg-[#00E5FF] animate-pulse rounded-full" />
+              <div className="w-2 h-2 bg-emerald-400 animate-pulse rounded-full" />
             </div>
           ) : (
             <div className="p-5">

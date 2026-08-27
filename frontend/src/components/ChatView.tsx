@@ -162,7 +162,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="font-mono text-[10px] font-bold text-zinc-300 uppercase">
                   STREAM ACTIVE
                 </span>
@@ -175,7 +175,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6 border border-dashed border-zinc-800 bg-[#0d0f12]">
-                  <div className="w-10 h-10 border border-zinc-800 bg-[#00E5FF] flex items-center justify-center mb-3">
+                  <div className="w-10 h-10 border border-zinc-800 bg-zinc-700 flex items-center justify-center mb-3">
                     <Sparkles className="w-5 h-5 text-black" />
                   </div>
                   <h3 className="font-serif text-lg font-bold text-white">
@@ -203,7 +203,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           {msg.timestamp}
                         </span>
                         {msg.memoryUsed && (
-                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 bg-[#00E5FF] text-black font-bold">
+                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 bg-zinc-700 text-white font-bold">
                             MEMORY RECALLED
                           </span>
                         )}
@@ -213,7 +213,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <div
                         className={`max-w-[90%] sm:max-w-[80%] p-4 text-xs font-mono border ${
                           isUser
-                            ? "bg-[#00E5FF] text-black font-semibold border-transparent"
+                            ? "bg-zinc-700 text-white font-semibold border-transparent"
                             : "bg-[#111318] text-zinc-100 border-zinc-800"
                         }`}
                       >
@@ -248,7 +248,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           <div className="flex items-center gap-3 pt-3 mt-3 border-t border-zinc-800/50">
                             <button
                               onClick={() => speakJarvisText(msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
                               title="Synthesize Voice"
                             >
                               <Volume2 className="w-3 h-3" />
@@ -256,7 +256,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </button>
                             <button
                               onClick={() => handleCopy(msg.id, msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
                               title="Copy to Clipboard"
                             >
                               {copiedId === msg.id ? (
@@ -268,7 +268,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </button>
                             <button
                               onClick={() => handleSaveMem(msg)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
                               title="Save into Semantic Memory"
                             >
                               <BookmarkPlus className="w-3 h-3" />
@@ -286,7 +286,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <div className="flex flex-col items-start space-y-1">
                   <span className="overline-cyan">J.A.R.V.I.S. COGNITIVE ENGINE</span>
                   <div className="p-3 bg-[#111318] border border-zinc-800 flex items-center gap-2 font-mono text-xs text-zinc-300">
-                    <span className="w-2 h-2 bg-[#00E5FF] animate-ping" />
+                    <span className="w-2 h-2 bg-white animate-ping" />
                     <span>Processing neural token stream...</span>
                   </div>
                 </div>
@@ -382,7 +382,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <button
                   onClick={() => setUseMemoryContext(!useMemoryContext)}
                   className={`w-9 h-5 border border-zinc-700 transition p-0.5 flex items-center ${
-                    useMemoryContext ? "bg-[#00E5FF] justify-end" : "bg-zinc-800 justify-start"
+                    useMemoryContext ? "bg-white justify-end" : "bg-zinc-800 justify-start"
                   }`}
                 >
                   <div className={`w-3.5 h-3.5 ${useMemoryContext ? "bg-black" : "bg-zinc-500"}`} />
@@ -402,7 +402,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <span className="font-mono text-xs font-bold text-zinc-300">
                   {personalityMode}
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold">
+                <span className="font-mono text-[10px] px-2 py-0.5 bg-zinc-600 text-white font-bold">
                   ACTIVE
                 </span>
               </div>
@@ -418,7 +418,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <button
                     key={idx}
                     onClick={() => handleSend(prompt)}
-                    className="w-full text-left p-2.5 bg-[#0d0f12] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[11px] text-zinc-400 transition font-medium"
+                    className="w-full text-left p-2.5 bg-[#0d0f12] hover:bg-zinc-700 hover:text-white border border-zinc-800 font-mono text-[11px] text-zinc-400 transition font-medium"
                   >
                     "{prompt}"
                   </button>

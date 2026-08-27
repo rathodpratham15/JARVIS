@@ -146,7 +146,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                         <button
                           onClick={() => onTogglePlugin(plugin.name)}
                           className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
-                            plugin.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
+                            plugin.enabled ? "bg-white justify-end" : "bg-zinc-700 justify-start"
                           }`}
                           title={plugin.enabled ? "Disable" : "Enable"}
                         >
@@ -174,7 +174,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                         {plugin.keywords.map(kw => (
                           <span
                             key={kw}
-                            className="font-mono text-[9px] px-1.5 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold"
+                            className="font-mono text-[9px] px-1.5 py-0.5 bg-zinc-700 text-white font-bold"
                           >
                             {kw}
                           </span>
@@ -284,12 +284,12 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
 
             {templateOpen && (
               <div className="relative">
-                <pre className="bg-[#1a1a1a] text-[#00E5FF] font-mono text-[10px] p-4 overflow-x-auto leading-relaxed rounded-none max-h-64 overflow-y-auto">
+                <pre className="bg-[#1a1a1a] text-zinc-300 font-mono text-[10px] p-4 overflow-x-auto leading-relaxed rounded-none max-h-64 overflow-y-auto">
                   {TEMPLATE}
                 </pre>
                 <button
                   onClick={handleCopyTemplate}
-                  className="absolute top-2 right-2 p-1.5 bg-[#00E5FF] border border-transparent text-black hover:bg-[#00c5db] transition"
+                  className="absolute top-2 right-2 p-1.5 bg-white border border-transparent text-black hover:bg-zinc-100 transition"
                   title="Copy template"
                 >
                   {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}

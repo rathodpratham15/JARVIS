@@ -156,7 +156,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                         {/* Top row */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[9px] uppercase px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold">
+                            <span className="font-mono text-[9px] uppercase px-2 py-0.5 bg-zinc-800 text-zinc-300 font-bold">
                               {job.targetModule}
                             </span>
                             <span className="font-mono text-xs text-zinc-400">
@@ -173,7 +173,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                             <button
                               onClick={() => onToggleSchedule(job.id)}
                               className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
-                                job.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
+                                job.enabled ? "bg-white justify-end" : "bg-zinc-700 justify-start"
                               }`}
                               title={job.enabled ? "Disable" : "Enable"}
                             >
@@ -241,7 +241,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                       {isExpanded && job.lastResult && (
                         <div className="px-5 pb-5 border-t border-zinc-800/20">
                           <div className="mt-3 flex items-start gap-2">
-                            <Bot className="w-3.5 h-3.5 text-[#00E5FF] shrink-0 mt-0.5" />
+                            <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
                             <p className="font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
                               {job.lastResult}
                             </p>

@@ -126,7 +126,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={() => setPersonalityDropdownOpen(!personalityDropdownOpen)}
                 className="px-3 py-1.5 bg-[#111318] border border-zinc-800 text-xs font-mono font-bold text-zinc-300 flex items-center gap-1.5 hover:bg-zinc-800 transition"
               >
-                <Zap className="w-3.5 h-3.5 text-[#00E5FF] fill-[#00E5FF]" />
+                <Zap className="w-3.5 h-3.5 text-zinc-300 fill-zinc-300" />
                 <span>{personalityMode}</span>
                 <ChevronDown className="w-3 h-3 text-zinc-500" />
               </button>
@@ -136,7 +136,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <button
                       key={mode}
                       onClick={() => { onSelectPersonality(mode); setPersonalityDropdownOpen(false); playUiSound("beep"); }}
-                      className={`w-full text-left px-2.5 py-1.5 transition rounded-sm ${personalityMode === mode ? "bg-[#00E5FF] text-black font-bold" : "text-zinc-300 hover:bg-zinc-800 hover:text-white"}`}
+                      className={`w-full text-left px-2.5 py-1.5 transition rounded-sm ${personalityMode === mode ? "bg-white text-black font-bold" : "text-zinc-300 hover:bg-zinc-800 hover:text-white"}`}
                     >
                       {mode}
                     </button>
@@ -153,7 +153,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="p-1.5 bg-[#111318] border border-zinc-800 hover:bg-zinc-800 transition text-zinc-400 hover:text-white"
               title={speechEnabled ? "Voice Output Active" : "Voice Output Muted"}
             >
-              {speechEnabled ? <Volume2 className="w-4 h-4 text-[#00E5FF]" /> : <VolumeX className="w-4 h-4" />}
+              {speechEnabled ? <Volume2 className="w-4 h-4 text-white" /> : <VolumeX className="w-4 h-4" />}
             </button>
           )}
 
@@ -174,7 +174,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left: System status summary */}
           <div className="lg:col-span-9 space-y-4">
-            <div className="inline-block px-2.5 py-1 bg-[#00E5FF] text-black font-mono text-[10px] font-bold tracking-widest uppercase">
+            <div className="inline-block px-2.5 py-1 bg-white text-black font-mono text-[10px] font-bold tracking-widest uppercase">
               PRIMARY TELEMETRY: {services.length > 0 && services.every(s => s.status === "online") ? "ALL SYSTEMS OPERATIONAL" : services.length === 0 ? "CONNECTING…" : "DEGRADED"}
             </div>
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white">
@@ -197,7 +197,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {getServiceIcon(svc.id)}
                     <div className="min-w-0">
                       <div className="font-mono text-[10px] font-bold text-zinc-300 truncate">{svc.name}</div>
-                      <div className={`font-mono text-[9px] font-bold ${svc.status === "online" ? "text-[#00E5FF]" : "text-red-400"}`}>
+                      <div className={`font-mono text-[9px] font-bold ${svc.status === "online" ? "text-emerald-400" : "text-red-400"}`}>
                         {svc.status.toUpperCase()}
                       </div>
                     </div>
@@ -216,7 +216,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 key={page}
                 onClick={() => { playUiSound("beep"); onSelectPage(page); }}
-                className="w-full p-3 bg-[#0d0f12] hover:bg-[#00E5FF] text-zinc-300 hover:text-black font-mono text-xs font-bold border border-zinc-800 transition flex items-center justify-between group"
+                className="w-full p-3 bg-[#0d0f12] hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-xs font-bold border border-zinc-800 transition flex items-center justify-between group"
               >
                 <div className="flex items-center gap-2.5">{icon}<span>{label}</span></div>
                 <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-1 transition-transform" />
@@ -224,7 +224,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ))}
             <button
               onClick={() => { playUiSound("beep"); onOpenResearch(); }}
-              className="w-full p-3 bg-[#0d0f12] hover:bg-[#00E5FF] text-zinc-300 hover:text-black font-mono text-xs font-bold border border-zinc-800 transition flex items-center justify-between group"
+              className="w-full p-3 bg-[#0d0f12] hover:bg-zinc-700 text-zinc-300 hover:text-white font-mono text-xs font-bold border border-zinc-800 transition flex items-center justify-between group"
             >
               <div className="flex items-center gap-2.5"><Search className="w-4 h-4" /><span>RESEARCH</span></div>
               <ArrowRight className="w-3.5 h-3.5 opacity-60 group-hover:translate-x-1 transition-transform" />
@@ -256,7 +256,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {value}
             </div>
             {sub && (
-              <div className="mt-1 font-mono text-[10px] font-bold text-[#00E5FF]">{sub.toUpperCase()}</div>
+              <div className="mt-1 font-mono text-[10px] font-bold text-emerald-400">{sub.toUpperCase()}</div>
             )}
           </div>
         ))}
@@ -267,12 +267,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-[#00E5FF] fill-[#00E5FF]" />
+              <Zap className="w-4 h-4 text-zinc-300 fill-zinc-300" />
               <h2 className="font-mono text-sm font-bold tracking-wider text-white uppercase">
                 Subsystem Health
               </h2>
             </div>
-            <span className="px-2 py-0.5 bg-[#00E5FF] text-black font-bold font-mono text-[10px]">
+            <span className="px-2 py-0.5 bg-white text-black font-bold font-mono text-[10px]">
               {services.filter(s => s.status === "online").length}/{services.length} ONLINE
             </span>
           </div>
@@ -287,8 +287,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                     <span className="font-mono text-xs font-bold text-zinc-300">{svc.name}</span>
                   </div>
-                  <span className={`flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 ${svc.status === "online" ? "bg-black text-[#00E5FF] border border-zinc-800" : "bg-red-900/50 text-red-400 border border-red-900"}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${svc.status === "online" ? "bg-[#00E5FF] animate-pulse" : "bg-red-400"}`} />
+                  <span className={`flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 ${svc.status === "online" ? "bg-black text-emerald-400 border border-zinc-800" : "bg-red-900/50 text-red-400 border border-red-900"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${svc.status === "online" ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
                     {svc.status.toUpperCase()}
                   </span>
                 </div>
