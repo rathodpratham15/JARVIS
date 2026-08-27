@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  SwitchCamera,
 } from "lucide-react";
 import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -40,6 +41,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
 }) => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [isScanning, setIsScanning] = useState(false);
   const [isAnalyzingScene, setIsAnalyzingScene] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
@@ -212,33 +214,43 @@ export const VisionView: React.FC<VisionViewProps> = ({
     }
   };
 
+  const stopCurrentStream = () => {
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
   // Start Webcam Feed
-  const startCamera = async () => {
+  const startCamera = async (facing: "user" | "environment" = facingMode) => {
     try {
       setCameraError(null);
+      stopCurrentStream();
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: facing },
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setCameraActive(true);
+        setFacingMode(facing); // only update after stream opens successfully
       }
     } catch (err: any) {
       console.warn("Camera access denied or unavailable, using simulated feed:", err);
       setCameraError("Physical camera unavailable. Switched to simulated high-resolution HUD optical sensor.");
       setCameraActive(false);
+      // facingMode intentionally left unchanged — label stays accurate
     }
+  };
+
+  const handleSwitchCamera = async () => {
+    const next = facingMode === "user" ? "environment" : "user";
+    await startCamera(next); // setFacingMode happens inside on success only
   };
 
   useEffect(() => {
     startCamera();
     fetchEnrolled();
-    return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
+    return () => { stopCurrentStream(); };
   }, []);
 
   // Capture Snapshot and run Gemini Optical Analysis
@@ -356,7 +368,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"}`}
+              className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"} ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
             />
 
             {!cameraActive && (
@@ -393,18 +405,36 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Camera Info Footer */}
-          {cameraError && (
-            <div className="p-3 bg-[#f3f3ee] border-t-2 border-black text-xs font-mono text-black font-bold flex items-center justify-between">
-              <span>{cameraError}</span>
-              <button
-                onClick={startCamera}
-                className="px-2 py-1 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black text-[10px] shadow-[1px_1px_0px_#000000]"
-              >
-                RETRY CAM
-              </button>
+          {/* Camera Controls Footer */}
+          <div className="p-3 bg-[#f3f3ee] border-t-2 border-black flex items-center justify-between gap-2">
+            {cameraError ? (
+              <span className="text-xs font-mono text-black font-bold flex-1">{cameraError}</span>
+            ) : (
+              <span className="text-[10px] font-mono text-black/50">
+                {facingMode === "user" ? "FRONT CAMERA (MIRRORED)" : "REAR CAMERA"}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              {cameraActive && (
+                <button
+                  onClick={handleSwitchCamera}
+                  className="px-2 py-1 bg-white hover:bg-[#00e5ff] border-2 border-black text-black font-black text-[10px] shadow-[1px_1px_0px_#000000] flex items-center gap-1 transition"
+                  title="Switch camera"
+                >
+                  <SwitchCamera className="w-3 h-3" />
+                  FLIP CAM
+                </button>
+              )}
+              {cameraError && (
+                <button
+                  onClick={() => startCamera()}
+                  className="px-2 py-1 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black text-[10px] shadow-[1px_1px_0px_#000000]"
+                >
+                  RETRY CAM
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Biometric Face Recognition Drawer (1 Col) */}

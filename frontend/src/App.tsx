@@ -42,6 +42,7 @@ import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio"
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
 import { LoginView } from "./components/LoginView";
+import { LandingPage } from "./components/LandingPage";
 import { API_BASE, apiFetch } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ export default function App() {
   // Auth: check on mount; listen for token expiry events
   const [authRequired, setAuthRequired] = useState(false);
   const [authedUser, setAuthedUser] = useState(getStoredUser);
+  const [showLanding, setShowLanding] = useState(!getStoredUser());
 
   useEffect(() => {
     fetchAuthConfig().then(async cfg => {
@@ -154,11 +156,9 @@ export default function App() {
     });
   }, []);
 
-  // Keep URL in sync with auth state
+  // Keep URL in sync with auth state — unauthenticated users stay at / (landing page)
   useEffect(() => {
-    if (authRequired && !authedUser) {
-      navigate("/login", { replace: true });
-    } else if (authedUser && location.pathname === "/login") {
+    if (authedUser && (location.pathname === "/" || location.pathname === "/login")) {
       navigate("/dashboard", { replace: true });
     }
   }, [authRequired, authedUser]);
@@ -819,11 +819,15 @@ export default function App() {
   };
 
   if (authRequired && !authedUser) {
+    if (showLanding) {
+      return <LandingPage onEnter={() => setShowLanding(false)} />;
+    }
     return (
       <LoginView
         onLoginSuccess={() => {
           setAuthedUser(getStoredUser());
           setAuthRequired(false);
+          setShowLanding(false);
           navigate("/dashboard", { replace: true });
         }}
       />
