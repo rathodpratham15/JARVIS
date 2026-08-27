@@ -515,6 +515,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
               <a href="#capabilities" className="hover:text-[#00E5FF] transition-colors">CAPABILITIES</a>
               <a href="#architecture" className="hover:text-[#00E5FF] transition-colors">ARCHITECTURE</a>
               <a href="https://github.com/rathodpratham15/JARVIS" target="_blank" rel="noopener noreferrer" className="hover:text-[#00E5FF] transition-colors">SOURCE ↗</a>
+              <a href="/privacy-policy" className="hover:text-[#00E5FF] transition-colors">PRIVACY</a>
             </div>
             <div className="text-white/40 text-[11px]">SECURITY ENCLAVE // NOMINAL (0 ERRORS)</div>
           </div>

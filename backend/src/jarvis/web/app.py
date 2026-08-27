@@ -486,9 +486,9 @@ def create_app() -> Flask:
 
     @app.post("/api/voice-chat")
     def voice_chat() -> tuple[dict, int]:
-        """Conversational endpoint for voice mode — bypasses the action engine
-        and goes straight to the LLM so responses are natural speech, not
-        attempted OS/tool actions."""
+        """Voice mode endpoint — runs full tool-calling loop so commands like
+        'set volume to 50' or 'what's the brightness' actually execute,
+        then wraps the result in a short spoken reply."""
         payload = request.get_json(silent=True) or {}
         user_input = (payload.get("message") or "").strip()
         if not user_input:
@@ -496,12 +496,31 @@ def create_app() -> Flask:
 
         uid = _uid()
         ctx = _build_context(memory, user_id=uid)
-        response = llm.query_llm(
+        tool_used: str | None = None
+
+        text, tool_name, tool_args = llm.query_with_tools(
             user_input,
+            tools=TOOLS,
             memory=ctx,
             system_prompt_override=_VOICE_SYSTEM_PROMPT,
-            max_tokens_override=80,
+            max_tokens_override=120,
         )
+
+        if tool_name:
+            tool_intent = tool_call_to_intent(tool_name, tool_args or {})
+            tool_intent["_user_id"] = uid
+            tool_result = actions.execute_action(tool_intent)
+            tool_used = tool_name
+            response = llm.finish_after_tool(
+                user_input,
+                tool_name,
+                tool_result,
+                memory=ctx,
+                system_prompt_override=_VOICE_SYSTEM_PROMPT,
+                max_tokens_override=80,
+            )
+        else:
+            response = text or ""
 
         interaction_id = memory.store_interaction(
             user_input=user_input,
@@ -510,7 +529,10 @@ def create_app() -> Flask:
             user_id=uid,
         )
         sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
-        return {"id": interaction_id, "response": response}, 200
+        result: dict = {"id": interaction_id, "response": response}
+        if tool_used:
+            result["tool_used"] = tool_used
+        return result, 200
 
     @app.post("/api/tts")
     def tts():

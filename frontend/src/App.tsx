@@ -43,6 +43,7 @@ import { requestNotificationPermission, showBrowserNotification } from "./utils/
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
 import { LoginView } from "./components/LoginView";
 import { LandingPage } from "./components/LandingPage";
+import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { API_BASE, apiFetch } from "./utils/api";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -817,6 +818,10 @@ export default function App() {
     });
     return await res.json();
   };
+
+  if (location.pathname === "/privacy-policy") {
+    return <PrivacyPolicy />;
+  }
 
   if (authRequired && !authedUser) {
     if (showLanding) {
