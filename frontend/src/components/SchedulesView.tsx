@@ -92,7 +92,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
     if (s === "running") return "text-amber-600";
     if (s === "success") return "text-emerald-600";
     if (s === "failed")  return "text-red-600";
-    return "text-[#555]";
+    return "text-zinc-400";
   };
 
   const statusLabel = (job: ScheduleJob) => {
@@ -105,10 +105,10 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 05</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Background Agents
           </h1>
           <p className="label-secondary mt-1">
@@ -116,7 +116,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="p-2 px-3 bg-[#F2F2EF] border border-[#1a1a1a] font-mono text-xs font-bold text-[#1a1a1a]">
+          <div className="p-2 px-3 bg-[#0d0f12] border border-zinc-800 font-mono text-xs font-bold text-white">
             {schedules.filter((s) => s.enabled).length} OF {schedules.length} ACTIVE
           </div>
         </div>
@@ -128,19 +128,19 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 01</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 Configured Agents
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Recurring tasks that run autonomously on a schedule
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <div className="space-y-4">
               {schedules.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+                <div className="p-8 text-center border border-dashed border-zinc-800/30 bg-[#111318] font-mono text-xs text-zinc-400">
                   No background agents configured. Create one in Panel 02.
                 </div>
               ) : (
@@ -150,7 +150,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                   return (
                     <div
                       key={job.id}
-                      className="border border-[#1a1a1a] bg-[#EBEBEA] transition"
+                      className="border border-zinc-800 bg-[#111318] transition"
                     >
                       <div className="p-5 space-y-3">
                         {/* Top row */}
@@ -159,7 +159,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                             <span className="font-mono text-[9px] uppercase px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold">
                               {job.targetModule}
                             </span>
-                            <span className="font-mono text-xs text-[#555]">
+                            <span className="font-mono text-xs text-zinc-400">
                               {job.cronExpression}
                             </span>
                           </div>
@@ -167,13 +167,13 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                             <span className={`font-mono text-[10px] font-bold ${statusColor(job.status)}`}>
                               {statusLabel(job)}
                             </span>
-                            <span className="font-mono text-[10px] text-[#555] font-bold">
+                            <span className="font-mono text-[10px] text-zinc-400 font-bold">
                               {job.enabled ? "ENABLED" : "DISABLED"}
                             </span>
                             <button
                               onClick={() => onToggleSchedule(job.id)}
-                              className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
-                                job.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                              className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
+                                job.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
                               }`}
                               title={job.enabled ? "Disable" : "Enable"}
                             >
@@ -184,26 +184,26 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
                         {/* Title & goal */}
                         <div>
-                          <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
+                          <h3 className="font-serif text-lg font-bold text-white">
                             {job.title}
                           </h3>
-                          <p className="font-mono text-xs text-[#555] mt-1 leading-relaxed">
+                          <p className="font-mono text-xs text-zinc-400 mt-1 leading-relaxed">
                             {job.description}
                           </p>
                         </div>
 
                         {/* Telemetry row */}
-                        <div className="pt-3 border-t border-[#1a1a1a]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-mono">
-                          <div className="text-[#555]">
+                        <div className="pt-3 border-t border-zinc-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-mono">
+                          <div className="text-zinc-400">
                             LAST RUN:{" "}
-                            <strong className="text-[#1a1a1a]">{job.lastRun || "Never"}</strong>
+                            <strong className="text-white">{job.lastRun || "Never"}</strong>
                           </div>
 
                           <div className="flex items-center gap-2">
                             {job.lastResult && (
                               <button
                                 onClick={() => setExpandedId(isExpanded ? null : job.id)}
-                                className="flex items-center gap-1 font-mono text-[10px] text-[#555] hover:text-[#1a1a1a] transition"
+                                className="flex items-center gap-1 font-mono text-[10px] text-zinc-400 hover:text-white transition"
                               >
                                 {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                 <span>LAST RESULT</span>
@@ -228,7 +228,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                             </button>
                             <button
                               onClick={() => onDeleteSchedule(job.id)}
-                              className="p-1.5 border border-[#1a1a1a] bg-transparent hover:bg-rose-100 text-[#1a1a1a] transition"
+                              className="p-1.5 border border-zinc-800 bg-transparent hover:bg-red-900/20 text-white transition"
                               title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -239,10 +239,10 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
                       {/* Expandable result */}
                       {isExpanded && job.lastResult && (
-                        <div className="px-5 pb-5 border-t border-[#1a1a1a]/20">
+                        <div className="px-5 pb-5 border-t border-zinc-800/20">
                           <div className="mt-3 flex items-start gap-2">
                             <Bot className="w-3.5 h-3.5 text-[#00E5FF] shrink-0 mt-0.5" />
-                            <p className="font-mono text-xs text-[#333] leading-relaxed whitespace-pre-wrap">
+                            <p className="font-mono text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">
                               {job.lastResult}
                             </p>
                           </div>
@@ -261,15 +261,15 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 New Background Agent
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Schedule an autonomous agent task to run on a recurring interval
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-1.5">
@@ -294,7 +294,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                   className="editorial-input resize-none"
                   required
                 />
-                <p className="font-mono text-[10px] text-[#888]">
+                <p className="font-mono text-[10px] text-zinc-500">
                   This is the prompt the agent will execute autonomously.
                 </p>
               </div>
@@ -342,7 +342,7 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                     className="editorial-input"
                     required
                   />
-                  <p className="font-mono text-[10px] text-[#888]">
+                  <p className="font-mono text-[10px] text-zinc-500">
                     Syntax: "every N minutes/hours/days", "every day at HH:MM", "every [weekday] at HH:MM"
                   </p>
                 </div>
@@ -358,20 +358,20 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
               </button>
             </form>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>RUNNER ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">ReAct Agent Loop</span>
+                <span className="font-bold text-white">ReAct Agent Loop</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>CONCURRENCY</span>
-                <span className="font-bold text-[#1a1a1a]">4 PARALLEL WORKERS</span>
+                <span className="font-bold text-white">4 PARALLEL WORKERS</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>MAX STEPS/RUN</span>
-                <span className="font-bold text-[#1a1a1a]">8 (CONFIGURABLE)</span>
+                <span className="font-bold text-white">8 (CONFIGURABLE)</span>
               </div>
             </div>
           </div>

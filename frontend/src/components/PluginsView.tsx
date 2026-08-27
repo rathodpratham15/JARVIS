@@ -85,10 +85,10 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 11</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Plugin Marketplace
           </h1>
           <p className="label-secondary mt-1">
@@ -96,7 +96,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="p-2 px-3 bg-[#F2F2EF] border border-[#1a1a1a] font-mono text-xs font-bold text-[#1a1a1a]">
+          <div className="p-2 px-3 bg-[#0d0f12] border border-zinc-800 font-mono text-xs font-bold text-white">
             {plugins.filter(p => p.enabled).length} OF {plugins.length} ACTIVE
           </div>
         </div>
@@ -108,16 +108,16 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 01</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">Installed Plugins</h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
-                Plugins are auto-discovered from the <code className="font-mono bg-[#EBEBEA] px-1">plugins/</code> directory
+              <h2 className="font-serif text-2xl font-bold text-white">Installed Plugins</h2>
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
+                Plugins are auto-discovered from the <code className="font-mono bg-[#111318] px-1">plugins/</code> directory
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {plugins.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+              <div className="p-8 text-center border border-dashed border-zinc-800/30 bg-[#111318] font-mono text-xs text-zinc-400">
                 No plugins installed. Upload a <code>.py</code> file in Panel 02 to get started.
               </div>
             ) : (
@@ -125,28 +125,28 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                 {plugins.map(plugin => (
                   <div
                     key={plugin.id}
-                    className="p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3"
+                    className="p-5 border border-zinc-800 bg-[#111318] space-y-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 border border-[#1a1a1a] bg-[#F2F2EF] shrink-0">
-                          <Puzzle className="w-4 h-4 text-[#1a1a1a]" />
+                        <div className="p-2 border border-zinc-800 bg-[#0d0f12] shrink-0">
+                          <Puzzle className="w-4 h-4 text-white" />
                         </div>
                         <div>
-                          <h3 className="font-mono font-bold text-sm text-[#1a1a1a]">{plugin.name}</h3>
-                          <p className="font-mono text-[10px] text-[#555]">
+                          <h3 className="font-mono font-bold text-sm text-white">{plugin.name}</h3>
+                          <p className="font-mono text-[10px] text-zinc-400">
                             v{plugin.version}{plugin.author ? ` · ${plugin.author}` : ""}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-mono text-[10px] font-bold text-[#555]">
+                        <span className="font-mono text-[10px] font-bold text-zinc-400">
                           {plugin.enabled ? "ENABLED" : "DISABLED"}
                         </span>
                         <button
                           onClick={() => onTogglePlugin(plugin.name)}
-                          className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
-                            plugin.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                          className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
+                            plugin.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
                           }`}
                           title={plugin.enabled ? "Disable" : "Enable"}
                         >
@@ -155,7 +155,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                         <button
                           onClick={() => handleDelete(plugin.name)}
                           disabled={deletingName === plugin.name}
-                          className="p-1.5 border border-[#1a1a1a] bg-transparent hover:bg-rose-100 text-[#1a1a1a] transition"
+                          className="p-1.5 border border-zinc-800 bg-transparent hover:bg-red-900/20 text-white transition"
                           title="Uninstall plugin"
                         >
                           {deletingName === plugin.name
@@ -165,7 +165,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                       </div>
                     </div>
 
-                    <p className="font-mono text-xs text-[#555] leading-relaxed">
+                    <p className="font-mono text-xs text-zinc-400 leading-relaxed">
                       {plugin.description || "No description provided."}
                     </p>
 
@@ -182,13 +182,13 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-[#1a1a1a]/20 flex items-center gap-3 font-mono text-[10px] text-[#555]">
-                      <span>PRIORITY: <strong className="text-[#1a1a1a]">{plugin.priority ?? 100}</strong></span>
+                    <div className="pt-2 border-t border-zinc-800/20 flex items-center gap-3 font-mono text-[10px] text-zinc-400">
+                      <span>PRIORITY: <strong className="text-white">{plugin.priority ?? 100}</strong></span>
                       <span
                         className={`px-1.5 py-0.5 font-bold text-[9px] border ${
                           plugin.enabled
-                            ? "bg-emerald-100 border-emerald-600 text-emerald-700"
-                            : "bg-[#F2F2EF] border-[#1a1a1a]/30 text-[#555]"
+                            ? "bg-emerald-500/20 border-emerald-800 text-emerald-400"
+                            : "bg-[#0d0f12] border-zinc-800/30 text-zinc-400"
                         }`}
                       >
                         {plugin.enabled ? "ACTIVE" : "IDLE"}
@@ -207,24 +207,24 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
           <div className="editorial-panel space-y-5">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">Install Plugin</h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
-                Upload a <code className="font-mono bg-[#EBEBEA] px-1">.py</code> file that subclasses <code className="font-mono bg-[#EBEBEA] px-1">BasePlugin</code>
+              <h2 className="font-serif text-2xl font-bold text-white">Install Plugin</h2>
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
+                Upload a <code className="font-mono bg-[#111318] px-1">.py</code> file that subclasses <code className="font-mono bg-[#111318] px-1">BasePlugin</code>
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border border-dashed border-[#1a1a1a] bg-[#EBEBEA] p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-[#E0E0DE] transition"
+              className="border border-dashed border-zinc-800 bg-[#111318] p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-zinc-800 transition"
             >
               {installing ? (
-                <RefreshCw className="w-6 h-6 text-[#555] animate-spin" />
+                <RefreshCw className="w-6 h-6 text-zinc-400 animate-spin" />
               ) : (
-                <Upload className="w-6 h-6 text-[#555]" />
+                <Upload className="w-6 h-6 text-zinc-400" />
               )}
-              <p className="font-mono text-xs text-[#555] text-center">
+              <p className="font-mono text-xs text-zinc-400 text-center">
                 {installing ? "Installing…" : "Click to upload a .py plugin file"}
               </p>
               <input
@@ -239,25 +239,25 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
             {installResult && (
               <p className={`font-mono text-xs px-3 py-2 border ${
                 installResult.startsWith("Installed")
-                  ? "bg-emerald-50 border-emerald-400 text-emerald-700"
-                  : "bg-rose-50 border-rose-400 text-rose-700"
+                  ? "bg-emerald-500/20 border-emerald-800 text-emerald-400"
+                  : "bg-red-900/20 border-red-900 text-red-400"
               }`}>
                 {installResult}
               </p>
             )}
 
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>PLUGIN ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">Python 3.12 hot-load</span>
+                <span className="font-bold text-white">Python 3.12 hot-load</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>TRIGGER</span>
-                <span className="font-bold text-[#1a1a1a]">Keyword matching</span>
+                <span className="font-bold text-white">Keyword matching</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>DISCOVERY</span>
-                <span className="font-bold text-[#1a1a1a]">Auto on upload</span>
+                <span className="font-bold text-white">Auto on upload</span>
               </div>
             </div>
           </div>
@@ -266,17 +266,17 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
           <div className="editorial-panel space-y-4">
             <div>
               <div className="overline-cyan">PANEL 03</div>
-              <h2 className="font-serif text-xl font-bold text-[#1a1a1a]">Starter Template</h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <h2 className="font-serif text-xl font-bold text-white">Starter Template</h2>
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Copy this, fill in your logic, and upload it above
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <button
               onClick={() => setTemplateOpen(v => !v)}
-              className="w-full flex items-center justify-between font-mono text-xs text-[#555] hover:text-[#1a1a1a] transition py-1"
+              className="w-full flex items-center justify-between font-mono text-xs text-zinc-400 hover:text-white transition py-1"
             >
               <span>{templateOpen ? "Hide template" : "Show template"}</span>
               {templateOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -289,7 +289,7 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
                 </pre>
                 <button
                   onClick={handleCopyTemplate}
-                  className="absolute top-2 right-2 p-1.5 bg-[#00E5FF] border border-[#000] text-black hover:bg-white transition"
+                  className="absolute top-2 right-2 p-1.5 bg-[#00E5FF] border border-transparent text-black hover:bg-[#00c5db] transition"
                   title="Copy template"
                 >
                   {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
@@ -297,8 +297,8 @@ export const PluginsView: React.FC<PluginsViewProps> = ({
               </div>
             )}
 
-            <p className="font-mono text-[10px] text-[#555] leading-relaxed">
-              Plugins intercept chat messages via <code className="bg-[#EBEBEA] px-0.5">can_handle()</code> (keyword match) and return a response from <code className="bg-[#EBEBEA] px-0.5">run()</code>. Higher <code className="bg-[#EBEBEA] px-0.5">priority</code> wins when multiple match.
+            <p className="font-mono text-[10px] text-zinc-400 leading-relaxed">
+              Plugins intercept chat messages via <code className="bg-[#111318] px-0.5">can_handle()</code> (keyword match) and return a response from <code className="bg-[#111318] px-0.5">run()</code>. Higher <code className="bg-[#111318] px-0.5">priority</code> wins when multiple match.
             </p>
           </div>
         </div>

@@ -71,17 +71,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const isLogin = mode === "login";
 
   return (
-    <div className="min-h-screen bg-[#F2F2EF] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2.5">
-            <div className="w-3 h-3 bg-[#00E5FF] border border-[#1a1a1a] animate-pulse" />
-            <span className="font-mono font-bold text-xl tracking-widest text-[#1a1a1a] uppercase">
+            <div className="w-3 h-3 bg-[#00E5FF] animate-pulse rounded-full" />
+            <span className="font-mono font-bold text-xl tracking-widest text-white uppercase">
               J.A.R.V.I.S.
             </span>
           </div>
-          <p className="font-mono text-[11px] text-[#555] uppercase tracking-widest">
+          <p className="font-mono text-[11px] text-zinc-500 uppercase tracking-widest">
             Personal AI Operating System
           </p>
         </div>
@@ -90,15 +90,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         <div className="editorial-panel space-y-6">
           <div>
             <div className="overline-cyan">// ACCESS CONTROL</div>
-            <h1 className="font-serif text-2xl font-bold text-[#1a1a1a] mt-1">
+            <h1 className="font-serif text-2xl font-bold text-white mt-1">
               {isLogin ? "Sign In" : "Create Account"}
             </h1>
-            <p className="text-xs text-[#555] font-sans mt-0.5">
+            <p className="text-xs text-zinc-500 font-sans mt-0.5">
               {isLogin ? "Authenticate to access your JARVIS instance" : "Register a new account"}
             </p>
           </div>
 
-          <div className="border-b border-[#1a1a1a]" />
+          <div className="border-b border-zinc-800" />
 
           {/* Google OAuth button — login only */}
           {isLogin && config?.google_enabled && (
@@ -109,7 +109,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     type="button"
                     onClick={handleNativeGoogleSignIn}
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-3 border border-[#1a1a1a] bg-white px-4 py-2.5 font-sans text-sm font-medium text-[#1a1a1a] hover:bg-[#f5f5f5] transition disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-3 border border-zinc-800 bg-[#111318] px-4 py-2.5 font-sans text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition disabled:opacity-50"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24">
                       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -123,7 +123,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
                     onError={() => setError("Google sign-in failed")}
-                    theme="outline"
+                    theme="filled_black"
                     size="large"
                     text="signin_with"
                     shape="rectangular"
@@ -131,9 +131,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex-1 border-t border-[#1a1a1a]/20" />
-                <span className="font-mono text-[10px] text-[#555]">OR</span>
-                <div className="flex-1 border-t border-[#1a1a1a]/20" />
+                <div className="flex-1 border-t border-zinc-800" />
+                <span className="font-mono text-[10px] text-zinc-500">OR</span>
+                <div className="flex-1 border-t border-zinc-800" />
               </div>
             </div>
           )}
@@ -155,7 +155,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
             {!isLogin && (
               <div className="space-y-1.5">
-                <label className="label-secondary">EMAIL <span className="text-[#888]">(optional)</span></label>
+                <label className="label-secondary">EMAIL <span className="text-zinc-600">(optional)</span></label>
                 <input
                   type="email"
                   value={email}
@@ -182,7 +182,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#555] hover:text-[#1a1a1a] transition"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -207,23 +207,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </form>
 
           {error && (
-            <p className="font-mono text-xs text-red-600 border border-red-300 bg-red-50 px-3 py-2">
+            <p className="font-mono text-xs text-red-400 border border-red-900 bg-red-900/20 px-3 py-2">
               {error}
             </p>
           )}
 
-          {/* Toggle between login / signup */}
           <div className="text-center">
             <button
               onClick={() => { setMode(isLogin ? "signup" : "login"); resetForm(); }}
-              className="font-mono text-[11px] text-[#555] hover:text-[#1a1a1a] underline underline-offset-2 transition"
+              className="font-mono text-[11px] text-zinc-500 hover:text-white underline underline-offset-2 transition"
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
         </div>
 
-        <p className="font-mono text-[10px] text-[#555] text-center">
+        <p className="font-mono text-[10px] text-zinc-600 text-center">
           {config?.google_enabled
             ? "Sign in with Google or use username/password"
             : "Set JARVIS_AUTH_ENABLED=true in .env to enable auth"}

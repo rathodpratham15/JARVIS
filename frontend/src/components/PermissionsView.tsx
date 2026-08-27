@@ -33,19 +33,19 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
     switch (risk) {
       case "HIGH":
         return (
-          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold border border-[#1a1a1a]">
+          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold border border-zinc-800">
             HIGH RISK
           </span>
         );
       case "MEDIUM":
         return (
-          <span className="font-mono text-[9px] px-2 py-0.5 bg-amber-100 text-amber-900 font-bold border border-[#1a1a1a]">
+          <span className="font-mono text-[9px] px-2 py-0.5 bg-amber-500/20 text-amber-400 font-bold border border-zinc-800">
             MEDIUM RISK
           </span>
         );
       case "LOW":
         return (
-          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#EBEBEA] text-[#1a1a1a] font-bold border border-[#1a1a1a]">
+          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#111318] text-white font-bold border border-zinc-800">
             LOW RISK
           </span>
         );
@@ -55,21 +55,21 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
   const getCapabilityIcon = (key: string) => {
     switch (key) {
       case "system_control":
-        return <Sliders className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Sliders className="w-4 h-4 text-white" />;
       case "file_access":
-        return <FolderLock className="w-4 h-4 text-[#1a1a1a]" />;
+        return <FolderLock className="w-4 h-4 text-white" />;
       case "web_access":
-        return <Globe className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Globe className="w-4 h-4 text-white" />;
       case "camera_vision":
-        return <Eye className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Eye className="w-4 h-4 text-white" />;
       case "scheduler":
-        return <Clock className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Clock className="w-4 h-4 text-white" />;
       case "computer_use":
-        return <Monitor className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Monitor className="w-4 h-4 text-white" />;
       case "reminders":
-        return <Bell className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Bell className="w-4 h-4 text-white" />;
       default:
-        return <Shield className="w-4 h-4 text-[#1a1a1a]" />;
+        return <Shield className="w-4 h-4 text-white" />;
     }
   };
 
@@ -85,10 +85,10 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 04</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Permissions
           </h1>
           <p className="label-secondary mt-1">
@@ -96,7 +96,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="p-2 px-3 bg-[#F2F2EF] border border-[#1a1a1a] font-mono text-xs font-bold text-[#1a1a1a]">
+          <div className="p-2 px-3 bg-[#0d0f12] border border-zinc-800 font-mono text-xs font-bold text-white">
             {permissions.filter((p) => p.enabled).length} OF 7 CAPABILITIES GRANTED
           </div>
         </div>
@@ -110,31 +110,31 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                <h2 className="font-serif text-2xl font-bold text-white">
                   7 Core Capabilities
                 </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
+                <p className="text-xs text-zinc-400 font-sans mt-0.5">
                   Granular permission control across hardware, network, and autonomy layers
                 </p>
               </div>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Capability Cards */}
             <div className="space-y-4">
               {permissions.map((perm) => (
                 <div
                   key={perm.id}
-                  className="p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3 transition"
+                  className="p-5 border border-zinc-800 bg-[#111318] space-y-3 transition"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 border border-[#1a1a1a] bg-white flex items-center justify-center">
+                      <div className="w-7 h-7 border border-zinc-800 bg-[#111318] flex items-center justify-center">
                         {getCapabilityIcon(perm.key)}
                       </div>
                       <div>
-                        <h3 className="font-serif text-base font-bold text-[#1a1a1a]">
+                        <h3 className="font-serif text-base font-bold text-white">
                           {perm.name}
                         </h3>
                       </div>
@@ -148,8 +148,8 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                           playUiSound("beep");
                           onTogglePermission(perm.id);
                         }}
-                        className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
-                          perm.enabled ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                        className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
+                          perm.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
                         }`}
                         title={perm.enabled ? "Revoke Capability" : "Grant Capability"}
                       >
@@ -158,11 +158,11 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                     </div>
                   </div>
 
-                  <p className="font-mono text-xs text-[#555] leading-relaxed">
+                  <p className="font-mono text-xs text-zinc-400 leading-relaxed">
                     {perm.description}
                   </p>
 
-                  <div className="pt-2.5 border-t border-[#1a1a1a]/20 flex flex-wrap items-center justify-between gap-1 font-mono text-[10px] text-[#555]">
+                  <div className="pt-2.5 border-t border-zinc-800/20 flex flex-wrap items-center justify-between gap-1 font-mono text-[10px] text-zinc-400">
                     <span className="truncate">LAST AUDITED: {new Date(perm.lastAudited).toLocaleDateString()}</span>
                     <span>24H CALLS: <strong>{perm.callsCount24h}</strong></span>
                   </div>
@@ -177,58 +177,58 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 Security Audit Log
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Cryptographically signed ledger of agent capability invocations
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Zero-Trust Posture Card */}
-            <div className="p-4 bg-[#EBEBEA] border border-[#1a1a1a] space-y-2">
+            <div className="p-4 bg-[#111318] border border-zinc-800 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-[#1a1a1a]">
+                <span className="font-mono text-xs font-bold text-white">
                   POSTURE: DEFENSE IN DEPTH
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a]">
+                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-zinc-800">
                   SECURE
                 </span>
               </div>
-              <p className="font-mono text-[11px] text-[#555]">
+              <p className="font-mono text-[11px] text-zinc-400">
                 All capability changes are logged. Revoked permissions block the corresponding actions immediately.
               </p>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Recent Audit Ledger */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="label-secondary">RECENT INVOCATION LEDGER</span>
-                <span className="font-mono text-[10px] text-[#555]">{allAudits.length} EVENTS</span>
+                <span className="font-mono text-[10px] text-zinc-400">{allAudits.length} EVENTS</span>
               </div>
 
               <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
                 {allAudits.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3 bg-[#EBEBEA] border border-[#1a1a1a] space-y-1 font-mono text-xs"
+                    className="p-3 bg-[#111318] border border-zinc-800 space-y-1 font-mono text-xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-[#555] font-bold">
+                      <span className="text-[10px] text-zinc-400 font-bold">
                         {item.timestamp}
                       </span>
-                      <span className="text-[9px] px-1.5 py-0.2 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a]">
+                      <span className="text-[9px] px-1.5 py-0.2 bg-[#00E5FF] text-black font-bold border border-zinc-800">
                         {item.status.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#1a1a1a] font-medium">
+                    <p className="text-[11px] text-white font-medium">
                       {item.action}
                     </p>
-                    <div className="text-[10px] text-[#777]">
+                    <div className="text-[10px] text-zinc-500">
                       Scope: {item.permissionName}
                     </div>
                   </div>
@@ -236,21 +236,21 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
               </div>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Policy Parameters */}
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>ELEVATED TIMEOUT</span>
-                <span className="font-bold text-[#1a1a1a]">15 MINUTES</span>
+                <span className="font-bold text-white">15 MINUTES</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>BIOMETRIC ENFORCEMENT</span>
-                <span className="font-bold text-[#1a1a1a]">MULTI-FACTOR</span>
+                <span className="font-bold text-white">MULTI-FACTOR</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>HARDWARE ISOLATION</span>
-                <span className="font-bold text-[#1a1a1a]">CONTAINER SANDBOX</span>
+                <span className="font-bold text-white">CONTAINER SANDBOX</span>
               </div>
             </div>
           </div>

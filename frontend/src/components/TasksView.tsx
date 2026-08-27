@@ -105,29 +105,29 @@ export const TasksView: React.FC<TasksViewProps> = ({
     switch (status) {
       case "running":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#00E5FF] text-black font-mono text-[10px] font-bold border border-[#1a1a1a]">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#00E5FF] text-black font-mono text-[10px] font-bold border border-zinc-800">
             <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
             RUNNING
           </span>
         );
       case "completed":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#EBEBEA] text-[#1a1a1a] font-mono text-[10px] font-bold border border-[#1a1a1a]">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold border border-emerald-800">
+            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
             COMPLETED
           </span>
         );
       case "failed":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-100 text-rose-800 font-mono text-[10px] font-bold border border-[#1a1a1a]">
-            <AlertCircle className="w-3 h-3 text-rose-600" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-red-900/30 text-red-400 font-mono text-[10px] font-bold border border-red-900">
+            <AlertCircle className="w-3 h-3 text-red-400" />
             FAILED
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#EBEBEA] text-[#555] font-mono text-[10px] font-bold border border-[#1a1a1a]">
-            <Clock className="w-3 h-3 text-[#555]" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#111318] text-zinc-400 font-mono text-[10px] font-bold border border-zinc-800">
+            <Clock className="w-3 h-3 text-zinc-400" />
             PENDING
           </span>
         );
@@ -137,10 +137,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 02</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Agent Tasks
           </h1>
           <p className="label-secondary mt-1">
@@ -167,16 +167,16 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="overline-cyan">PANEL 02</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                <h2 className="font-serif text-2xl font-bold text-white">
                   Execution Queue
                 </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
+                <p className="text-xs text-zinc-400 font-sans mt-0.5">
                   Deconstructed agent plans with live step-by-step logs
                 </p>
               </div>
 
               {/* Status Filter Tabs */}
-              <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
+              <div className="flex items-center border border-zinc-800 bg-[#111318] p-0.5 overflow-x-auto">
                 {(["all", "running", "completed", "idle"] as const).map((f) => (
                   <button
                     key={f}
@@ -184,7 +184,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
                       filter === f
                         ? "bg-[#00E5FF] text-black"
-                        : "text-[#555] hover:text-[#1a1a1a]"
+                        : "text-zinc-400 hover:text-white"
                     }`}
                   >
                     {f}
@@ -193,12 +193,12 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </div>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Tasks List */}
             <div className="space-y-4">
               {filteredTasks.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+                <div className="p-8 text-center border border-dashed border-zinc-800/30 bg-[#111318] font-mono text-xs text-zinc-400">
                   No tasks matching status filter "{filter}".
                 </div>
               ) : (
@@ -208,7 +208,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   return (
                     <div
                       key={task.id}
-                      className="border border-[#1a1a1a] bg-[#EBEBEA] transition"
+                      className="border border-zinc-800 bg-[#111318] transition"
                     >
                       {/* Task Header Row */}
                       <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -217,11 +217,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           onClick={() => !isRenaming && setExpandedTaskId(isExpanded ? null : task.id)}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] text-[#555] font-bold">
+                            <span className="font-mono text-[10px] text-zinc-400 font-bold">
                               ID: {task.id.slice(0, 8)}…
                             </span>
                             {task.category && (
-                              <span className="font-mono text-[9px] px-1.5 py-0.2 bg-white border border-[#1a1a1a] text-[#1a1a1a]">
+                              <span className="font-mono text-[9px] px-1.5 py-0.2 bg-zinc-800 border border-zinc-700 text-zinc-300">
                                 {task.category}
                               </span>
                             )}
@@ -233,13 +233,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                 value={renameValue}
                                 onChange={e => setRenameValue(e.target.value)}
                                 onKeyDown={e => { if (e.key === "Enter") submitRename(task.id); if (e.key === "Escape") setRenamingId(null); }}
-                                className="flex-1 border border-[#1a1a1a] bg-white font-serif text-lg font-bold text-[#1a1a1a] px-2 py-0.5 outline-none"
+                                className="flex-1 border border-zinc-800 bg-[#0d0f12] font-serif text-lg font-bold text-white px-2 py-0.5 outline-none"
                               />
                               <button onClick={() => submitRename(task.id)} className="text-emerald-600 hover:text-emerald-800"><Check className="w-4 h-4" /></button>
                               <button onClick={() => setRenamingId(null)} className="text-rose-500 hover:text-rose-700"><X className="w-4 h-4" /></button>
                             </div>
                           ) : (
-                            <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
+                            <h3 className="font-serif text-lg font-bold text-white">
                               {task.title}
                             </h3>
                           )}
@@ -250,25 +250,25 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           <button
                             onClick={e => { e.stopPropagation(); startRename(task); }}
                             title="Rename"
-                            className="p-1 text-[#555] hover:text-[#1a1a1a] transition"
+                            className="p-1 text-zinc-400 hover:text-white transition"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); onDeleteTask(task.id); }}
                             title="Delete"
-                            className="p-1 text-[#555] hover:text-rose-600 transition"
+                            className="p-1 text-zinc-400 hover:text-rose-600 transition"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
-                            {isExpanded ? <ChevronUp className="w-4 h-4 text-[#1a1a1a]" /> : <ChevronDown className="w-4 h-4 text-[#1a1a1a]" />}
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-white" /> : <ChevronDown className="w-4 h-4 text-white" />}
                           </button>
                         </div>
                       </div>
 
                       {/* Progress Bar */}
-                      <div className="w-full h-1 bg-[#ccc] border-y border-[#1a1a1a]">
+                      <div className="w-full h-1 bg-zinc-800 border-y border-zinc-900">
                         <div
                           className="h-full bg-[#00E5FF] transition-all duration-500"
                           style={{ width: `${task.progressPercent ?? 0}%` }}
@@ -277,12 +277,12 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                       {/* Expanded Steps Breakdown */}
                       {isExpanded && (
-                        <div className="p-4 bg-[#F2F2EF] border-t border-[#1a1a1a] space-y-4">
+                        <div className="p-4 bg-[#0d0f12] border-t border-zinc-800 space-y-4">
                           <div className="flex items-center justify-between">
                             <span className="label-secondary text-[10px]">
                               DECONSTRUCTED EXECUTION STEPS ({task.steps.length})
                             </span>
-                            <span className="font-mono text-[10px] text-[#555]">
+                            <span className="font-mono text-[10px] text-zinc-400">
                               CREATED: {new Date(task.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
@@ -292,18 +292,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
                             {task.steps.map((step) => (
                               <div
                                 key={step.step}
-                                className="p-3 bg-[#EBEBEA] border border-[#1a1a1a] space-y-1"
+                                className="p-3 bg-[#111318] border border-zinc-800 space-y-1"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 bg-[#1a1a1a] text-[#00E5FF]">
                                       STEP 0{step.step}
                                     </span>
-                                    <span className="font-mono text-xs font-bold text-[#1a1a1a]">
+                                    <span className="font-mono text-xs font-bold text-white">
                                       {stepAction(step)}
                                     </span>
                                   </div>
-                                  <span className="font-mono text-[10px] uppercase font-bold text-[#555]">
+                                  <span className="font-mono text-[10px] uppercase font-bold text-zinc-400">
                                     {step.status}
                                   </span>
                                 </div>
@@ -313,11 +313,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                           {/* Final Output Dossier */}
                           {task.output && (
-                            <div className="p-3.5 bg-[#00E5FF]/10 border border-[#1a1a1a] space-y-1">
+                            <div className="p-3.5 bg-[#00E5FF]/10 border border-zinc-800 space-y-1">
                               <span className="overline-cyan text-[10px]">
                                 AGENT SYNTHESIS OUTPUT
                               </span>
-                              <p className="font-mono text-xs text-[#1a1a1a] font-medium leading-relaxed">
+                              <p className="font-mono text-xs text-white font-medium leading-relaxed">
                                 {task.output}
                               </p>
                             </div>
@@ -332,21 +332,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[#1a1a1a] pt-4">
+              <div className="flex items-center justify-between border-t border-zinc-800 pt-4">
                 <button
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="p-1.5 border border-[#1a1a1a] bg-[#EBEBEA] text-[#1a1a1a] disabled:opacity-30 hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-[#00E5FF] transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="font-mono text-[10px] text-[#555]">
+                <span className="font-mono text-[10px] text-zinc-400">
                   PAGE {page + 1} / {totalPages}
                 </span>
                 <button
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
-                  className="p-1.5 border border-[#1a1a1a] bg-[#EBEBEA] text-[#1a1a1a] disabled:opacity-30 hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-[#00E5FF] transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -361,15 +361,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 01</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 Launch Directive
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Dispatch an autonomous agent loop with Gemini reasoning
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Input Form */}
             <div className="space-y-3">
@@ -402,7 +402,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </button>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Preset Mission Templates */}
             <div className="space-y-3">
@@ -416,7 +416,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     onClick={() => {
                       setNewTaskInput(tpl);
                     }}
-                    className="w-full text-left p-3 bg-[#EBEBEA] hover:bg-[#00E5FF] hover:text-black border border-[#1a1a1a] font-mono text-[11px] text-[#1a1a1a] transition font-medium"
+                    className="w-full text-left p-3 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[11px] text-white transition font-medium"
                   >
                     "{tpl}"
                   </button>
@@ -424,21 +424,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
               </div>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Architecture Telemetry */}
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>AGENT ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">GEMINI MULTI-STEP REASONER</span>
+                <span className="font-bold text-white">GEMINI MULTI-STEP REASONER</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>MAX STEPS</span>
-                <span className="font-bold text-[#1a1a1a]">4 SEQUENTIAL SUBROUTINES</span>
+                <span className="font-bold text-white">4 SEQUENTIAL SUBROUTINES</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>EXECUTION MODE</span>
-                <span className="font-bold text-[#1a1a1a]">AUTONOMOUS DECOMPOSE</span>
+                <span className="font-bold text-white">AUTONOMOUS DECOMPOSE</span>
               </div>
             </div>
           </div>
