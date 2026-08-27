@@ -276,6 +276,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           </div>
         </section>
 
+        {/* ── CAPABILITIES GRID ── */}
+        <section id="capabilities" className="py-20 lg:py-28 px-4 sm:px-6 lg:px-8 bg-[#080808]">
+          <div className="max-w-7xl mx-auto space-y-12">
+            <div className="text-center max-w-3xl mx-auto space-y-3">
+              <div className="text-xs uppercase tracking-widest text-[#00E5FF] font-semibold">// MULTI-MODAL SYSTEM CAPABILITIES</div>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white uppercase">WHAT JARVIS CAN DO</h2>
+              <p className="text-xs sm:text-sm text-white/50">Eight integrated tactical subsystems designed for autonomous orchestration.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {CAPABILITIES.map(c => (
+                <div key={c.title} className="p-6 border border-white/10 bg-[#111318]/50 jarvis-card space-y-4 group">
+                  <div className="w-10 h-10 bg-[#080808] border border-white/10 group-hover:border-[#00E5FF] flex items-center justify-center text-xl transition-colors">{c.icon}</div>
+                  <div className="space-y-1.5">
+                    <h3 className="text-sm font-bold tracking-wider text-white group-hover:text-[#00E5FF] uppercase transition-colors">{c.title}</h3>
+                    <p className="text-xs text-white/50 leading-relaxed">{c.desc}</p>
+                  </div>
+                  <div className="pt-2 text-[10px] text-[#00E5FF]/60 uppercase tracking-wider">{c.tech}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── DEMO SHOWCASE ── */}
         <section id="demo" className="py-20 lg:py-28 px-4 sm:px-6 lg:px-8 border-t border-b border-[#00E5FF]/20 bg-[#0a0b0e] relative">
           <div className="max-w-7xl mx-auto space-y-12">
@@ -412,30 +436,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                 </div>
               </div>
 
-            </div>
-          </div>
-        </section>
-
-        {/* ── CAPABILITIES GRID ── */}
-        <section id="capabilities" className="py-20 lg:py-28 px-4 sm:px-6 lg:px-8 bg-[#080808]">
-          <div className="max-w-7xl mx-auto space-y-12">
-            <div className="text-center max-w-3xl mx-auto space-y-3">
-              <div className="text-xs uppercase tracking-widest text-[#00E5FF] font-semibold">// MULTI-MODAL SYSTEM CAPABILITIES</div>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white uppercase">WHAT JARVIS CAN DO</h2>
-              <p className="text-xs sm:text-sm text-white/50">Eight integrated tactical subsystems designed for autonomous orchestration.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {CAPABILITIES.map(c => (
-                <div key={c.title} className="p-6 border border-white/10 bg-[#111318]/50 jarvis-card space-y-4 group">
-                  <div className="w-10 h-10 bg-[#080808] border border-white/10 group-hover:border-[#00E5FF] flex items-center justify-center text-xl transition-colors">{c.icon}</div>
-                  <div className="space-y-1.5">
-                    <h3 className="text-sm font-bold tracking-wider text-white group-hover:text-[#00E5FF] uppercase transition-colors">{c.title}</h3>
-                    <p className="text-xs text-white/50 leading-relaxed">{c.desc}</p>
-                  </div>
-                  <div className="pt-2 text-[10px] text-[#00E5FF]/60 uppercase tracking-wider">{c.tech}</div>
-                </div>
-              ))}
             </div>
           </div>
         </section>
