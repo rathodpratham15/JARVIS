@@ -217,11 +217,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
               <a href="#capabilities" className="hidden md:inline-block text-xs uppercase tracking-wider text-white/70 hover:text-[#00E5FF] transition-colors py-1 px-2 hover:bg-[#00E5FF]/5">[CAPABILITIES]</a>
               <a href="#architecture" className="hidden md:inline-block text-xs uppercase tracking-wider text-white/70 hover:text-[#00E5FF] transition-colors py-1 px-2 hover:bg-[#00E5FF]/5">[ARCH]</a>
               <a href="https://github.com/rathodpratham15/JARVIS" target="_blank" rel="noopener noreferrer"
-                className="text-xs uppercase tracking-wider text-white/80 hover:text-[#00E5FF] border border-white/10 hover:border-[#00E5FF] hover:bg-[#00E5FF]/5 px-3 py-1.5 transition-all flex items-center gap-1.5">
+                className="hidden sm:flex text-xs uppercase tracking-wider text-white/80 hover:text-[#00E5FF] border border-white/10 hover:border-[#00E5FF] hover:bg-[#00E5FF]/5 px-3 py-1.5 transition-all items-center gap-1.5">
                 <span>GITHUB</span><span className="text-[#00E5FF]">↗</span>
               </a>
               <button onClick={onEnter}
-                className="text-xs uppercase tracking-wider font-semibold text-black bg-[#00E5FF] hover:bg-[#00E5FF]/90 px-4 py-1.5 border border-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.4)] transition-all">
+                className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-black bg-[#00E5FF] hover:bg-[#00E5FF]/90 px-3 sm:px-4 py-1 sm:py-1.5 border border-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.4)] transition-all">
                 SIGN IN
               </button>
             </nav>
@@ -372,15 +372,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                               <div key={i} className="w-1 bg-[#00E5FF] animate-pulse" style={{ height: `${h * 4}px`, animationDelay: `${i * 0.1}s` }} />
                             ))}
                           </div>
-                          <div className="text-center space-y-1">
+                          <div className="text-center">
                             <div className="text-xs text-[#00E5FF] tracking-widest font-bold animate-pulse">{hudStatus}</div>
-                            <div className="text-[10px] text-white/40">AWAITING VEO 2 MP4 STREAM // PULSING HUD ACTIVE</div>
                           </div>
                         </div>
 
                         <div className="flex items-end justify-between text-[10px] text-white/50 border-t border-white/10 pt-3">
                           <span>LATENCY: 14MS</span>
-                          <span className="text-[#00E5FF]">READY FOR VEO 2 VIDEO INJECTION</span>
+                          <span className="text-[#00E5FF]">STREAM ACTIVE</span>
                           <span>SECURITY: ENCRYPTED</span>
                         </div>
                       </div>

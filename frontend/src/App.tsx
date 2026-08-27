@@ -156,11 +156,9 @@ export default function App() {
     });
   }, []);
 
-  // Keep URL in sync with auth state
+  // Keep URL in sync with auth state — unauthenticated users stay at / (landing page)
   useEffect(() => {
-    if (authRequired && !authedUser) {
-      navigate("/login", { replace: true });
-    } else if (authedUser && location.pathname === "/login") {
+    if (authedUser && (location.pathname === "/" || location.pathname === "/login")) {
       navigate("/dashboard", { replace: true });
     }
   }, [authRequired, authedUser]);
