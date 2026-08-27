@@ -116,10 +116,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 01</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Conversational Core
           </h1>
           <p className="label-secondary mt-1">
@@ -150,38 +150,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
         {/* Left Primary Column: Chat Stream Panel (8 cols) */}
         <div className="lg:col-span-8 flex flex-col space-y-6">
           <div className="editorial-panel flex flex-col h-[50vh] min-h-[340px] sm:h-[640px]">
-            {/* Panel Overline & Title */}
+            {/* Panel Header */}
             <div className="flex items-center justify-between">
               <div>
                 <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                <h2 className="font-serif text-2xl font-bold text-white">
                   Dialogue Stream
                 </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
+                <p className="text-xs text-zinc-500 font-sans mt-0.5">
                   Real-time LLM dialogue with semantic memory and context recall
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse" />
-                <span className="font-mono text-[10px] font-bold text-[#1a1a1a] uppercase">
+                <span className="font-mono text-[10px] font-bold text-zinc-300 uppercase">
                   STREAM ACTIVE
                 </span>
               </div>
             </div>
 
-            <div className="border-b border-[#1a1a1a] my-4" />
+            <div className="border-b border-zinc-800 my-4" />
 
             {/* Messages Scroll Area */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA]">
-                  <div className="w-10 h-10 border border-[#1a1a1a] bg-[#00E5FF] flex items-center justify-center mb-3">
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 border border-dashed border-zinc-800 bg-[#0d0f12]">
+                  <div className="w-10 h-10 border border-zinc-800 bg-[#00E5FF] flex items-center justify-center mb-3">
                     <Sparkles className="w-5 h-5 text-black" />
                   </div>
-                  <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
+                  <h3 className="font-serif text-lg font-bold text-white">
                     Dialogue Stream Standing By
                   </h3>
-                  <p className="font-mono text-xs text-[#555] max-w-sm mt-1">
+                  <p className="font-mono text-xs text-zinc-500 max-w-sm mt-1">
                     Enter an operational command below or select one of the suggested directives in Panel 02.
                   </p>
                 </div>
@@ -195,15 +195,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     >
                       {/* Message Meta Header */}
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-[10px] uppercase font-bold text-[#555]">
+                        <span className="font-mono text-[10px] uppercase font-bold text-zinc-500">
                           {isUser ? "YOU" : "J.A.R.V.I.S."}
                         </span>
-                        <span className="text-[#555] text-[10px]">•</span>
-                        <span className="font-mono text-[10px] text-[#555]">
+                        <span className="text-zinc-600 text-[10px]">•</span>
+                        <span className="font-mono text-[10px] text-zinc-600">
                           {msg.timestamp}
                         </span>
                         {msg.memoryUsed && (
-                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.2 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a]">
+                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 bg-[#00E5FF] text-black font-bold">
                             MEMORY RECALLED
                           </span>
                         )}
@@ -211,44 +211,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                       {/* Message Card */}
                       <div
-                        className={`max-w-[90%] sm:max-w-[80%] p-4 text-xs font-mono border border-[#1a1a1a] ${
+                        className={`max-w-[90%] sm:max-w-[80%] p-4 text-xs font-mono border ${
                           isUser
-                            ? "bg-[#00E5FF] text-black font-semibold"
-                            : "bg-[#EBEBEA] text-[#1a1a1a]"
+                            ? "bg-[#00E5FF] text-black font-semibold border-transparent"
+                            : "bg-[#111318] text-zinc-100 border-zinc-800"
                         }`}
                       >
                         {msg.imageAttachment && (
                           <img
                             src={msg.imageAttachment}
                             alt="Attachment"
-                            className="max-h-48 border border-[#1a1a1a] mb-2 object-cover"
+                            className="max-h-48 border border-zinc-800 mb-2 object-cover"
                           />
                         )}
                         {isUser ? (
                           <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                         ) : (
                           <div className="prose prose-xs max-w-none font-mono text-xs leading-relaxed
-                            prose-headings:font-black prose-headings:font-heading prose-headings:text-[#1a1a1a] prose-headings:mt-3 prose-headings:mb-1
-                            prose-p:my-1 prose-p:text-[#1a1a1a]
-                            prose-strong:text-[#1a1a1a] prose-strong:font-black
-                            prose-code:bg-black/10 prose-code:px-1 prose-code:rounded prose-code:text-[11px]
-                            prose-pre:bg-black/10 prose-pre:p-2 prose-pre:rounded prose-pre:text-[11px] prose-pre:overflow-x-auto
+                            prose-headings:font-black prose-headings:font-heading prose-headings:text-white prose-headings:mt-3 prose-headings:mb-1
+                            prose-p:my-1 prose-p:text-zinc-100
+                            prose-strong:text-white prose-strong:font-black
+                            prose-code:bg-white/10 prose-code:px-1 prose-code:rounded prose-code:text-[11px]
+                            prose-pre:bg-black/40 prose-pre:p-2 prose-pre:rounded prose-pre:text-[11px] prose-pre:overflow-x-auto
                             prose-ul:my-1 prose-ul:pl-4 prose-li:my-0
                             prose-ol:my-1 prose-ol:pl-4
-                            prose-blockquote:border-l-2 prose-blockquote:border-[#1a1a1a] prose-blockquote:pl-2 prose-blockquote:italic
-                            prose-table:text-[11px] prose-th:border prose-th:border-[#1a1a1a] prose-th:px-2 prose-th:py-1 prose-th:bg-black/10
-                            prose-td:border prose-td:border-[#1a1a1a] prose-td:px-2 prose-td:py-1
-                            prose-hr:border-[#1a1a1a]/30">
+                            prose-blockquote:border-l-2 prose-blockquote:border-zinc-700 prose-blockquote:pl-2 prose-blockquote:italic prose-blockquote:text-zinc-400
+                            prose-table:text-[11px] prose-th:border prose-th:border-zinc-700 prose-th:px-2 prose-th:py-1 prose-th:bg-white/5
+                            prose-td:border prose-td:border-zinc-700 prose-td:px-2 prose-td:py-1
+                            prose-hr:border-zinc-800">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                           </div>
                         )}
 
                         {/* Jarvis Message Actions */}
                         {!isUser && (
-                          <div className="flex items-center gap-3 pt-3 mt-3 border-t border-[#1a1a1a]/20">
+                          <div className="flex items-center gap-3 pt-3 mt-3 border-t border-zinc-800/50">
                             <button
                               onClick={() => speakJarvisText(msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-[#1a1a1a] hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
                               title="Synthesize Voice"
                             >
                               <Volume2 className="w-3 h-3" />
@@ -256,11 +256,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </button>
                             <button
                               onClick={() => handleCopy(msg.id, msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-[#1a1a1a] hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
                               title="Copy to Clipboard"
                             >
                               {copiedId === msg.id ? (
-                                <Check className="w-3 h-3 text-emerald-600" />
+                                <Check className="w-3 h-3 text-emerald-400" />
                               ) : (
                                 <Copy className="w-3 h-3" />
                               )}
@@ -268,7 +268,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </button>
                             <button
                               onClick={() => handleSaveMem(msg)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-[#1a1a1a] hover:text-[#00E5FF] transition font-bold"
+                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-[#00E5FF] transition font-bold"
                               title="Save into Semantic Memory"
                             >
                               <BookmarkPlus className="w-3 h-3" />
@@ -285,8 +285,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {isSending && (
                 <div className="flex flex-col items-start space-y-1">
                   <span className="overline-cyan">J.A.R.V.I.S. COGNITIVE ENGINE</span>
-                  <div className="p-3 bg-[#EBEBEA] border border-[#1a1a1a] flex items-center gap-2 font-mono text-xs text-[#1a1a1a]">
-                    <span className="w-2 h-2 bg-[#00E5FF] border border-[#1a1a1a] animate-ping" />
+                  <div className="p-3 bg-[#111318] border border-zinc-800 flex items-center gap-2 font-mono text-xs text-zinc-300">
+                    <span className="w-2 h-2 bg-[#00E5FF] animate-ping" />
                     <span>Processing neural token stream...</span>
                   </div>
                 </div>
@@ -297,20 +297,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
             {/* Image Preview Banner */}
             {selectedImage && (
-              <div className="mt-2 p-2 bg-[#EBEBEA] border border-[#1a1a1a] flex items-center justify-between">
+              <div className="mt-2 p-2 bg-[#111318] border border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <img
                     src={selectedImage}
                     alt="Upload Preview"
-                    className="h-10 w-10 object-cover border border-[#1a1a1a]"
+                    className="h-10 w-10 object-cover border border-zinc-800"
                   />
-                  <span className="font-mono text-xs text-[#1a1a1a]">
+                  <span className="font-mono text-xs text-zinc-400">
                     Optical Image Attachment Attached
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedImage(null)}
-                  className="p-1 text-[#1a1a1a] hover:bg-black/10"
+                  className="p-1 text-zinc-500 hover:text-white transition"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -318,7 +318,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
 
             {/* Input Bar */}
-            <div className="pt-4 border-t border-[#1a1a1a] flex items-center gap-2">
+            <div className="pt-4 border-t border-zinc-800 flex items-center gap-2">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -328,10 +328,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="h-10 px-3 border border-[#1a1a1a] bg-[#EBEBEA] hover:bg-black/5 flex items-center justify-center transition"
+                className="h-10 px-3 border border-zinc-800 bg-[#111318] hover:bg-zinc-800 flex items-center justify-center transition text-zinc-400 hover:text-white"
                 title="Attach Optical Frame"
               >
-                <ImageIcon className="w-4 h-4 text-[#1a1a1a]" />
+                <ImageIcon className="w-4 h-4" />
               </button>
 
               <input
@@ -360,35 +360,35 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 Cognitive Context
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-500 font-sans mt-0.5">
                 Dynamic grounding and memory state parameters
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Memory Link Toggle */}
-            <div className="p-4 bg-[#EBEBEA] border border-[#1a1a1a] space-y-3">
+            <div className="p-4 bg-[#0d0f12] border border-zinc-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-[#1a1a1a]" />
-                  <span className="font-mono text-xs font-bold text-[#1a1a1a]">
+                  <Brain className="w-4 h-4 text-zinc-400" />
+                  <span className="font-mono text-xs font-bold text-zinc-300">
                     SEMANTIC VECTOR LINK
                   </span>
                 </div>
                 <button
                   onClick={() => setUseMemoryContext(!useMemoryContext)}
-                  className={`w-9 h-5 border border-[#1a1a1a] transition p-0.5 flex items-center ${
-                    useMemoryContext ? "bg-[#00E5FF] justify-end" : "bg-[#ccc] justify-start"
+                  className={`w-9 h-5 border border-zinc-700 transition p-0.5 flex items-center ${
+                    useMemoryContext ? "bg-[#00E5FF] justify-end" : "bg-zinc-800 justify-start"
                   }`}
                 >
-                  <div className="w-3.5 h-3.5 bg-black" />
+                  <div className={`w-3.5 h-3.5 ${useMemoryContext ? "bg-black" : "bg-zinc-500"}`} />
                 </button>
               </div>
-              <p className="font-mono text-[11px] text-[#555]">
+              <p className="font-mono text-[11px] text-zinc-500">
                 {useMemoryContext
                   ? `Active: ${memoriesCount} memory nodes automatically injected into context buffer.`
                   : "Disabled: Conversation operates with transient stateless buffer."}
@@ -398,17 +398,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
             {/* Active Directive Protocol */}
             <div className="space-y-2">
               <span className="label-secondary">ACTIVE PERSONALITY PROTOCOL</span>
-              <div className="p-3 bg-[#EBEBEA] border border-[#1a1a1a] flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-[#1a1a1a]">
+              <div className="p-3 bg-[#0d0f12] border border-zinc-800 flex items-center justify-between">
+                <span className="font-mono text-xs font-bold text-zinc-300">
                   {personalityMode}
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-[#1a1a1a]">
+                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold">
                   ACTIVE
                 </span>
               </div>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800 my-4" />
 
             {/* Suggested Macro Directives */}
             <div className="space-y-2.5">
@@ -418,7 +418,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <button
                     key={idx}
                     onClick={() => handleSend(prompt)}
-                    className="w-full text-left p-2.5 bg-[#EBEBEA] hover:bg-[#00E5FF] hover:text-black border border-[#1a1a1a] font-mono text-[11px] text-[#1a1a1a] transition font-medium"
+                    className="w-full text-left p-2.5 bg-[#0d0f12] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[11px] text-zinc-400 transition font-medium"
                   >
                     "{prompt}"
                   </button>
@@ -426,21 +426,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </div>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800 my-4" />
 
             {/* Session Readout */}
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-500">
                 <span>SESSION MESSAGES</span>
-                <span className="font-bold text-[#1a1a1a]">{messages.length}</span>
+                <span className="font-bold text-zinc-300">{messages.length}</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-500">
                 <span>AVG LATENCY</span>
-                <span className="font-bold text-[#1a1a1a]">24ms</span>
+                <span className="font-bold text-zinc-300">24ms</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-500">
                 <span>GROUNDING ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">GEMINI 3.6 FLASH</span>
+                <span className="font-bold text-zinc-300">GEMINI 3.6 FLASH</span>
               </div>
             </div>
           </div>

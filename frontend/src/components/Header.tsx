@@ -35,8 +35,8 @@ interface HeaderProps {
 }
 
 const typeIcon = (type: AppNotification["type"]) => {
-  if (type === "success") return <CheckCheck className="w-3 h-3 text-emerald-500 shrink-0" />;
-  if (type === "error")   return <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />;
+  if (type === "success") return <CheckCheck className="w-3 h-3 text-emerald-400 shrink-0" />;
+  if (type === "error")   return <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />;
   return                         <Info className="w-3 h-3 text-[#00E5FF] shrink-0" />;
 };
 
@@ -79,7 +79,6 @@ export const Header: React.FC<HeaderProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Close bell dropdown on outside click
   useEffect(() => {
     if (!bellOpen) return;
     const handler = (e: MouseEvent) => {
@@ -91,24 +90,16 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [bellOpen]);
 
-  const handleBellOpen = () => {
-    setBellOpen(prev => !prev);
-  };
-
-  const handleMarkAll = () => {
-    onMarkAllRead?.();
-  };
-
   const personalities: PersonalityMode[] = ["Standard", "Tactical", "Formal", "Concise"];
 
   return (
-    <header className="w-full bg-[#F2F2EF] border-b border-[#1a1a1a] sticky top-0 z-50">
+    <header className="w-full bg-[#0d0f12]/95 backdrop-blur-md border-b border-zinc-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
         {/* Left */}
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleMobileSidebar}
-            className="lg:hidden h-8 w-8 flex items-center justify-center border border-[#1a1a1a] bg-[#EBEBEA] hover:bg-black/10 transition shrink-0"
+            className="lg:hidden h-8 w-8 flex items-center justify-center border border-zinc-800 bg-[#111318] hover:bg-zinc-800 transition text-zinc-400 hover:text-white shrink-0"
             title="Open menu"
           >
             <Menu className="w-4 h-4" />
@@ -118,20 +109,20 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onSelectPage("dashboard")}
             className="flex items-center gap-2.5 text-left group"
           >
-            <div className="w-2.5 h-2.5 bg-[#00E5FF] border border-[#1a1a1a] animate-pulse" />
+            <div className="w-2.5 h-2.5 bg-[#00E5FF] animate-pulse rounded-full" />
             <div className="flex items-baseline gap-2">
-              <span className="font-mono font-bold text-sm tracking-wider text-[#1a1a1a] uppercase">
+              <span className="font-mono font-bold text-sm tracking-wider text-white uppercase">
                 J.A.R.V.I.S.
               </span>
-              <span className="font-mono text-[10px] text-[#555] uppercase tracking-widest hidden sm:inline">
+              <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest hidden sm:inline">
                 // PERSONAL AI OS
               </span>
             </div>
           </button>
 
-          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-[#1a1a1a]/20">
-            <span className="font-mono text-[10px] text-[#555] uppercase">SYS CLOCK</span>
-            <span className="font-mono text-[11px] font-bold text-[#1a1a1a] bg-[#EBEBEA] px-2 py-0.5 border border-[#1a1a1a]/40">
+          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-zinc-800">
+            <span className="font-mono text-[10px] text-zinc-500 uppercase">SYS CLOCK</span>
+            <span className="font-mono text-[11px] font-bold text-zinc-300 bg-[#111318] px-2 py-0.5 border border-zinc-800">
               {currentTime || "00:00:00 UTC"}
             </span>
           </div>
@@ -143,31 +134,31 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="relative hidden sm:block">
             <button
               onClick={() => setPersonalityDropdownOpen(!personalityDropdownOpen)}
-              className="editorial-btn-outline text-[10px] py-1.5 px-2.5 h-8 gap-1.5 bg-[#EBEBEA]"
+              className="editorial-btn-outline text-[10px] py-1.5 px-2.5 h-8 gap-1.5"
               title="Change Personality Directive"
             >
-              <Sparkles className="w-3 h-3 text-[#1a1a1a]" />
+              <Sparkles className="w-3 h-3 text-zinc-400" />
               <span className="truncate max-w-[90px]">{personalityMode}</span>
               <ChevronDown className="w-2.5 h-2.5 opacity-60" />
             </button>
 
             {personalityDropdownOpen && (
-              <div className="absolute right-0 mt-1 w-48 bg-[#F2F2EF] border border-[#1a1a1a] shadow-lg z-50 p-1">
-                <div className="px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-[#555] border-b border-[#1a1a1a]/20 mb-1">
+              <div className="absolute right-0 mt-1 w-48 bg-[#111318] border border-zinc-800 shadow-xl z-50 p-1">
+                <div className="px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-zinc-500 border-b border-zinc-800/60 mb-1">
                   Personality Protocol
                 </div>
                 {personalities.map((mode) => (
                   <button
                     key={mode}
                     onClick={() => { onSelectPersonality(mode); setPersonalityDropdownOpen(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 text-xs font-mono transition flex items-center justify-between ${
+                    className={`w-full text-left px-2.5 py-1.5 text-xs font-mono transition flex items-center justify-between rounded-sm ${
                       personalityMode === mode
                         ? "bg-[#00E5FF] text-black font-bold"
-                        : "text-[#1a1a1a] hover:bg-black/5"
+                        : "text-zinc-300 hover:bg-zinc-800 hover:text-white"
                     }`}
                   >
                     <span>{mode}</span>
-                    {personalityMode === mode && <span className="w-1.5 h-1.5 bg-black" />}
+                    {personalityMode === mode && <span className="w-1.5 h-1.5 bg-black rounded-full" />}
                   </button>
                 ))}
               </div>
@@ -177,41 +168,39 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Notification bell */}
           <div className="relative" ref={bellRef}>
             <button
-              onClick={handleBellOpen}
-              className={`relative h-8 w-8 border border-[#1a1a1a] flex items-center justify-center transition ${
-                bellOpen ? "bg-[#00E5FF] text-black" : "bg-[#EBEBEA] text-[#555] hover:text-[#1a1a1a]"
+              onClick={() => setBellOpen(prev => !prev)}
+              className={`relative h-8 w-8 border border-zinc-800 flex items-center justify-center transition ${
+                bellOpen ? "bg-[#00E5FF] text-black" : "bg-[#111318] text-zinc-400 hover:text-white hover:bg-zinc-800"
               }`}
               title="Notifications"
             >
               <Bell className="w-3.5 h-3.5" />
               {unread > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white font-mono text-[9px] font-bold flex items-center justify-center border border-[#F2F2EF]">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#00E5FF] text-black font-mono text-[9px] font-bold flex items-center justify-center">
                   {unread > 9 ? "9+" : unread}
                 </span>
               )}
             </button>
 
             {bellOpen && (
-              <div className="absolute right-0 mt-1 w-80 bg-[#F2F2EF] border border-[#1a1a1a] shadow-xl z-50">
-                {/* Header */}
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[#1a1a1a] bg-[#EBEBEA]">
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#1a1a1a]">
+              <div className="absolute right-0 mt-1 w-80 bg-[#111318] border border-zinc-800 shadow-xl z-50">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800 bg-[#181a20]">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-300">
                     Notifications {unread > 0 && `(${unread} new)`}
                   </span>
                   {unread > 0 && (
                     <button
-                      onClick={handleMarkAll}
-                      className="font-mono text-[9px] text-[#555] hover:text-[#1a1a1a] underline transition"
+                      onClick={() => onMarkAllRead?.()}
+                      className="font-mono text-[9px] text-zinc-500 hover:text-white underline transition"
                     >
                       Mark all read
                     </button>
                   )}
                 </div>
 
-                {/* List */}
                 <div className="max-h-72 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <div className="px-4 py-6 text-center font-mono text-[11px] text-[#555]">
+                    <div className="px-4 py-6 text-center font-mono text-[11px] text-zinc-500">
                       No notifications yet.
                     </div>
                   ) : (
@@ -223,21 +212,21 @@ export const Header: React.FC<HeaderProps> = ({
                           if (n.page) onSelectPage(n.page);
                           setBellOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2.5 border-b border-[#1a1a1a]/10 flex items-start gap-2.5 transition hover:bg-black/5 ${
-                          !n.read ? "bg-[#EBEBEA]" : ""
+                        className={`w-full text-left px-3 py-2.5 border-b border-zinc-800/50 flex items-start gap-2.5 transition hover:bg-zinc-800/50 ${
+                          !n.read ? "bg-zinc-800/30" : ""
                         }`}
                       >
                         <span className="mt-0.5">{typeIcon(n.type)}</span>
                         <div className="flex-1 min-w-0">
-                          <p className={`font-mono text-[11px] leading-snug truncate ${!n.read ? "font-bold text-[#1a1a1a]" : "text-[#333]"}`}>
+                          <p className={`font-mono text-[11px] leading-snug truncate ${!n.read ? "font-bold text-white" : "text-zinc-300"}`}>
                             {n.title}
                           </p>
-                          <p className="font-mono text-[10px] text-[#555] mt-0.5 leading-snug line-clamp-2">
+                          <p className="font-mono text-[10px] text-zinc-500 mt-0.5 leading-snug line-clamp-2">
                             {n.body}
                           </p>
-                          <p className="font-mono text-[9px] text-[#999] mt-1">{n.timestamp}</p>
+                          <p className="font-mono text-[9px] text-zinc-600 mt-1">{n.timestamp}</p>
                         </div>
-                        {!n.read && <span className="w-1.5 h-1.5 bg-[#00E5FF] border border-[#1a1a1a] shrink-0 mt-1" />}
+                        {!n.read && <span className="w-1.5 h-1.5 bg-[#00E5FF] shrink-0 mt-1" />}
                       </button>
                     ))
                   )}
@@ -249,13 +238,13 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User chip + logout */}
           {currentUser && (
             <div className="hidden sm:flex items-center gap-1.5">
-              <span className="font-mono text-[10px] text-[#555] border border-[#1a1a1a]/30 px-2 py-1 bg-[#EBEBEA]">
+              <span className="font-mono text-[10px] text-zinc-400 border border-zinc-800 px-2 py-1 bg-[#111318]">
                 {currentUser.username}
               </span>
               {onLogout && (
                 <button
                   onClick={onLogout}
-                  className="h-8 w-8 border border-[#1a1a1a] flex items-center justify-center bg-[#EBEBEA] text-[#555] hover:text-[#1a1a1a] hover:bg-rose-50 transition"
+                  className="h-8 w-8 border border-zinc-800 flex items-center justify-center bg-[#111318] text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition"
                   title="Sign out"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -270,8 +259,8 @@ export const Header: React.FC<HeaderProps> = ({
               if (speechEnabled) stopJarvisSpeech();
               onToggleSpeech();
             }}
-            className={`h-8 w-8 border border-[#1a1a1a] flex items-center justify-center transition ${
-              speechEnabled ? "bg-[#00E5FF] text-black" : "bg-[#EBEBEA] text-[#555] hover:text-[#1a1a1a]"
+            className={`h-8 w-8 border border-zinc-800 flex items-center justify-center transition ${
+              speechEnabled ? "bg-[#00E5FF] text-black" : "bg-[#111318] text-zinc-400 hover:text-white hover:bg-zinc-800"
             }`}
             title={speechEnabled ? "Voice Output Active" : "Voice Output Muted"}
           >

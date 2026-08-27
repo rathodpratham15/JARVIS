@@ -31,7 +31,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const wakeActiveRef = useRef(wakeActive);
   wakeActiveRef.current = wakeActive;
   const commandInProgressRef = useRef(false);
-  const queryIdRef = useRef(0); // incremented on each new query; used to discard stale replies
+  const queryIdRef = useRef(0);
   const onProcessVoiceCommandRef = useRef(onProcessVoiceCommand);
   onProcessVoiceCommandRef.current = onProcessVoiceCommand;
 
@@ -41,7 +41,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
   const wakeWordLower = wakeWord.toLowerCase();
 
-  // ── process query ──────────────────────────────────────────────────────────
   const processQuery = useCallback(async (queryText: string) => {
     const queryId = ++queryIdRef.current;
     const isCurrent = () => queryIdRef.current === queryId;
@@ -49,8 +48,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     setVoiceState("thinking");
     playUiSound("scan");
 
-    // Command recognition is done — restart wake listener immediately so
-    // "Hey Jarvis" can interrupt while Jarvis is thinking or speaking.
     commandInProgressRef.current = false;
     if (wakeActiveRef.current && !wakeRecognitionRef.current) {
       startWakeListenerRef.current?.();
@@ -64,7 +61,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
     try {
       const reply = await onProcessVoiceCommandRef.current(queryText);
-      if (!isCurrent()) return; // superseded by a newer query
+      if (!isCurrent()) return;
       setAiReply(reply);
       setVoiceState("speaking");
       playUiSound("success");
@@ -74,7 +71,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         input: queryText,
         reply,
       }, ...prev]);
-      // Cap spoken text so ElevenLabs generates quickly; full reply stays in history card.
       const MAX_SPEAK_CHARS = 300;
       let textToSpeak = reply;
       if (reply.length > MAX_SPEAK_CHARS) {
@@ -82,7 +78,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         textToSpeak = reply.slice(0, cut > 0 ? cut : MAX_SPEAK_CHARS) + "… full response shown above.";
       }
       speakJarvisText(textToSpeak, () => {
-        if (!isCurrent()) return; // interrupted; new query already manages state
+        if (!isCurrent()) return;
         setVoiceState("idle");
         ensureWake();
       });
@@ -91,9 +87,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       setVoiceState("idle");
       ensureWake();
     }
-  }, []); // stable — uses refs for all external deps
+  }, []);
 
-  // ── command recognition (one-shot after wake word) ─────────────────────────
   const startCommandListening = useCallback(() => {
     if (!SpeechRecognitionAPI) return;
     const rec = new SpeechRecognitionAPI();
@@ -135,7 +130,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     rec.start();
   }, [processQuery]);
 
-  // ── wake word listener (always-on background recognition) ─────────────────
   const startWakeListener = useCallback(() => {
     if (!SpeechRecognitionAPI) return;
     const rec = new SpeechRecognitionAPI();
@@ -148,21 +142,19 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
     rec.onresult = (e: any) => {
       const state = voiceStateRef.current;
-      // Allow wake during idle, thinking, or speaking — not while already listening for a command
       if (state === "listening") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        // Normalize: lowercase + strip punctuation so "Hey, Jarvis" matches "hey jarvis"
         const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
           if (state === "thinking" || state === "speaking") {
-            queryIdRef.current++; // invalidate current query / TTS onEnd callback
+            queryIdRef.current++;
             stopJarvisSpeech();
             playUiSound("alert");
           } else {
             playUiSound("beep");
           }
           commandInProgressRef.current = true;
-          wakeRecognitionRef.current = null; // prevent onend from restarting this instance
+          wakeRecognitionRef.current = null;
           rec.stop();
           setTranscript("");
           setAiReply("");
@@ -173,8 +165,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       }
     };
 
-    // Only restart when NOT mid-command AND this is still the active instance.
-    // Guards against React StrictMode double-mount creating two competing instances.
     const isCurrent = () => wakeRecognitionRef.current === rec;
 
     rec.onend = () => {
@@ -184,7 +174,6 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     };
 
     rec.onerror = (e: any) => {
-      console.error("[JARVIS wake] SpeechRecognition error:", e.error);
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         permissionDenied = true;
         return;
@@ -197,10 +186,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     try { rec.start(); } catch {}
   }, [wakeWordLower, startCommandListening]);
 
-  // Keep ref current so processQuery can call it without circular deps
   useEffect(() => { startWakeListenerRef.current = startWakeListener; }, [startWakeListener]);
 
-  // ── toggle wake word listener ──────────────────────────────────────────────
   useEffect(() => {
     if (wakeActive) {
       startWakeListener();
@@ -210,17 +197,13 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       r?.stop();
     }
     return () => {
-      // Null out ref before stopping so the instance's onend sees isCurrent()=false
-      // and doesn't try to restart (fixes React StrictMode double-mount conflict)
       const r = wakeRecognitionRef.current;
       wakeRecognitionRef.current = null;
       r?.stop();
     };
   }, [wakeActive, startWakeListener]);
 
-  // ── tap orb handler ────────────────────────────────────────────────────────
   const handleOrbClick = () => {
-    // Interrupt thinking or speaking — wake listener is already running, just cancel the query.
     if (voiceState === "thinking" || voiceState === "speaking") {
       queryIdRef.current++;
       stopJarvisSpeech();
@@ -235,11 +218,9 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     }
     if (voiceState !== "idle") return;
 
-    // Stop the wake listener so command recognition can acquire the microphone.
-    // Chrome only allows one SpeechRecognition instance at a time.
     commandInProgressRef.current = true;
     const wakeRec = wakeRecognitionRef.current;
-    wakeRecognitionRef.current = null; // null out so its onend doesn't restart it
+    wakeRecognitionRef.current = null;
     wakeRec?.stop();
 
     playUiSound("beep");
@@ -271,10 +252,10 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   };
 
   const stateColor = {
-    idle: "bg-[#EBEBEA] hover:bg-[#00E5FF]",
+    idle: "bg-zinc-800 hover:bg-[#00E5FF]",
     listening: "bg-[#00E5FF] scale-110",
-    thinking: "bg-amber-300 scale-105 hover:bg-red-300",
-    speaking: "bg-emerald-400 scale-105 hover:bg-red-400",
+    thinking: "bg-amber-400 scale-105 hover:bg-red-400",
+    speaking: "bg-emerald-500 scale-105 hover:bg-red-400",
   }[voiceState];
 
   const ringColor = {
@@ -285,20 +266,20 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   }[voiceState];
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6 font-mono text-black">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6 font-mono">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-white border-2 border-black shadow-[4px_4px_0px_#000000]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00e5ff] text-black border-2 border-black shadow-[2px_2px_0px_#000000]">
+          <div className="p-3 bg-[#00E5FF] text-black border border-zinc-800">
             <Radio className="w-6 h-6 animate-pulse" />
           </div>
           <div>
-            <h2 className="text-xl font-heading font-black text-black tracking-wide">
+            <h2 className="text-xl font-heading font-black text-white tracking-wide">
               HANDS-FREE VOICE MATRIX
             </h2>
-            <p className="text-xs font-mono font-bold text-black/70">
+            <p className="text-xs font-mono font-bold text-zinc-400">
               Wake word:{" "}
-              <strong className="text-black bg-[#00e5ff] px-1 py-0.5 border border-black">
+              <strong className="text-black bg-[#00E5FF] px-1 py-0.5">
                 "{wakeWord}"
               </strong>{" "}
               • Low-latency audio pipeline
@@ -307,23 +288,22 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Wake word toggle */}
           <button
             onClick={() => setWakeActive(v => !v)}
-            className={`text-[10px] font-mono font-black px-3 py-1.5 border-2 border-black transition ${
-              wakeActive ? "bg-[#00E5FF] text-black" : "bg-[#EBEBEA] text-black/60"
+            className={`text-[10px] font-mono font-black px-3 py-1.5 border border-zinc-800 transition ${
+              wakeActive ? "bg-[#00E5FF] text-black border-transparent" : "bg-zinc-800 text-zinc-400 hover:text-white"
             }`}
           >
             {wakeActive ? "WAKE WORD: ON" : "WAKE WORD: OFF"}
           </button>
-          <span className="text-xs font-mono font-black px-3 py-1 bg-[#f3f3ee] border-2 border-black text-black">
-            STATUS: <strong className="uppercase underline">{voiceState}</strong>
+          <span className="text-xs font-mono font-black px-3 py-1 bg-[#111318] border border-zinc-800 text-zinc-300">
+            STATUS: <strong className="uppercase text-white">{voiceState}</strong>
           </span>
         </div>
       </div>
 
       {/* Orb Hub */}
-      <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-white border-2 border-black shadow-[6px_6px_0px_#000000] space-y-6">
+      <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-[#111318] border border-zinc-800 shadow-lg space-y-6">
         {/* Arc Orb */}
         <div className="relative flex items-center justify-center w-48 h-48">
           {voiceState !== "idle" && (
@@ -336,12 +316,12 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           )}
           <button
             onClick={handleOrbClick}
-            className={`group relative z-10 w-36 h-36 rounded-full border-4 border-[#1a1a1a] flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] transition-all duration-300 ${stateColor}`}
+            className={`group relative z-10 w-36 h-36 rounded-full border-2 border-zinc-700 flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-300 ${stateColor}`}
           >
-            {voiceState === "idle"      && <Aperture  className="w-12 h-12 text-[#1a1a1a] group-hover:scale-110 transition" />}
-            {voiceState === "listening" && <Radio     className="w-12 h-12 text-[#1a1a1a] animate-pulse" />}
-            {voiceState === "thinking"  && <RefreshCw className="w-12 h-12 text-[#1a1a1a] animate-spin" />}
-            {voiceState === "speaking"  && <Volume2   className="w-12 h-12 text-[#1a1a1a] animate-bounce" />}
+            {voiceState === "idle"      && <Aperture  className="w-12 h-12 text-zinc-300 group-hover:text-black group-hover:scale-110 transition" />}
+            {voiceState === "listening" && <Radio     className="w-12 h-12 text-black animate-pulse" />}
+            {voiceState === "thinking"  && <RefreshCw className="w-12 h-12 text-black animate-spin" />}
+            {voiceState === "speaking"  && <Volume2   className="w-12 h-12 text-black animate-bounce" />}
           </button>
         </div>
 
@@ -350,14 +330,14 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           {[40, 70, 25, 90, 60, 100, 45, 80, 30, 95, 50, 85, 40, 75].map((h, i) => (
             <div
               key={i}
-              className={`w-2 border-2 border-black transition-all duration-150 ${
-                voiceState === "listening" ? "bg-[#00e5ff] animate-pulse"
+              className={`w-2 rounded-sm transition-all duration-150 ${
+                voiceState === "listening" ? "bg-[#00E5FF] animate-pulse"
                 : voiceState === "thinking" ? "bg-amber-400 animate-pulse"
                 : voiceState === "speaking" ? "bg-emerald-400 animate-pulse"
-                : "bg-black/20"
+                : "bg-zinc-700"
               }`}
               style={{
-                height: voiceState === "idle" ? "10px" : `${Math.max(12, h * (i % 2 === 0 ? 1 : 0.6))}px`,
+                height: voiceState === "idle" ? "8px" : `${Math.max(12, h * (i % 2 === 0 ? 1 : 0.6))}px`,
                 animationDelay: `${i * 0.05}s`,
               }}
             />
@@ -365,7 +345,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         </div>
 
         {/* Prompt */}
-        <p className="text-sm font-mono font-black text-black text-center">
+        <p className="text-sm font-mono font-bold text-zinc-300 text-center">
           {voiceState === "idle"      && `Tap the orb or say "${wakeWord}" to initiate speech`}
           {voiceState === "listening" && "Listening… speak your command now, Sir"}
           {voiceState === "thinking"  && `J.A.R.V.I.S. processing… tap or say "${wakeWord}" to cancel`}
@@ -374,17 +354,17 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
         {/* Transcript / reply box */}
         {(transcript || aiReply) && (
-          <div className="w-full max-w-2xl p-4 bg-[#f3f3ee] border-2 border-black text-xs sm:text-sm font-mono space-y-2 text-left shadow-[3px_3px_0px_#000000]">
+          <div className="w-full max-w-2xl p-4 bg-[#0d0f12] border border-zinc-800 text-xs sm:text-sm font-mono space-y-2 text-left shadow-lg">
             {transcript && (
               <div className="space-y-0.5">
-                <span className="text-[10px] font-mono font-black text-black">SPOKEN TRANSCRIPT:</span>
-                <p className="text-black font-bold">{transcript}</p>
+                <span className="text-[10px] font-mono font-black text-zinc-400">SPOKEN TRANSCRIPT:</span>
+                <p className="text-white font-bold">{transcript}</p>
               </div>
             )}
             {aiReply && (
-              <div className="space-y-0.5 pt-2 border-t-2 border-black">
-                <span className="text-[10px] font-mono font-black text-[#00a8bb]">J.A.R.V.I.S. VERBAL RESPONSE:</span>
-                <p className="text-black font-bold">{aiReply}</p>
+              <div className="space-y-0.5 pt-2 border-t border-zinc-800">
+                <span className="text-[10px] font-mono font-black text-[#00E5FF]">J.A.R.V.I.S. VERBAL RESPONSE:</span>
+                <p className="text-zinc-100 font-bold">{aiReply}</p>
               </div>
             )}
           </div>
@@ -392,26 +372,26 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       </div>
 
       {/* Voice History */}
-      <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[4px_4px_0px_#000000]">
-        <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black">
+      <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
+        <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white">
           RECENT VOICE INTERACTIONS
         </h3>
         <div className="space-y-3">
           {voiceHistory.length === 0 && (
-            <p className="text-xs font-mono text-black/40">No interactions yet.</p>
+            <p className="text-xs font-mono text-zinc-600">No interactions yet.</p>
           )}
           {voiceHistory.map((item) => (
-            <div key={item.id} className="p-3 bg-[#f3f3ee] border-2 border-black shadow-[2px_2px_0px_#000000] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div key={item.id} className="p-3 bg-[#0d0f12] border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div className="space-y-1 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono font-bold text-black/60">{item.time}</span>
-                  <span className="font-black text-black font-mono">User: "{item.input}"</span>
+                  <span className="text-[10px] font-mono font-bold text-zinc-500">{item.time}</span>
+                  <span className="font-black text-white font-mono">User: "{item.input}"</span>
                 </div>
-                <p className="text-black/80 font-mono text-xs">{item.reply}</p>
+                <p className="text-zinc-400 font-mono text-xs">{item.reply}</p>
               </div>
               <button
                 onClick={() => speakJarvisText(item.reply)}
-                className="self-start sm:self-center px-2.5 py-1 bg-white hover:bg-slate-50 border-2 border-black text-black font-mono font-bold text-[11px] flex items-center gap-1 shadow-[2px_2px_0px_#000000] transition"
+                className="self-start sm:self-center px-2.5 py-1 bg-[#111318] hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-mono font-bold text-[11px] flex items-center gap-1 transition"
               >
                 <Play className="w-3 h-3 fill-current" />
                 <span>REPLAY</span>

@@ -321,18 +321,18 @@ export const VisionView: React.FC<VisionViewProps> = ({
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 font-mono text-black">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 font-mono">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-white border-2 border-black shadow-[4px_4px_0px_#000000]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00e5ff] text-black border-2 border-black shadow-[2px_2px_0px_#000000]">
+          <div className="p-3 bg-[#00E5FF] text-black">
             <Eye className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-heading font-black text-black tracking-wide">
+            <h2 className="text-xl font-heading font-black text-white tracking-wide">
               OPTICAL VISION MATRIX & BIOMETRICS
             </h2>
-            <p className="text-xs font-mono font-bold text-black/70">
+            <p className="text-xs font-mono font-bold text-zinc-400">
               Live Camera Feed • Facial Recognition • AI Scene Analysis
             </p>
           </div>
@@ -341,7 +341,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
         <button
           onClick={handleCaptureAndAnalyze}
           disabled={isScanning}
-          className="w-full sm:w-auto px-4 py-2.5 bg-[#00e5ff] hover:bg-[#00c5db] disabled:opacity-50 text-black font-black font-mono text-xs flex items-center justify-center gap-2 border-2 border-black shadow-[3px_3px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_#000000] transition"
+          className="w-full sm:w-auto px-4 py-2.5 bg-[#00E5FF] hover:bg-[#00c5db] disabled:opacity-50 text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
         >
           {isScanning ? (
             <>
@@ -360,7 +360,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       {/* Main Grid: Optical Feed Display & Face Recognition Drawer */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Optical Feed Panel (2 Cols) */}
-        <div className="lg:col-span-2 relative bg-white border-2 border-black shadow-[5px_5px_0px_#000000] overflow-hidden flex flex-col justify-between min-h-[380px]">
+        <div className="lg:col-span-2 relative bg-[#111318] border border-zinc-800 shadow-lg overflow-hidden flex flex-col justify-between min-h-[380px]">
           {/* Video or Simulated HUD Canvas */}
           <div className="relative w-full h-80 sm:h-96 bg-black flex items-center justify-center overflow-hidden">
             <video
@@ -386,7 +386,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
             <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between border-2 border-[#00e5ff]/50">
               {/* Target Bounding Box Overlay */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border-2 border-dashed border-[#00e5ff] flex items-center justify-center animate-pulse">
-                <div className="absolute -top-3 px-2 py-0.5 bg-black text-[#00e5ff] border border-white text-[10px] font-mono font-black shadow-[2px_2px_0px_#000000]">
+                <div className="absolute -top-3 px-2 py-0.5 bg-black text-[#00e5ff] border border-[#00e5ff]/30 text-[10px] font-mono font-black">
                   {cameraActive ? "CAMERA ACTIVE" : "SIMULATED FEED"}
                 </div>
                 <div className="w-4 h-4 border-t-2 border-l-2 border-[#00e5ff] absolute top-0 left-0" />
@@ -395,8 +395,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 <div className="w-4 h-4 border-b-2 border-r-2 border-[#00e5ff] absolute bottom-0 right-0" />
               </div>
 
-              <div className="flex justify-end items-end text-[10px] font-mono text-black font-black mt-auto">
-                <span className="bg-emerald-400 px-2 py-0.5 border border-black shadow-[1px_1px_0px_#000000] text-black font-black">
+              <div className="flex justify-end items-end text-[10px] font-mono mt-auto">
+                <span className="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 border border-emerald-800 font-black">
                   THREAT LEVEL: 0%
                 </span>
               </div>
@@ -406,11 +406,11 @@ export const VisionView: React.FC<VisionViewProps> = ({
           <canvas ref={canvasRef} className="hidden" />
 
           {/* Camera Controls Footer */}
-          <div className="p-3 bg-[#f3f3ee] border-t-2 border-black flex items-center justify-between gap-2">
+          <div className="p-3 bg-[#111318] border-t border-zinc-800 flex items-center justify-between gap-2">
             {cameraError ? (
-              <span className="text-xs font-mono text-black font-bold flex-1">{cameraError}</span>
+              <span className="text-xs font-mono text-zinc-300 font-bold flex-1">{cameraError}</span>
             ) : (
-              <span className="text-[10px] font-mono text-black/50">
+              <span className="text-[10px] font-mono text-zinc-500">
                 {facingMode === "user" ? "FRONT CAMERA (MIRRORED)" : "REAR CAMERA"}
               </span>
             )}
@@ -418,7 +418,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {cameraActive && (
                 <button
                   onClick={handleSwitchCamera}
-                  className="px-2 py-1 bg-white hover:bg-[#00e5ff] border-2 border-black text-black font-black text-[10px] shadow-[1px_1px_0px_#000000] flex items-center gap-1 transition"
+                  className="px-2 py-1 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 text-zinc-300 font-black text-[10px] flex items-center gap-1 transition"
                   title="Switch camera"
                 >
                   <SwitchCamera className="w-3 h-3" />
@@ -428,7 +428,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {cameraError && (
                 <button
                   onClick={() => startCamera()}
-                  className="px-2 py-1 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black text-[10px] shadow-[1px_1px_0px_#000000]"
+                  className="px-2 py-1 bg-[#00E5FF] hover:bg-[#00c5db] border border-transparent text-black font-black text-[10px]"
                 >
                   RETRY CAM
                 </button>
@@ -438,54 +438,54 @@ export const VisionView: React.FC<VisionViewProps> = ({
         </div>
 
         {/* Biometric Face Recognition Drawer (1 Col) */}
-        <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[5px_5px_0px_#000000] flex flex-col justify-between">
+        <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg flex flex-col justify-between">
           <div className="space-y-3">
-            <div className="flex items-center justify-between border-b-2 border-black pb-3">
-              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-black" />
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-zinc-300" />
                 <span>BIOMETRIC MATCHES</span>
               </h3>
-              <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">
+              <span className="text-[10px] font-mono font-bold bg-[#0d0f12] px-2 py-0.5 border border-zinc-800 text-zinc-300">
                 {faces.length > 0 ? `${faces.length} PROFILES` : "NO MATCHES"}
               </span>
             </div>
 
             <div className="space-y-3">
               {faces.length === 0 && (
-                <div className="py-6 text-center text-[11px] font-mono text-[#555]">
+                <div className="py-6 text-center text-[11px] font-mono text-zinc-500">
                   Capture a scan to identify faces.
                 </div>
               )}
               {faces.map((face) => (
                 <div
                   key={face.id}
-                  className="p-3 bg-[#f3f3ee] border-2 border-black shadow-[2px_2px_0px_#000000] flex items-center justify-between gap-3 text-xs"
+                  className="p-3 bg-[#0d0f12] border border-zinc-800 flex items-center justify-between gap-3 text-xs"
                 >
                   <div className="flex items-center gap-3">
                     {face.avatarUrl ? (
                       <img
                         src={face.avatarUrl}
                         alt={face.name}
-                        className="w-10 h-10 border-2 border-black object-cover"
+                        className="w-10 h-10 border border-zinc-700 object-cover"
                       />
                     ) : (
-                      <div className="w-10 h-10 bg-[#00e5ff] border-2 border-black flex items-center justify-center text-black font-mono font-black">
+                      <div className="w-10 h-10 bg-[#00E5FF] flex items-center justify-center text-black font-mono font-black">
                         ?
                       </div>
                     )}
                     <div className="space-y-0.5">
-                      <span className="font-black text-black font-mono block">
+                      <span className="font-black text-white font-mono block">
                         {face.name}
                       </span>
-                      <span className="text-[10px] text-black/70 font-mono block">{face.role}</span>
+                      <span className="text-[10px] text-zinc-400 font-mono block">{face.role}</span>
                     </div>
                   </div>
 
                   <span
-                    className={`px-2 py-0.5 text-[10px] font-mono font-black border border-black uppercase ${
+                    className={`px-2 py-0.5 text-[10px] font-mono font-black border uppercase ${
                       face.status === "Authorized"
-                        ? "bg-emerald-400 text-black"
-                        : "bg-amber-300 text-black"
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-800"
+                        : "bg-amber-500/20 text-amber-400 border-amber-800"
                     }`}
                   >
                     {face.status}
@@ -497,7 +497,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           {/* Reverse search loading */}
           {reverseLoading && (
-            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+            <div className="border-t border-zinc-800 pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-zinc-400">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Searching the web for identity…
             </div>
@@ -505,21 +505,21 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           {/* Reverse search candidates */}
           {!reverseLoading && reverseResults.length > 0 && !osintDossier && (
-            <div className="border-t-2 border-black pt-3 space-y-2">
-              <p className="text-[10px] font-mono font-black text-black/70 uppercase">Possible matches — confirm identity:</p>
+            <div className="border-t border-zinc-800 pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-black text-zinc-400 uppercase">Possible matches — confirm identity:</p>
               {reverseResults.map((c, i) => (
                 <button
                   key={i}
                   onClick={() => handleConfirmCandidate(c.name, capturedFrame)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-[#f3f3ee] border-2 border-black hover:bg-[#00e5ff] hover:border-black transition text-left font-mono text-xs font-bold shadow-[1px_1px_0px_#000]"
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#0d0f12] border border-zinc-800 hover:bg-[#00E5FF] hover:text-black transition text-left font-mono text-xs font-bold text-zinc-300"
                 >
                   <span>{c.name}</span>
-                  <span className="text-[10px] text-black/50">{Math.min(100, Math.round(c.score * 100))}%</span>
+                  <span className="text-[10px] text-zinc-500">{Math.min(100, Math.round(c.score * 100))}%</span>
                 </button>
               ))}
               <button
                 onClick={() => { setReverseResults([]); setShowUnknownForm(true); }}
-                className="w-full text-[10px] font-mono text-black/50 hover:text-black transition py-1"
+                className="w-full text-[10px] font-mono text-zinc-500 hover:text-white transition py-1"
               >
                 None of these — enter manually
               </button>
@@ -528,41 +528,41 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           {/* Manual form fallback */}
           {showUnknownForm && !osintLoading && !osintDossier && !reverseLoading && reverseResults.length === 0 && (
-            <div className="border-t-2 border-black pt-3 space-y-2">
-              <p className="text-[10px] font-mono font-bold text-black/70 uppercase">No match — research manually:</p>
+            <div className="border-t border-zinc-800 pt-3 space-y-2">
+              <p className="text-[10px] font-mono font-bold text-zinc-500 uppercase">No match — research manually:</p>
               <button
                 onClick={handleGoogleLens}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#111318] border border-zinc-800 font-mono font-black text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 SEARCH ON GOOGLE LENS
               </button>
               {lensToast && (
-                <p className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-1.5">{lensToast}</p>
+                <p className="text-[10px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-900 px-2 py-1.5">{lensToast}</p>
               )}
-              <div className="flex items-center gap-2 text-[10px] font-mono text-black/40">
-                <div className="flex-1 border-t border-black/20" />
+              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-600">
+                <div className="flex-1 border-t border-zinc-800" />
                 <span>OR ENTER NAME MANUALLY</span>
-                <div className="flex-1 border-t border-black/20" />
+                <div className="flex-1 border-t border-zinc-800" />
               </div>
               <input
                 type="text"
                 value={unknownName}
                 onChange={e => setUnknownName(e.target.value)}
                 placeholder="Person's name"
-                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+                className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none"
               />
               <input
                 type="text"
                 value={unknownCompany}
                 onChange={e => setUnknownCompany(e.target.value)}
                 placeholder="Company (optional)"
-                className="w-full border-2 border-black px-2 py-1.5 text-xs font-mono bg-[#f3f3ee] focus:outline-none"
+                className="w-full border border-zinc-800 px-2 py-1.5 text-xs font-mono bg-[#0d0f12] text-white focus:outline-none"
               />
               <button
                 onClick={() => { if (unknownName.trim()) { setConfirmedName(unknownName.trim()); runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}}
                 disabled={!unknownName.trim()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00e5ff] border-2 border-black font-mono font-black text-xs shadow-[2px_2px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00E5FF] border border-transparent font-mono font-black text-xs text-black transition disabled:opacity-50"
               >
                 <Search className="w-3.5 h-3.5" />
                 COMPILE DOSSIER
@@ -572,7 +572,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           {/* OSINT loading */}
           {osintLoading && (
-            <div className="border-t-2 border-black pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-black/70">
+            <div className="border-t border-zinc-800 pt-3 flex items-center gap-2 text-[11px] font-mono font-bold text-zinc-400">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Running OSINT pipeline…
             </div>
@@ -580,33 +580,33 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
           {/* OSINT error */}
           {osintError && (
-            <p className="border-t-2 border-black pt-2 text-[11px] font-mono text-red-600">{osintError}</p>
+            <p className="border-t border-zinc-800 pt-2 text-[11px] font-mono text-red-400">{osintError}</p>
           )}
         </div>
       </div>
 
       {/* OSINT Dossier panel */}
       {osintDossier && (
-        <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[5px_5px_0px_#000000]">
-          <div className="flex items-center justify-between border-b-2 border-black pb-3">
+        <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#00a8bb]" />
-              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black">
+              <Search className="w-4 h-4 text-[#00E5FF]" />
+              <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white">
                 INTELLIGENCE DOSSIER — {osintDossier.subject.toUpperCase()}
               </h3>
             </div>
-            <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black">
+            <span className="text-[10px] font-mono font-bold bg-[#0d0f12] px-2 py-0.5 border border-zinc-800 text-zinc-300">
               {osintDossier.sources.length} SOURCES
             </span>
           </div>
 
           {/* Summary */}
-          <p className="text-xs font-mono text-black leading-relaxed bg-[#f3f3ee] border-2 border-black p-3">
+          <p className="text-xs font-mono text-zinc-200 leading-relaxed bg-[#0d0f12] border border-zinc-800 p-3">
             {osintDossier.summary}
           </p>
 
           {savedToDb && (
-            <p className="text-[11px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-3 py-2">
+            <p className="text-[11px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-900 px-3 py-2">
               ✓ Face saved — will be recognised instantly next time.
             </p>
           )}
@@ -615,11 +615,11 @@ export const VisionView: React.FC<VisionViewProps> = ({
           {Object.keys(osintDossier.sections).length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Object.entries(osintDossier.sections).map(([title, content]) => (
-                <div key={title} className="border-2 border-black p-3 space-y-1">
-                  <div className="text-[10px] font-mono font-black text-black/60 uppercase tracking-widest border-b border-black/20 pb-1">
+                <div key={title} className="border border-zinc-800 p-3 space-y-1 bg-[#0d0f12]">
+                  <div className="text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-800 pb-1">
                     {title}
                   </div>
-                  <p className="text-[11px] font-mono text-black leading-relaxed">{content}</p>
+                  <p className="text-[11px] font-mono text-zinc-300 leading-relaxed">{content}</p>
                 </div>
               ))}
             </div>
@@ -630,7 +630,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
             <div className="space-y-2">
               <button
                 onClick={() => setOsintSourcesOpen(o => !o)}
-                className="flex items-center gap-1.5 text-[10px] font-mono font-black text-black/60 uppercase tracking-widest hover:text-black transition"
+                className="flex items-center gap-1.5 text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest hover:text-white transition"
               >
                 {osintSourcesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 {osintDossier.sources.length} Sources
@@ -643,14 +643,14 @@ export const VisionView: React.FC<VisionViewProps> = ({
                       href={src.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-start gap-2 p-2 border border-black/20 hover:border-black transition group"
+                      className="flex items-start gap-2 p-2 border border-zinc-800 hover:border-zinc-600 transition group"
                     >
-                      <span className="font-mono text-[10px] text-black/40 shrink-0 mt-0.5">[{i + 1}]</span>
+                      <span className="font-mono text-[10px] text-zinc-600 shrink-0 mt-0.5">[{i + 1}]</span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[11px] font-bold text-black truncate group-hover:text-[#00a8bb] transition">{src.title}</div>
-                        <div className="font-mono text-[10px] text-black/50 line-clamp-1">{src.snippet}</div>
+                        <div className="font-mono text-[11px] font-bold text-zinc-300 truncate group-hover:text-[#00E5FF] transition">{src.title}</div>
+                        <div className="font-mono text-[10px] text-zinc-500 line-clamp-1">{src.snippet}</div>
                       </div>
-                      <ExternalLink className="w-3 h-3 text-black/30 shrink-0 mt-0.5" />
+                      <ExternalLink className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
                     </a>
                   ))}
                 </div>
@@ -662,32 +662,32 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
       {/* AI Scene Analysis Result Card */}
       {(analysisResult || isAnalyzingScene) && (
-        <div className="p-5 bg-white border-2 border-black space-y-3 shadow-[5px_5px_0px_#000000]">
-          <div className="flex items-center gap-2 text-sm font-heading font-black text-black border-b-2 border-black pb-2">
-            <Sparkles className="w-4 h-4 text-[#00a8bb]" />
+        <div className="p-5 bg-[#111318] border border-zinc-800 space-y-3 shadow-lg">
+          <div className="flex items-center gap-2 text-sm font-heading font-black text-white border-b border-zinc-800 pb-2">
+            <Sparkles className="w-4 h-4 text-[#00E5FF]" />
             <span>OPTICAL ANALYSIS BREAKDOWN</span>
-            {isAnalyzingScene && <RefreshCw className="w-3 h-3 animate-spin text-[#00a8bb] ml-auto" />}
+            {isAnalyzingScene && <RefreshCw className="w-3 h-3 animate-spin text-[#00E5FF] ml-auto" />}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono text-black">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono text-zinc-300">
             <div>
-              <span className="font-mono font-black text-black text-[10px] uppercase block mb-1">
+              <span className="font-mono font-black text-zinc-400 text-[10px] uppercase block mb-1">
                 SCENE DESCRIPTION:
               </span>
-              <p className="bg-[#f3f3ee] p-3 border-2 border-black leading-relaxed font-bold min-h-[48px]">
+              <p className="bg-[#0d0f12] p-3 border border-zinc-800 leading-relaxed font-bold min-h-[48px] text-zinc-200">
                 {isAnalyzingScene && !analysisResult?.sceneDescription
-                  ? <span className="text-[#555]">Analyzing scene...</span>
-                  : (analysisResult?.sceneDescription || <span className="text-[#555]">Analyzing scene...</span>)
+                  ? <span className="text-zinc-500">Analyzing scene...</span>
+                  : (analysisResult?.sceneDescription || <span className="text-zinc-500">Analyzing scene...</span>)
                 }
               </p>
             </div>
             <div className="space-y-2">
-              <span className="font-mono font-black text-black text-[10px] uppercase block">
+              <span className="font-mono font-black text-zinc-400 text-[10px] uppercase block">
                 TACTICAL READOUTS:
               </span>
-              <div className="bg-[#f3f3ee] p-3 border-2 border-black space-y-1 font-mono text-[11px] font-bold">
-                <div>THREAT LEVEL: <strong className="text-emerald-700 font-black">{analysisResult?.threatLevel || "Nominal (0%)"}</strong></div>
-                <div>ENVIRONMENT: <strong className="text-black">{analysisResult?.environmentDetails || "—"}</strong></div>
+              <div className="bg-[#0d0f12] p-3 border border-zinc-800 space-y-1 font-mono text-[11px] font-bold">
+                <div>THREAT LEVEL: <strong className="text-emerald-400 font-black">{analysisResult?.threatLevel || "Nominal (0%)"}</strong></div>
+                <div>ENVIRONMENT: <strong className="text-zinc-200">{analysisResult?.environmentDetails || "—"}</strong></div>
               </div>
             </div>
           </div>
@@ -695,12 +695,12 @@ export const VisionView: React.FC<VisionViewProps> = ({
       )}
 
       {/* Face Enrollment Panel */}
-      <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[4px_4px_0px_#000000]">
-        <div className="flex items-center justify-between border-b-2 border-black pb-3">
-          <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black flex items-center gap-2">
+      <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white flex items-center gap-2">
             <UserPlus className="w-4 h-4" />
             <span>ENROLLED IDENTITIES</span>
-            <span className="text-[10px] font-mono font-bold bg-[#f3f3ee] px-2 py-0.5 border border-black ml-1">
+            <span className="text-[10px] font-mono font-bold bg-[#0d0f12] px-2 py-0.5 border border-zinc-800 text-zinc-300 ml-1">
               {enrolledPeople.length} PROFILES
             </span>
           </h3>
@@ -712,7 +712,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 alert(`Re-encoded ${data.reencoded} people. Failed: ${data.failed}.\n\n${data.details.map((d: {name:string;encodings:number}) => `${d.name}: ${d.encodings} encoding(s)`).join("\n")}`);
                 fetchEnrolled();
               }}
-              className="px-3 py-1.5 bg-white border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+              className="px-3 py-1.5 bg-[#111318] border border-zinc-800 text-zinc-300 hover:text-white font-black font-mono text-[10px] flex items-center gap-1.5 hover:bg-zinc-800 transition"
               title="Re-run InsightFace on existing photos (fixes dlib→InsightFace migration)"
             >
               <RefreshCw className="w-3 h-3" />
@@ -720,7 +720,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
             </button>
             <button
               onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
-              className="px-3 py-1.5 bg-[#00e5ff] hover:bg-[#00c5db] border-2 border-black text-black font-black font-mono text-[10px] flex items-center gap-1.5 shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000] transition"
+              className="px-3 py-1.5 bg-[#00E5FF] hover:bg-[#00c5db] border border-transparent text-black font-black font-mono text-[10px] flex items-center gap-1.5 transition"
             >
               <UserPlus className="w-3 h-3" />
               {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
@@ -730,8 +730,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
 
         {/* Enroll form */}
         {showEnrollForm && (
-          <div className="p-4 bg-[#f3f3ee] border-2 border-black space-y-3">
-            <p className="text-[10px] font-mono font-bold text-black/70">
+          <div className="p-4 bg-[#0d0f12] border border-zinc-800 space-y-3">
+            <p className="text-[10px] font-mono font-bold text-zinc-500">
               Upload 1–3 clear face photos. Multiple photos improve recognition accuracy.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
@@ -740,16 +740,16 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 placeholder="Full name (e.g. Pratham Rathod)"
                 value={enrollName}
                 onChange={e => setEnrollName(e.target.value)}
-                className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
+                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-[#00E5FF]"
               />
               <input
                 type="text"
                 placeholder="Organization (e.g. Northeastern, Swapt)"
                 value={enrollOrg}
                 onChange={e => setEnrollOrg(e.target.value)}
-                className="flex-1 px-3 py-2 border-2 border-black bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#00e5ff]"
+                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-[#00E5FF]"
               />
-              <label className="flex items-center gap-2 px-3 py-2 border-2 border-black bg-white font-mono text-[10px] font-black cursor-pointer hover:bg-[#00e5ff] transition">
+              <label className="flex items-center gap-2 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-zinc-300 font-mono text-[10px] font-black cursor-pointer hover:bg-[#00E5FF] hover:text-black transition">
                 <Upload className="w-3.5 h-3.5" />
                 {enrollFiles && enrollFiles.length > 0 ? `${enrollFiles.length} PHOTO(S)` : "CHOOSE PHOTOS"}
                 <input
@@ -764,45 +764,45 @@ export const VisionView: React.FC<VisionViewProps> = ({
               <button
                 onClick={handleEnroll}
                 disabled={enrolling}
-                className="px-4 py-2 bg-black hover:bg-gray-800 disabled:opacity-50 text-white font-black font-mono text-[10px] flex items-center gap-2 border-2 border-black shadow-[2px_2px_0px_#000000] transition"
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-black font-mono text-[10px] flex items-center gap-2 border border-zinc-700 transition"
               >
                 {enrolling ? <RefreshCw className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
                 {enrolling ? "ENROLLING..." : "ENROLL"}
               </button>
             </div>
             {enrollError && (
-              <p className="text-[10px] font-mono font-bold text-red-600">{enrollError}</p>
+              <p className="text-[10px] font-mono font-bold text-red-400">{enrollError}</p>
             )}
           </div>
         )}
 
         {/* Enrolled people grid */}
         {enrolledPeople.length === 0 ? (
-          <p className="text-center text-[11px] font-mono text-[#555] py-4">
+          <p className="text-center text-[11px] font-mono text-zinc-500 py-4">
             No faces enrolled. Click "ENROLL NEW" to add people.
           </p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {enrolledPeople.map(person => (
-              <div key={person.name} className="p-3 bg-[#f3f3ee] border-2 border-black shadow-[2px_2px_0px_#000000] flex flex-col items-center gap-2 text-xs relative group">
+              <div key={person.name} className="p-3 bg-[#0d0f12] border border-zinc-800 flex flex-col items-center gap-2 text-xs relative group">
                 {person.image_url ? (
                   <img
                     src={`${API_BASE}${person.image_url}`}
                     alt={person.name}
-                    className="w-16 h-16 object-cover border-2 border-black"
+                    className="w-16 h-16 object-cover border border-zinc-700"
                   />
                 ) : (
-                  <div className="w-16 h-16 bg-[#00e5ff] border-2 border-black flex items-center justify-center text-black font-black text-xl">
+                  <div className="w-16 h-16 bg-[#00E5FF] flex items-center justify-center text-black font-black text-xl">
                     {person.name[0]?.toUpperCase()}
                   </div>
                 )}
-                <span className="font-black font-mono text-[10px] text-black text-center truncate w-full">{person.name}</span>
+                <span className="font-black font-mono text-[10px] text-zinc-200 text-center truncate w-full">{person.name}</span>
                 {person.profession && (
-                  <span className="text-[9px] font-mono text-black/60 text-center truncate w-full">{person.profession}</span>
+                  <span className="text-[9px] font-mono text-zinc-500 text-center truncate w-full">{person.profession}</span>
                 )}
                 <button
                   onClick={() => handleDelete(person.name)}
-                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 border border-black text-white opacity-0 group-hover:opacity-100 transition"
+                  className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-700 border border-red-900 text-white opacity-0 group-hover:opacity-100 transition"
                   title={`Remove ${person.name}`}
                 >
                   <Trash2 className="w-2.5 h-2.5" />
@@ -814,8 +814,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
       </div>
 
       {/* Optical Snapshot Gallery */}
-      <div className="p-5 bg-white border-2 border-black space-y-4 shadow-[4px_4px_0px_#000000]">
-        <h3 className="text-xs font-heading font-black uppercase tracking-widest text-black flex items-center gap-2">
+      <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
+        <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white flex items-center gap-2">
           <Layers className="w-4 h-4" />
           <span>RECENT OPTICAL SNAPSHOTS</span>
         </h3>
@@ -824,19 +824,19 @@ export const VisionView: React.FC<VisionViewProps> = ({
           {snapshots.map((snap) => (
             <div
               key={snap.id}
-              className="p-3 bg-[#f3f3ee] border-2 border-black shadow-[2px_2px_0px_#000000] space-y-2 text-xs"
+              className="p-3 bg-[#0d0f12] border border-zinc-800 space-y-2 text-xs"
             >
               <img
                 src={snap.imageUrl}
                 alt="Snapshot"
-                className="w-full h-36 object-cover border-2 border-black"
+                className="w-full h-36 object-cover border border-zinc-800"
               />
               <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-mono font-bold text-black/70">
+                <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-500">
                   <span>{snap.timestamp}</span>
-                  <span className="text-black bg-[#00e5ff] px-1 border border-black">{snap.threatLevel}</span>
+                  <span className="text-black bg-[#00E5FF] px-1">{snap.threatLevel}</span>
                 </div>
-                <p className="text-black font-mono text-xs line-clamp-2 font-bold">{snap.sceneDescription}</p>
+                <p className="text-zinc-300 font-mono text-xs line-clamp-2 font-bold">{snap.sceneDescription}</p>
               </div>
             </div>
           ))}

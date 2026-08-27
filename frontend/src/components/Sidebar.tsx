@@ -26,10 +26,8 @@ interface SidebarProps {
   activeSchedulesCount?: number;
   permissionsCount?: number;
   dueRemindersCount?: number;
-  // Desktop collapse
   collapsed: boolean;
   onToggleCollapse: () => void;
-  // Mobile drawer
   mobileOpen: boolean;
   onCloseMobile: () => void;
 }
@@ -90,23 +88,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return (
       <button
         onClick={onNavigate}
-        className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-mono transition text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-mono transition text-left rounded-sm ${
           isActive
-            ? "bg-[#00E5FF] text-black font-bold border border-[#1a1a1a]"
-            : "text-[#1a1a1a] hover:bg-black/5 border border-transparent"
+            ? "bg-zinc-800 text-white font-bold border border-zinc-700"
+            : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100 border border-transparent"
         }`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-[10px] opacity-60 font-bold shrink-0">{item.code}</span>
-          <span className={`shrink-0 ${isActive ? "text-black" : "text-[#555]"}`}>{item.icon}</span>
+          <span className="text-[10px] opacity-50 font-bold shrink-0">{item.code}</span>
+          <span className={`shrink-0 ${isActive ? "text-[#00E5FF]" : "text-zinc-500"}`}>{item.icon}</span>
           <span className="truncate">{item.label}</span>
         </div>
         {item.badge && (
           <span
             className={`text-[9px] px-1.5 py-0.5 border font-mono font-bold shrink-0 ml-1 ${
               isActive
-                ? "bg-black text-white border-black"
-                : "bg-[#EBEBEA] text-[#1a1a1a] border-[#1a1a1a]/30"
+                ? "bg-[#00E5FF] text-black border-transparent"
+                : "bg-zinc-800 text-zinc-400 border-zinc-700"
             }`}
           >
             {item.badge}
@@ -122,15 +120,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <button
         onClick={() => onSelectPage(item.id)}
         title={item.label}
-        className={`relative w-full flex items-center justify-center py-2.5 transition ${
+        className={`relative w-full flex items-center justify-center py-2.5 transition rounded-sm ${
           isActive
-            ? "bg-[#00E5FF] text-black"
-            : "text-[#555] hover:bg-black/5 hover:text-[#1a1a1a]"
+            ? "bg-zinc-800 text-[#00E5FF]"
+            : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-100"
         }`}
       >
         {item.icon}
         {item.badge && (
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-black" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#00E5FF] rounded-full" />
         )}
       </button>
     );
@@ -141,18 +139,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* ── Desktop Sidebar ────────────────────────────────────────── */}
       <aside
         style={{ width: collapsed ? "3.5rem" : "14rem", transition: "width 200ms ease" }}
-        className="hidden lg:flex flex-col bg-[#F2F2EF] border-r border-[#1a1a1a] select-none shrink-0 overflow-hidden"
+        className="hidden lg:flex flex-col bg-[#0d0f12] border-r border-zinc-800 select-none shrink-0 overflow-hidden"
       >
         {/* Brand */}
-        <div className="border-b border-[#1a1a1a] bg-[#EBEBEA] shrink-0">
+        <div className="border-b border-zinc-800 bg-[#111318] shrink-0">
           {collapsed ? (
             <div className="flex items-center justify-center h-[68px]">
-              <div className="w-2 h-2 bg-[#00E5FF] border border-[#1a1a1a] animate-pulse" />
+              <div className="w-2 h-2 bg-[#00E5FF] animate-pulse rounded-full" />
             </div>
           ) : (
             <div className="p-5">
               <div className="overline-cyan whitespace-nowrap">OPERATIONAL OS</div>
-              <div className="font-serif text-2xl font-bold tracking-tight text-[#1a1a1a] whitespace-nowrap">
+              <div className="font-serif text-2xl font-bold tracking-tight text-white whitespace-nowrap">
                 J.A.R.V.I.S.
               </div>
             </div>
@@ -183,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={onToggleCollapse}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="shrink-0 border-t border-[#1a1a1a] flex items-center justify-center py-3 hover:bg-black/5 transition text-[#555] hover:text-[#1a1a1a]"
+          className="shrink-0 border-t border-zinc-800 flex items-center justify-center py-3 hover:bg-zinc-800/50 transition text-zinc-500 hover:text-zinc-100"
         >
           {collapsed ? (
             <PanelLeftOpen className="w-4 h-4" />
@@ -196,28 +194,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* ── Mobile Overlay ─────────────────────────────────────────── */}
       <div
         onClick={onCloseMobile}
-        className={`lg:hidden fixed inset-0 z-[55] bg-black/50 transition-opacity duration-200 ${
+        className={`lg:hidden fixed inset-0 z-[55] bg-black/60 transition-opacity duration-200 ${
           mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       />
 
       {/* ── Mobile Drawer ──────────────────────────────────────────── */}
       <aside
-        className={`lg:hidden fixed top-0 left-0 bottom-0 z-[60] w-72 bg-[#F2F2EF] border-r border-[#1a1a1a] flex flex-col select-none transform transition-transform duration-200 ${
+        className={`lg:hidden fixed top-0 left-0 bottom-0 z-[60] w-72 bg-[#0d0f12] border-r border-zinc-800 flex flex-col select-none transform transition-transform duration-200 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Brand + close */}
-        <div className="p-5 border-b border-[#1a1a1a] bg-[#EBEBEA] flex items-start justify-between shrink-0">
+        <div className="p-5 border-b border-zinc-800 bg-[#111318] flex items-start justify-between shrink-0">
           <div>
             <div className="overline-cyan">OPERATIONAL OS</div>
-            <div className="font-serif text-2xl font-bold tracking-tight text-[#1a1a1a]">
+            <div className="font-serif text-2xl font-bold tracking-tight text-white">
               J.A.R.V.I.S.
             </div>
           </div>
           <button
             onClick={onCloseMobile}
-            className="p-1.5 hover:bg-black/10 transition border border-transparent hover:border-[#1a1a1a]/20"
+            className="p-1.5 hover:bg-zinc-800 transition text-zinc-400 hover:text-white"
             title="Close menu"
           >
             <X className="w-4 h-4" />

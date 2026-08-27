@@ -835,7 +835,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EBEBEA] text-[#1a1a1a] flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
+    <div className="min-h-screen bg-[#0d0f12] text-white flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
       <Sidebar
         currentPage={currentPage}
         onSelectPage={setCurrentPage}

@@ -97,16 +97,16 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 font-mono text-black">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-white border-2 border-black shadow-[4px_4px_0px_#000000]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00e5ff] text-black border-2 border-black shadow-[2px_2px_0px_#000000]">
+          <div className="p-3 bg-[#00E5FF] text-black border border-transparent">
             <Database className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-heading font-black text-black tracking-wide">
+            <h2 className="text-xl font-heading font-black text-white tracking-wide">
               SEMANTIC VECTOR MEMORY INDEX
             </h2>
-            <p className="text-xs font-mono font-bold text-black/70">
+            <p className="text-xs font-mono font-bold text-zinc-400">
               {memories.length} Active Embeddings • Long-term conversational & directive recall
             </p>
           </div>
@@ -114,7 +114,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="w-full sm:w-auto px-4 py-2.5 bg-[#00e5ff] text-black font-black font-mono text-xs flex items-center justify-center gap-2 border-2 border-black shadow-[3px_3px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_#000000] transition"
+          className="w-full sm:w-auto px-4 py-2.5 bg-[#00E5FF] text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
         >
           <Plus className="w-4 h-4" />
           <span>STORE NEW MEMORY NODE</span>
@@ -122,21 +122,21 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       </div>
 
       {/* Semantic Search Bar */}
-      <div className="p-4 bg-white border-2 border-black space-y-3 shadow-[3px_3px_0px_#000000]">
-        <div className="flex items-center gap-2 bg-[#f3f3ee] p-2 border-2 border-black">
-          <Search className="w-5 h-5 text-black pl-1" />
+      <div className="p-4 bg-[#111318] border border-zinc-800 space-y-3">
+        <div className="flex items-center gap-2 bg-[#0d0f12] p-2 border border-zinc-800">
+          <Search className="w-5 h-5 text-zinc-400 pl-1" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Search memory... (e.g. 'project ideas', 'meeting notes', 'research')"
-            className="flex-1 bg-transparent border-none text-black placeholder-black/40 text-xs sm:text-sm font-mono font-bold focus:outline-none"
+            className="flex-1 bg-transparent border-none text-white placeholder-zinc-500 text-xs sm:text-sm font-mono font-bold focus:outline-none"
           />
           <button
             onClick={handleSearch}
             disabled={isSearching}
-            className="px-3 py-1.5 bg-[#00e5ff] text-black font-mono font-black text-xs border-2 border-black shadow-[2px_2px_0px_#000000] transition hover:translate-x-[-1px] hover:translate-y-[-1px]"
+            className="px-3 py-1.5 bg-[#00E5FF] text-black font-mono font-black text-xs border border-transparent transition"
           >
             {isSearching ? "SEARCHING..." : "SEMANTIC QUERY"}
           </button>
@@ -144,15 +144,15 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
         {/* Category Filters */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-          <Filter className="w-3.5 h-3.5 text-black" />
+          <Filter className="w-3.5 h-3.5 text-zinc-400" />
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 text-xs font-mono font-bold border-2 border-black transition whitespace-nowrap ${
+              className={`px-3 py-1 text-xs font-mono font-bold border border-zinc-800 transition whitespace-nowrap ${
                 selectedCategory === cat
-                  ? "bg-[#00e5ff] text-black shadow-[2px_2px_0px_#000000]"
-                  : "bg-white text-black hover:bg-slate-50"
+                  ? "bg-[#00E5FF] text-black border-transparent"
+                  : "bg-[#111318] text-zinc-300 hover:bg-zinc-800"
               }`}
             >
               {cat}
@@ -163,12 +163,12 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
       {/* AI Semantic Summary Result */}
       {searchSummary && (
-        <div className="p-4 bg-[#f3f3ee] border-2 border-black text-xs text-black font-mono space-y-1 shadow-[3px_3px_0px_#000000]">
-          <div className="flex items-center gap-2 font-black text-black">
+        <div className="p-4 bg-[#0d0f12] border border-zinc-800 text-xs text-white font-mono space-y-1">
+          <div className="flex items-center gap-2 font-black text-white">
             <Sparkles className="w-4 h-4 text-[#00c5db]" />
             <span>J.A.R.V.I.S. SEMANTIC SUMMARY</span>
           </div>
-          <p className="leading-relaxed bg-white p-3 border-2 border-black">{searchSummary}</p>
+          <p className="leading-relaxed bg-[#111318] p-3 border border-zinc-800">{searchSummary}</p>
         </div>
       )}
 
@@ -177,15 +177,15 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
         {filteredMemories.map((mem) => (
           <div
             key={mem.id}
-            className="p-5 bg-white border-2 border-black transition space-y-3 shadow-[3px_3px_0px_#000000] hover:shadow-[5px_5px_0px_#000000] flex flex-col justify-between"
+            className="p-5 bg-[#111318] border border-zinc-800 transition space-y-3 hover:border-zinc-600 flex flex-col justify-between"
           >
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <span className="font-heading font-black text-sm text-black">
+                <span className="font-heading font-black text-sm text-white">
                   {mem.title}
                 </span>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-mono font-black border border-black uppercase whitespace-nowrap ${
+                  className={`px-2 py-0.5 text-[10px] font-mono font-black border border-transparent uppercase whitespace-nowrap ${
                     mem.importance === "High"
                       ? "bg-rose-500 text-white"
                       : "bg-[#00e5ff] text-black"
@@ -195,18 +195,18 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 </span>
               </div>
 
-              <p className="text-xs text-black/80 font-mono leading-relaxed">
+              <p className="text-xs text-zinc-300 font-mono leading-relaxed">
                 {mem.content}
               </p>
             </div>
 
-            <div className="pt-3 border-t-2 border-black/10 flex items-center justify-between text-[11px] font-mono text-black/70">
+            <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-400">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="px-1.5 py-0.2 bg-[#f3f3ee] text-black border border-black font-bold text-[10px]">
+                <span className="px-1.5 py-0.2 bg-zinc-800 text-zinc-300 border border-zinc-700 font-bold text-[10px]">
                   {mem.category}
                 </span>
                 {mem.tags.map((t, idx) => (
-                  <span key={idx} className="text-[10px] font-bold text-black/60">
+                  <span key={idx} className="text-[10px] font-bold text-zinc-500">
                     #{t}
                   </span>
                 ))}
@@ -214,7 +214,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
               <button
                 onClick={() => onDeleteMemory(mem.id)}
-                className="p-1 text-black/60 hover:text-rose-600 transition"
+                className="p-1 text-zinc-500 hover:text-rose-400 transition"
                 title="Delete Memory Node"
               >
                 <Trash2 className="w-4 h-4" />
@@ -227,15 +227,15 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       {/* Create Memory Node Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg p-6 bg-white border-2 border-black space-y-4 shadow-[6px_6px_0px_#000000] text-black font-mono">
-            <div className="flex items-center justify-between border-b-2 border-black pb-3">
-              <h3 className="text-base font-heading font-black uppercase text-black flex items-center gap-2">
+          <div className="w-full max-w-lg p-6 bg-[#111318] border border-zinc-800 space-y-4 shadow-xl text-white font-mono">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-base font-heading font-black uppercase text-white flex items-center gap-2">
                 <Bookmark className="w-4 h-4" />
                 <span>STORE NEW SEMANTIC MEMORY</span>
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="p-1 border border-black hover:bg-slate-100"
+                className="p-1 border border-zinc-800 hover:bg-zinc-800 text-zinc-300"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -250,7 +250,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Preferred summarization style or key context"
-                  className="w-full p-2.5 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
+                  className="w-full p-2.5 bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono font-bold focus:outline-none"
                 />
               </div>
 
@@ -262,7 +262,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   placeholder="Enter detailed facts, instructions, or parameters to store in semantic memory..."
-                  className="w-full p-2.5 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
+                  className="w-full p-2.5 bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono font-bold focus:outline-none"
                 />
               </div>
 
@@ -272,7 +272,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   <select
                     value={newCategory}
                     onChange={(e: any) => setNewCategory(e.target.value)}
-                    className="w-full p-2 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
+                    className="w-full p-2 bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono font-bold focus:outline-none"
                   >
                     <option value="Project">Project</option>
                     <option value="Personal">Personal</option>
@@ -287,7 +287,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   <select
                     value={newImportance}
                     onChange={(e: any) => setNewImportance(e.target.value)}
-                    className="w-full p-2 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
+                    className="w-full p-2 bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono font-bold focus:outline-none"
                   >
                     <option value="High">High</option>
                     <option value="Medium">Medium</option>
@@ -303,21 +303,21 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   value={newTagInput}
                   onChange={(e) => setNewTagInput(e.target.value)}
                   placeholder="Mark85, Defense, Energy"
-                  className="w-full p-2.5 bg-[#f3f3ee] border-2 border-black text-black text-xs font-mono font-bold focus:outline-none"
+                  className="w-full p-2.5 bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono font-bold focus:outline-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t-2 border-black">
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 bg-white hover:bg-slate-100 border-2 border-black text-black text-xs font-mono font-bold"
+                  className="px-4 py-2 bg-[#111318] hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-mono font-bold"
                 >
                   CANCEL
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#00e5ff] border-2 border-black text-black font-mono font-black text-xs shadow-[2px_2px_0px_#000000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000000]"
+                  className="px-4 py-2 bg-[#00E5FF] border border-transparent text-black font-mono font-black text-xs"
                 >
                   SAVE NODE
                 </button>

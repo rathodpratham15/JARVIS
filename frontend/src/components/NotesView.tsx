@@ -99,10 +99,10 @@ export const NotesView: React.FC<NotesViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 06</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Tactical Notes
           </h1>
           <p className="label-secondary mt-1">
@@ -110,7 +110,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="p-2 px-3 bg-[#F2F2EF] border border-[#1a1a1a] font-mono text-xs font-bold text-[#1a1a1a]">
+          <div className="p-2 px-3 bg-[#0d0f12] border border-zinc-800 font-mono text-xs font-bold text-white">
             {notes.filter((n) => !n.completed).length} ACTIVE DIRECTIVES
           </div>
         </div>
@@ -124,10 +124,10 @@ export const NotesView: React.FC<NotesViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                <h2 className="font-serif text-2xl font-bold text-white">
                   Directives Directory
                 </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
+                <p className="text-xs text-zinc-400 font-sans mt-0.5">
                   Searchable ledger of stored directives and memos
                 </p>
               </div>
@@ -137,12 +137,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 <button
                   onClick={() => setSortAsc(v => !v)}
                   title={sortAsc ? "Oldest first" : "Newest first"}
-                  className="p-1.5 border border-[#1a1a1a] bg-[#EBEBEA] hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] hover:bg-[#00E5FF] transition"
                 >
                   <ArrowUpDown className="w-3.5 h-3.5" />
                 </button>
                 {/* Filter Tabs */}
-                <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5 overflow-x-auto">
+                <div className="flex items-center border border-zinc-800 bg-[#111318] p-0.5 overflow-x-auto">
                   {(["All", "Critical", "High", "Completed"] as const).map((tab) => (
                     <button
                       key={tab}
@@ -150,7 +150,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                       className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
                         filter === tab
                           ? "bg-[#00E5FF] text-black"
-                          : "text-[#555] hover:text-[#1a1a1a]"
+                          : "text-zinc-400 hover:text-white"
                       }`}
                     >
                       {tab}
@@ -169,15 +169,15 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 placeholder="SEARCH DIRECTIVES OR TAGS..."
                 className="editorial-input pl-9"
               />
-              <Search className="w-4 h-4 text-[#555] absolute left-3 top-3" />
+              <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-3" />
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Notes List */}
             <div className="space-y-4">
               {filteredNotes.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+                <div className="p-8 text-center border border-dashed border-zinc-800/30 bg-[#111318] font-mono text-xs text-zinc-400">
                   No directives found. Compose a new note in Panel 02.
                 </div>
               ) : (
@@ -186,14 +186,14 @@ export const NotesView: React.FC<NotesViewProps> = ({
                   return (
                     <div
                       key={note.id}
-                      className={`p-5 border border-[#1a1a1a] transition space-y-3 ${note.completed ? "bg-[#EBEBEA] opacity-60" : "bg-[#EBEBEA]"}`}
+                      className={`p-5 border border-zinc-800 transition space-y-3 ${note.completed ? "bg-[#111318] opacity-60" : "bg-[#111318]"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2.5 flex-1 min-w-0">
                           <button onClick={() => onToggleCompleteNote(note.id)} className="mt-1 shrink-0">
                             {note.completed
                               ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                              : <Circle className="w-4 h-4 text-[#1a1a1a] hover:text-[#00E5FF]" />}
+                              : <Circle className="w-4 h-4 text-white hover:text-[#00E5FF]" />}
                           </button>
                           {isEditing ? (
                             <input
@@ -201,16 +201,16 @@ export const NotesView: React.FC<NotesViewProps> = ({
                               value={editTitle}
                               onChange={e => setEditTitle(e.target.value)}
                               onKeyDown={e => { if (e.key === "Enter") submitEdit(note.id); if (e.key === "Escape") setEditingId(null); }}
-                              className="flex-1 border border-[#1a1a1a] bg-white font-serif text-lg font-bold text-[#1a1a1a] px-2 py-0.5 outline-none"
+                              className="flex-1 border border-zinc-800 bg-[#0d0f12] font-serif text-lg font-bold text-white px-2 py-0.5 outline-none"
                             />
                           ) : (
-                            <h3 className={`font-serif text-lg font-bold ${note.completed ? "line-through text-[#666]" : "text-[#1a1a1a]"}`}>
+                            <h3 className={`font-serif text-lg font-bold ${note.completed ? "line-through text-zinc-500" : "text-white"}`}>
                               {note.title}
                             </h3>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-[#1a1a1a] ${note.priority === "Critical" ? "bg-[#1a1a1a] text-[#00E5FF]" : note.priority === "High" ? "bg-amber-100 text-amber-900" : "bg-white text-[#1a1a1a]"}`}>
+                          <span className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-zinc-800 ${note.priority === "Critical" ? "bg-[#1a1a1a] text-[#00E5FF]" : note.priority === "High" ? "bg-amber-500/20 text-amber-400" : "bg-zinc-800 text-zinc-300"}`}>
                             {note.priority}
                           </span>
                           {isEditing ? (
@@ -219,9 +219,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
                               <button onClick={() => setEditingId(null)} className="text-rose-500 hover:text-rose-700"><X className="w-3.5 h-3.5" /></button>
                             </>
                           ) : (
-                            <button onClick={() => startEdit(note)} className="text-[#555] hover:text-[#1a1a1a]"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => startEdit(note)} className="text-zinc-400 hover:text-white"><Pencil className="w-3.5 h-3.5" /></button>
                           )}
-                          <button onClick={() => onDeleteNote(note.id)} className="text-[#555] hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => onDeleteNote(note.id)} className="text-zinc-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
 
@@ -230,19 +230,19 @@ export const NotesView: React.FC<NotesViewProps> = ({
                           value={editContent}
                           onChange={e => setEditContent(e.target.value)}
                           rows={3}
-                          className="w-full border border-[#1a1a1a] bg-white font-mono text-xs text-[#555] px-2 py-1.5 outline-none resize-none ml-6"
+                          className="w-full border border-zinc-800 bg-[#0d0f12] font-mono text-xs text-zinc-400 px-2 py-1.5 outline-none resize-none ml-6"
                         />
                       ) : (
-                        <p className="font-mono text-xs text-[#555] leading-relaxed pl-6">{note.content}</p>
+                        <p className="font-mono text-xs text-zinc-400 leading-relaxed pl-6">{note.content}</p>
                       )}
 
-                      <div className="pt-3 border-t border-[#1a1a1a]/20 flex items-center justify-between pl-6 text-[10px] font-mono text-[#555]">
+                      <div className="pt-3 border-t border-zinc-800/20 flex items-center justify-between pl-6 text-[10px] font-mono text-zinc-400">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {note.tags.map((tag) => (
-                            <span key={tag} className="px-1.5 py-0.2 bg-white border border-[#1a1a1a] text-[#1a1a1a]">#{tag}</span>
+                            <span key={tag} className="px-1.5 py-0.2 bg-zinc-800 border border-zinc-700 text-zinc-300">#{tag}</span>
                           ))}
                         </div>
-                        <span className="text-[#aaa]">{new Date(note.createdAt).toLocaleDateString()}</span>
+                        <span className="text-zinc-600">{new Date(note.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   );
@@ -257,15 +257,15 @@ export const NotesView: React.FC<NotesViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 New Directive Memo
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Record operational parameters or mission instructions
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
@@ -328,21 +328,21 @@ export const NotesView: React.FC<NotesViewProps> = ({
               </button>
             </form>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Storage Metadata */}
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>INDEX LOCATION</span>
-                <span className="font-bold text-[#1a1a1a]">LOCAL STORAGE / STARK VAULT</span>
+                <span className="font-bold text-white">LOCAL STORAGE / STARK VAULT</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>ENCRYPTION</span>
-                <span className="font-bold text-[#1a1a1a]">AES-256 BIT VECTOR</span>
+                <span className="font-bold text-white">AES-256 BIT VECTOR</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>SEMANTIC EMBEDDING</span>
-                <span className="font-bold text-[#1a1a1a]">AUTOMATIC VECTOR LINK</span>
+                <span className="font-bold text-white">AUTOMATIC VECTOR LINK</span>
               </div>
             </div>
           </div>

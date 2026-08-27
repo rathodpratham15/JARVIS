@@ -81,10 +81,10 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#1a1a1a] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
         <div>
           <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 07</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[#1a1a1a] mt-1">
+          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
             Reminders
           </h1>
           <p className="label-secondary mt-1">
@@ -113,21 +113,21 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+                <h2 className="font-serif text-2xl font-bold text-white">
                   Scheduled Alarms
                 </h2>
-                <p className="text-xs text-[#555] font-sans mt-0.5">
+                <p className="text-xs text-zinc-400 font-sans mt-0.5">
                   Synchronized time-critical triggers and voice alerts
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 bg-[#EBEBEA] border border-[#1a1a1a] font-mono text-[11px] font-bold">
+                <span className="px-2.5 py-1 bg-[#111318] border border-zinc-800 font-mono text-[11px] font-bold">
                   {reminders.filter(r => !r.isDismissed).length} ACTIVE
                 </span>
-                <div className="flex items-center border border-[#1a1a1a] bg-[#EBEBEA] p-0.5">
+                <div className="flex items-center border border-zinc-800 bg-[#111318] p-0.5">
                   {(["All", "Active", "Dismissed"] as const).map(f => (
                     <button key={f} onClick={() => setFilter(f)}
-                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${filter === f ? "bg-[#00E5FF] text-black" : "text-[#555] hover:text-[#1a1a1a]"}`}>
+                      className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${filter === f ? "bg-[#00E5FF] text-black" : "text-zinc-400 hover:text-white"}`}>
                       {f}
                     </button>
                   ))}
@@ -135,12 +135,12 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               </div>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             {/* Reminders List */}
             <div className="space-y-4">
               {reminders.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-[#1a1a1a]/30 bg-[#EBEBEA] font-mono text-xs text-[#555]">
+                <div className="p-8 text-center border border-dashed border-zinc-800/30 bg-[#111318] font-mono text-xs text-zinc-400">
                   No active alarms. Schedule a time-critical reminder in Panel 02.
                 </div>
               ) : (
@@ -150,40 +150,40 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                   .map((reminder) => (
                   <div
                     key={reminder.id}
-                    className={`p-5 border border-[#1a1a1a] bg-[#EBEBEA] space-y-3 transition ${
+                    className={`p-5 border border-zinc-800 bg-[#111318] space-y-3 transition ${
                       reminder.isDismissed ? "opacity-50" : ""
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-[#1a1a1a] ${
+                          className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-zinc-800 ${
                             reminder.priority === "CRITICAL"
                               ? "bg-[#1a1a1a] text-[#00E5FF]"
                               : reminder.priority === "HIGH"
-                              ? "bg-amber-100 text-amber-900"
-                              : "bg-white text-[#1a1a1a]"
+                              ? "bg-amber-500/20 text-amber-400"
+                              : "bg-zinc-800 text-zinc-300"
                           }`}
                         >
                           {reminder.priority}
                         </span>
-                        <span className="font-mono text-xs text-[#555] font-bold">
+                        <span className="font-mono text-xs text-zinc-400 font-bold">
                           {new Date(reminder.targetTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          <span className="ml-1.5 text-[#00a8bb]">({relativeTime(reminder.targetTime)})</span>
+                          <span className="ml-1.5 text-[#00E5FF]">({relativeTime(reminder.targetTime)})</span>
                         </span>
                       </div>
 
                       <div className="flex items-center gap-1.5 self-start sm:self-center">
                         <button
                           onClick={() => handleTestAlarm(reminder)}
-                          className="p-1.5 border border-[#1a1a1a] bg-white hover:bg-black/5 text-[#1a1a1a]"
+                          className="p-1.5 border border-zinc-800 bg-[#111318] hover:bg-zinc-800 text-zinc-300"
                           title="Trigger Alarm Preview"
                         >
                           <Volume2 className="w-3 h-3" />
                         </button>
                         <button
                           onClick={() => onDeleteReminder(reminder.id)}
-                          className="p-1.5 border border-[#1a1a1a] bg-white hover:bg-rose-100 text-[#1a1a1a]"
+                          className="p-1.5 border border-zinc-800 bg-[#111318] hover:bg-red-900/20 text-zinc-300"
                           title="Delete Alarm"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -191,14 +191,14 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       </div>
                     </div>
 
-                    <h3 className="font-serif text-lg font-bold text-[#1a1a1a]">
+                    <h3 className="font-serif text-lg font-bold text-white">
                       {reminder.title}
                     </h3>
 
                     {/* Action Row */}
-                    <div className="pt-3 border-t border-[#1a1a1a]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-                      <div className="text-[11px] text-[#555]">
-                        CHIME: <strong className="text-[#1a1a1a]">{reminder.soundAlert || "Default Chime"}</strong>
+                    <div className="pt-3 border-t border-zinc-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+                      <div className="text-[11px] text-zinc-400">
+                        CHIME: <strong className="text-white">{reminder.soundAlert || "Default Chime"}</strong>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -230,15 +230,15 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
           <div className="editorial-panel space-y-6">
             <div>
               <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-[#1a1a1a]">
+              <h2 className="font-serif text-2xl font-bold text-white">
                 New Alarm
               </h2>
-              <p className="text-xs text-[#555] font-sans mt-0.5">
+              <p className="text-xs text-zinc-400 font-sans mt-0.5">
                 Register time-critical alerts with synthetic speech dispatch
               </p>
             </div>
 
-            <div className="border-b border-[#1a1a1a]" />
+            <div className="border-b border-zinc-800" />
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-1.5">
@@ -273,7 +273,7 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
                       key={qp.label}
                       type="button"
                       onClick={() => handleQuickPreset(qp.mins)}
-                      className="p-1.5 bg-[#EBEBEA] hover:bg-[#00E5FF] hover:text-black border border-[#1a1a1a] font-mono text-[10px] font-bold text-[#1a1a1a] transition"
+                      className="p-1.5 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[10px] font-bold text-white transition"
                     >
                       {qp.label}
                     </button>
@@ -319,21 +319,21 @@ export const RemindersView: React.FC<RemindersViewProps> = ({
               </button>
             </form>
 
-            <div className="border-b border-dashed border-[#1a1a1a]/30 my-4" />
+            <div className="border-b border-dashed border-zinc-800/30 my-4" />
 
             {/* Alarm Subsystem Telemetry */}
             <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>AUDIO ENGINE</span>
-                <span className="font-bold text-[#1a1a1a]">WEB AUDIO API + TTS SYNTH</span>
+                <span className="font-bold text-white">WEB AUDIO API + TTS SYNTH</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>SNOOZE INTERVAL</span>
-                <span className="font-bold text-[#1a1a1a]">15 MINUTES DEFAULT</span>
+                <span className="font-bold text-white">15 MINUTES DEFAULT</span>
               </div>
-              <div className="flex justify-between text-[#555]">
+              <div className="flex justify-between text-zinc-400">
                 <span>WAKE NOTIFICATION</span>
-                <span className="font-bold text-[#1a1a1a]">BROWSER FOREGROUND LOOP</span>
+                <span className="font-bold text-white">BROWSER FOREGROUND LOOP</span>
               </div>
             </div>
           </div>
