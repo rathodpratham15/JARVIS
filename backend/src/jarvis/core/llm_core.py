@@ -176,6 +176,8 @@ class LLMCore:
         prompt: str,
         tools: list[dict],
         memory: Optional[str] = None,
+        system_prompt_override: Optional[str] = None,
+        max_tokens_override: Optional[int] = None,
     ) -> tuple[str | None, str | None, dict | None]:
         """Call the LLM with a tool schema.
 
@@ -187,7 +189,8 @@ class LLMCore:
         if not self.client:
             return self._simulate_response(prompt), None, None
 
-        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        sys = system_prompt_override or self.system_prompt
+        messages: list[dict] = [{"role": "system", "content": sys}]
         if memory:
             messages.append({"role": "system", "content": f"Context from memory: {memory}"})
         for m in self.conversation_history[-_CONTEXT_WINDOW:]:
@@ -201,7 +204,7 @@ class LLMCore:
                 tools=tools,
                 tool_choice="auto",
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens=max_tokens_override or self.max_tokens,
             )
         except Exception as exc:
             logger.error("LLM tool call failed (%s): %s", self.provider.name, exc)
@@ -228,12 +231,15 @@ class LLMCore:
         tool_name: str,
         tool_result: str,
         memory: Optional[str] = None,
+        system_prompt_override: Optional[str] = None,
+        max_tokens_override: Optional[int] = None,
     ) -> str:
         """Feed tool result back to the LLM for a natural-language reply."""
         if not self.client:
             return tool_result
 
-        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        sys = system_prompt_override or self.system_prompt
+        messages: list[dict] = [{"role": "system", "content": sys}]
         if memory:
             messages.append({"role": "system", "content": f"Context from memory: {memory}"})
         for m in self.conversation_history[-_CONTEXT_WINDOW:]:
@@ -251,7 +257,7 @@ class LLMCore:
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                max_tokens=max_tokens_override or self.max_tokens,
             )
             reply = response.choices[0].message.content or tool_result
         except Exception as exc:
