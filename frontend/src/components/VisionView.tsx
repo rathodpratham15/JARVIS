@@ -325,7 +325,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00E5FF] text-black">
+          <div className="p-3 bg-zinc-700 text-white">
             <Eye className="w-6 h-6" />
           </div>
           <div>
@@ -341,7 +341,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
         <button
           onClick={handleCaptureAndAnalyze}
           disabled={isScanning}
-          className="w-full sm:w-auto px-4 py-2.5 bg-[#00E5FF] hover:bg-[#00c5db] disabled:opacity-50 text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
+          className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-zinc-100 disabled:opacity-50 text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
         >
           {isScanning ? (
             <>
@@ -383,16 +383,16 @@ export const VisionView: React.FC<VisionViewProps> = ({
             )}
 
             {/* HUD Target Overlay Crosshairs */}
-            <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between border-2 border-[#00e5ff]/50">
+            <div className="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between border-2 border-white/20">
               {/* Target Bounding Box Overlay */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border-2 border-dashed border-[#00e5ff] flex items-center justify-center animate-pulse">
-                <div className="absolute -top-3 px-2 py-0.5 bg-black text-[#00e5ff] border border-[#00e5ff]/30 text-[10px] font-mono font-black">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border-2 border-dashed border-white/40 flex items-center justify-center animate-pulse">
+                <div className="absolute -top-3 px-2 py-0.5 bg-black text-zinc-300 border border-white/20 text-[10px] font-mono font-black">
                   {cameraActive ? "CAMERA ACTIVE" : "SIMULATED FEED"}
                 </div>
-                <div className="w-4 h-4 border-t-2 border-l-2 border-[#00e5ff] absolute top-0 left-0" />
-                <div className="w-4 h-4 border-t-2 border-r-2 border-[#00e5ff] absolute top-0 right-0" />
-                <div className="w-4 h-4 border-b-2 border-l-2 border-[#00e5ff] absolute bottom-0 left-0" />
-                <div className="w-4 h-4 border-b-2 border-r-2 border-[#00e5ff] absolute bottom-0 right-0" />
+                <div className="w-4 h-4 border-t-2 border-l-2 border-white/40 absolute top-0 left-0" />
+                <div className="w-4 h-4 border-t-2 border-r-2 border-white/40 absolute top-0 right-0" />
+                <div className="w-4 h-4 border-b-2 border-l-2 border-white/40 absolute bottom-0 left-0" />
+                <div className="w-4 h-4 border-b-2 border-r-2 border-white/40 absolute bottom-0 right-0" />
               </div>
 
               <div className="flex justify-end items-end text-[10px] font-mono mt-auto">
@@ -418,7 +418,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {cameraActive && (
                 <button
                   onClick={handleSwitchCamera}
-                  className="px-2 py-1 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 text-zinc-300 font-black text-[10px] flex items-center gap-1 transition"
+                  className="px-2 py-1 bg-[#111318] hover:bg-zinc-700 border border-zinc-800 text-zinc-300 font-black text-[10px] flex items-center gap-1 transition"
                   title="Switch camera"
                 >
                   <SwitchCamera className="w-3 h-3" />
@@ -428,7 +428,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               {cameraError && (
                 <button
                   onClick={() => startCamera()}
-                  className="px-2 py-1 bg-[#00E5FF] hover:bg-[#00c5db] border border-transparent text-black font-black text-[10px]"
+                  className="px-2 py-1 bg-white hover:bg-zinc-100 border border-transparent text-black font-black text-[10px]"
                 >
                   RETRY CAM
                 </button>
@@ -469,7 +469,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                         className="w-10 h-10 border border-zinc-700 object-cover"
                       />
                     ) : (
-                      <div className="w-10 h-10 bg-[#00E5FF] flex items-center justify-center text-black font-mono font-black">
+                      <div className="w-10 h-10 bg-zinc-700 flex items-center justify-center text-white font-mono font-black">
                         ?
                       </div>
                     )}
@@ -511,7 +511,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 <button
                   key={i}
                   onClick={() => handleConfirmCandidate(c.name, capturedFrame)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-[#0d0f12] border border-zinc-800 hover:bg-[#00E5FF] hover:text-black transition text-left font-mono text-xs font-bold text-zinc-300"
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#0d0f12] border border-zinc-800 hover:bg-zinc-700 hover:text-white transition text-left font-mono text-xs font-bold text-zinc-300"
                 >
                   <span>{c.name}</span>
                   <span className="text-[10px] text-zinc-500">{Math.min(100, Math.round(c.score * 100))}%</span>
@@ -562,7 +562,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               <button
                 onClick={() => { if (unknownName.trim()) { setConfirmedName(unknownName.trim()); runOsint(unknownName.trim(), unknownCompany.trim() || undefined); }}}
                 disabled={!unknownName.trim()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#00E5FF] border border-transparent font-mono font-black text-xs text-black transition disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-zinc-100 border border-transparent font-mono font-black text-xs text-black transition disabled:opacity-50"
               >
                 <Search className="w-3.5 h-3.5" />
                 COMPILE DOSSIER
@@ -590,7 +590,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
         <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">
           <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#00E5FF]" />
+              <Search className="w-4 h-4 text-zinc-400" />
               <h3 className="text-xs font-heading font-black uppercase tracking-widest text-white">
                 INTELLIGENCE DOSSIER — {osintDossier.subject.toUpperCase()}
               </h3>
@@ -647,7 +647,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                     >
                       <span className="font-mono text-[10px] text-zinc-600 shrink-0 mt-0.5">[{i + 1}]</span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[11px] font-bold text-zinc-300 truncate group-hover:text-[#00E5FF] transition">{src.title}</div>
+                        <div className="font-mono text-[11px] font-bold text-zinc-300 truncate group-hover:text-white transition">{src.title}</div>
                         <div className="font-mono text-[10px] text-zinc-500 line-clamp-1">{src.snippet}</div>
                       </div>
                       <ExternalLink className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
@@ -664,9 +664,9 @@ export const VisionView: React.FC<VisionViewProps> = ({
       {(analysisResult || isAnalyzingScene) && (
         <div className="p-5 bg-[#111318] border border-zinc-800 space-y-3 shadow-lg">
           <div className="flex items-center gap-2 text-sm font-heading font-black text-white border-b border-zinc-800 pb-2">
-            <Sparkles className="w-4 h-4 text-[#00E5FF]" />
+            <Sparkles className="w-4 h-4 text-zinc-400" />
             <span>OPTICAL ANALYSIS BREAKDOWN</span>
-            {isAnalyzingScene && <RefreshCw className="w-3 h-3 animate-spin text-[#00E5FF] ml-auto" />}
+            {isAnalyzingScene && <RefreshCw className="w-3 h-3 animate-spin text-zinc-400 ml-auto" />}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono text-zinc-300">
@@ -720,7 +720,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
             </button>
             <button
               onClick={() => { setShowEnrollForm(f => !f); setEnrollError(null); }}
-              className="px-3 py-1.5 bg-[#00E5FF] hover:bg-[#00c5db] border border-transparent text-black font-black font-mono text-[10px] flex items-center gap-1.5 transition"
+              className="px-3 py-1.5 bg-white hover:bg-zinc-100 border border-transparent text-black font-black font-mono text-[10px] flex items-center gap-1.5 transition"
             >
               <UserPlus className="w-3 h-3" />
               {showEnrollForm ? "CANCEL" : "ENROLL NEW"}
@@ -740,16 +740,16 @@ export const VisionView: React.FC<VisionViewProps> = ({
                 placeholder="Full name (e.g. Pratham Rathod)"
                 value={enrollName}
                 onChange={e => setEnrollName(e.target.value)}
-                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-[#00E5FF]"
+                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-white"
               />
               <input
                 type="text"
                 placeholder="Organization (e.g. Northeastern, Swapt)"
                 value={enrollOrg}
                 onChange={e => setEnrollOrg(e.target.value)}
-                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-[#00E5FF]"
+                className="flex-1 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-white"
               />
-              <label className="flex items-center gap-2 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-zinc-300 font-mono text-[10px] font-black cursor-pointer hover:bg-[#00E5FF] hover:text-black transition">
+              <label className="flex items-center gap-2 px-3 py-2 border border-zinc-800 bg-[#0d0f12] text-zinc-300 font-mono text-[10px] font-black cursor-pointer hover:bg-zinc-700 hover:text-white transition">
                 <Upload className="w-3.5 h-3.5" />
                 {enrollFiles && enrollFiles.length > 0 ? `${enrollFiles.length} PHOTO(S)` : "CHOOSE PHOTOS"}
                 <input
@@ -792,7 +792,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
                     className="w-16 h-16 object-cover border border-zinc-700"
                   />
                 ) : (
-                  <div className="w-16 h-16 bg-[#00E5FF] flex items-center justify-center text-black font-black text-xl">
+                  <div className="w-16 h-16 bg-zinc-700 flex items-center justify-center text-white font-black text-xl">
                     {person.name[0]?.toUpperCase()}
                   </div>
                 )}
@@ -834,7 +834,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
               <div className="space-y-1">
                 <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-500">
                   <span>{snap.timestamp}</span>
-                  <span className="text-black bg-[#00E5FF] px-1">{snap.threatLevel}</span>
+                  <span className="text-black bg-white px-1">{snap.threatLevel}</span>
                 </div>
                 <p className="text-zinc-300 font-mono text-xs line-clamp-2 font-bold">{snap.sceneDescription}</p>
               </div>

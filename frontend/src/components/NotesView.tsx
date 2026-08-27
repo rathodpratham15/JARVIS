@@ -137,7 +137,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 <button
                   onClick={() => setSortAsc(v => !v)}
                   title={sortAsc ? "Oldest first" : "Newest first"}
-                  className="p-1.5 border border-zinc-800 bg-[#111318] hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] hover:bg-zinc-700 transition"
                 >
                   <ArrowUpDown className="w-3.5 h-3.5" />
                 </button>
@@ -149,7 +149,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                       onClick={() => setFilter(tab)}
                       className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
                         filter === tab
-                          ? "bg-[#00E5FF] text-black"
+                          ? "bg-white text-black"
                           : "text-zinc-400 hover:text-white"
                       }`}
                     >
@@ -193,7 +193,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                           <button onClick={() => onToggleCompleteNote(note.id)} className="mt-1 shrink-0">
                             {note.completed
                               ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                              : <Circle className="w-4 h-4 text-white hover:text-[#00E5FF]" />}
+                              : <Circle className="w-4 h-4 text-white hover:text-zinc-300" />}
                           </button>
                           {isEditing ? (
                             <input
@@ -210,7 +210,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-zinc-800 ${note.priority === "Critical" ? "bg-[#1a1a1a] text-[#00E5FF]" : note.priority === "High" ? "bg-amber-500/20 text-amber-400" : "bg-zinc-800 text-zinc-300"}`}>
+                          <span className={`font-mono text-[9px] px-2 py-0.5 font-bold uppercase border border-zinc-800 ${note.priority === "Critical" ? "bg-zinc-700 text-white" : note.priority === "High" ? "bg-amber-500/20 text-amber-400" : "bg-zinc-800 text-zinc-300"}`}>
                             {note.priority}
                           </span>
                           {isEditing ? (

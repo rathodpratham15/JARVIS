@@ -159,7 +159,7 @@ export const ComputerUseView: React.FC = () => {
                 </span>
                 <button
                   onClick={() => playUiSound("beep")}
-                  className="p-1 px-2 border border-zinc-800 bg-[#00E5FF] text-black font-bold"
+                  className="p-1 px-2 border border-zinc-800 bg-zinc-700 text-white font-bold"
                   title="Capture Frame"
                 >
                   <Camera className="w-3 h-3" />
@@ -177,7 +177,7 @@ export const ComputerUseView: React.FC = () => {
                   <div className="w-2.5 h-2.5 bg-rose-500 rounded-full" />
                   <div className="w-2.5 h-2.5 bg-amber-500 rounded-full" />
                   <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
-                  <span className="ml-2 font-bold text-[#00E5FF]">STARK OS // WORKSHOP TERMINAL</span>
+                  <span className="ml-2 font-bold text-white">STARK OS // WORKSHOP TERMINAL</span>
                 </div>
                 <span className="text-[#888]">1920x1080 @ 60 FPS</span>
               </div>
@@ -200,7 +200,7 @@ export const ComputerUseView: React.FC = () => {
                 </div>
 
                 {/* Simulated Visual Bounding Boxes */}
-                <div className="absolute top-16 right-6 border border-[#00E5FF] bg-[#00E5FF]/20 px-2 py-1 text-[10px] text-cyan-200 font-bold">
+                <div className="absolute top-16 right-6 border border-white/40 bg-white/10 px-2 py-1 text-[10px] text-white font-bold">
                   [ARC_TELEMETRY_PORTAL]
                 </div>
                 <div className="absolute bottom-12 left-10 border border-emerald-400 bg-emerald-400/20 px-2 py-1 text-[10px] text-emerald-200 font-bold">
@@ -212,8 +212,8 @@ export const ComputerUseView: React.FC = () => {
                   className="absolute pointer-events-none transition-all duration-300 flex items-center gap-1 z-30"
                   style={{ top: `${(mousePos.y / 1080) * 100}%`, left: `${(mousePos.x / 1920) * 100}%` }}
                 >
-                  <MousePointer className="w-5 h-5 text-[#00E5FF] fill-current drop-shadow" />
-                  <span className="bg-black text-[#00E5FF] px-1 text-[9px] font-mono border border-[#00E5FF]">
+                  <MousePointer className="w-5 h-5 text-white fill-current drop-shadow" />
+                  <span className="bg-black text-white px-1 text-[9px] font-mono border border-white/40">
                     ({mousePos.x}, {mousePos.y})
                   </span>
                 </div>
@@ -294,7 +294,7 @@ export const ComputerUseView: React.FC = () => {
                   <button
                     key={idx}
                     onClick={() => setInstruction(preset)}
-                    className="w-full text-left p-2.5 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[11px] text-white transition font-medium"
+                    className="w-full text-left p-2.5 bg-[#111318] hover:bg-zinc-700 border border-zinc-800 font-mono text-[11px] text-white transition font-medium"
                   >
                     "{preset}"
                   </button>
@@ -318,7 +318,7 @@ export const ComputerUseView: React.FC = () => {
                     className="p-2.5 bg-[#111318] border border-zinc-800 space-y-1"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] px-1.5 py-0.2 bg-[#1a1a1a] text-[#00E5FF] font-bold uppercase">
+                      <span className="text-[9px] px-1.5 py-0.2 bg-zinc-700 text-white font-bold uppercase">
                         {step.actionType}
                       </span>
                       <span className="text-[10px] text-zinc-400">{step.timestamp}</span>

@@ -203,7 +203,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <label className="label-secondary">AI INFERENCE PROVIDER</label>
                 <div className="p-3 bg-[#111318] border border-zinc-800 flex items-center justify-between font-mono text-xs">
                   <span className="font-bold text-white">{providerName} (Server-Side Proxy)</span>
-                  <span className="px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-zinc-800 text-[10px]">
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-800 text-[10px]">
                     CONNECTED
                   </span>
                 </div>
@@ -274,7 +274,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   onClick={onToggleSpeech}
                   className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
-                    speechEnabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
+                    speechEnabled ? "bg-white justify-end" : "bg-zinc-700 justify-start"
                   }`}
                 >
                   <div className="w-3.5 h-3.5 bg-black" />
@@ -314,7 +314,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       }}
                       className={`w-full p-3 border border-zinc-800 text-left flex items-center justify-between transition ${
                         isSelected
-                          ? "bg-[#00E5FF] text-black font-bold"
+                          ? "bg-white text-black font-bold"
                           : "bg-[#111318] text-white hover:bg-zinc-800"
                       }`}
                     >
@@ -332,7 +332,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
 
                       {isSelected && (
-                        <span className="font-mono text-[9px] px-1.5 py-0.2 bg-black text-[#00E5FF]">
+                        <span className="font-mono text-[9px] px-1.5 py-0.2 bg-zinc-700 text-white">
                           ACTIVE
                         </span>
                       )}
@@ -383,7 +383,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold text-white uppercase">Google Workspace</span>
               {googleStatus?.connected && (
-                <span className="px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-zinc-800 text-[10px] font-mono">
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-800 text-[10px] font-mono">
                   CONNECTED
                 </span>
               )}
@@ -398,7 +398,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   key={key}
                   className={`p-2.5 border border-zinc-800 flex items-center gap-2 font-mono text-xs ${
                     googleStatus?.[key]
-                      ? "bg-[#00E5FF]/20 text-white"
+                      ? "bg-emerald-500/20 text-white"
                       : "bg-[#111318] text-zinc-500"
                   }`}
                 >

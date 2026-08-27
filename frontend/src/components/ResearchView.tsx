@@ -74,7 +74,7 @@ export const ResearchView: React.FC = () => {
                 onClick={() => setKind(opt.value)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 border font-mono text-xs font-bold transition ${
                   kind === opt.value
-                    ? "bg-[#1a1a1a] text-[#00E5FF] border-zinc-800"
+                    ? "bg-zinc-700 text-white border-zinc-800"
                     : "bg-[#111318] text-zinc-400 border-zinc-800 hover:border-zinc-600 hover:text-white"
                 }`}
               >
@@ -212,7 +212,7 @@ export const ResearchView: React.FC = () => {
                     >
                       <span className="font-mono text-[10px] text-zinc-500 mt-0.5 shrink-0">[{i + 1}]</span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-xs font-bold text-white group-hover:text-[#00C4D4] transition truncate">
+                        <div className="font-mono text-xs font-bold text-white group-hover:text-zinc-300 transition truncate">
                           {src.title}
                         </div>
                         <div className="font-sans text-[11px] text-zinc-400 mt-0.5 line-clamp-2">{src.snippet}</div>

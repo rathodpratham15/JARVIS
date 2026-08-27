@@ -33,7 +33,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
     switch (risk) {
       case "HIGH":
         return (
-          <span className="font-mono text-[9px] px-2 py-0.5 bg-[#1a1a1a] text-[#00E5FF] font-bold border border-zinc-800">
+          <span className="font-mono text-[9px] px-2 py-0.5 bg-zinc-800 text-zinc-300 font-bold border border-zinc-700">
             HIGH RISK
           </span>
         );
@@ -149,7 +149,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                           onTogglePermission(perm.id);
                         }}
                         className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
-                          perm.enabled ? "bg-[#00E5FF] justify-end" : "bg-zinc-700 justify-start"
+                          perm.enabled ? "bg-white justify-end" : "bg-zinc-700 justify-start"
                         }`}
                         title={perm.enabled ? "Revoke Capability" : "Grant Capability"}
                       >
@@ -193,7 +193,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                 <span className="font-mono text-xs font-bold text-white">
                   POSTURE: DEFENSE IN DEPTH
                 </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 bg-[#00E5FF] text-black font-bold border border-zinc-800">
+                <span className="font-mono text-[10px] px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-800">
                   SECURE
                 </span>
               </div>
@@ -221,7 +221,7 @@ export const PermissionsView: React.FC<PermissionsViewProps> = ({
                       <span className="text-[10px] text-zinc-400 font-bold">
                         {item.timestamp}
                       </span>
-                      <span className="text-[9px] px-1.5 py-0.2 bg-[#00E5FF] text-black font-bold border border-zinc-800">
+                      <span className="text-[9px] px-1.5 py-0.2 bg-zinc-700 text-white font-bold border border-zinc-600">
                         {item.status.toUpperCase()}
                       </span>
                     </div>

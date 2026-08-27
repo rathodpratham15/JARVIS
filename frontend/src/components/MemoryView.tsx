@@ -99,7 +99,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00E5FF] text-black border border-transparent">
+          <div className="p-3 bg-zinc-700 text-white border border-zinc-800">
             <Database className="w-6 h-6" />
           </div>
           <div>
@@ -114,7 +114,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="w-full sm:w-auto px-4 py-2.5 bg-[#00E5FF] text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
+          className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-zinc-100 text-black font-black font-mono text-xs flex items-center justify-center gap-2 border border-transparent transition"
         >
           <Plus className="w-4 h-4" />
           <span>STORE NEW MEMORY NODE</span>
@@ -136,7 +136,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
           <button
             onClick={handleSearch}
             disabled={isSearching}
-            className="px-3 py-1.5 bg-[#00E5FF] text-black font-mono font-black text-xs border border-transparent transition"
+            className="px-3 py-1.5 bg-white hover:bg-zinc-100 text-black font-mono font-black text-xs border border-transparent transition"
           >
             {isSearching ? "SEARCHING..." : "SEMANTIC QUERY"}
           </button>
@@ -151,7 +151,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1 text-xs font-mono font-bold border border-zinc-800 transition whitespace-nowrap ${
                 selectedCategory === cat
-                  ? "bg-[#00E5FF] text-black border-transparent"
+                  ? "bg-white text-black border-transparent"
                   : "bg-[#111318] text-zinc-300 hover:bg-zinc-800"
               }`}
             >
@@ -165,7 +165,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
       {searchSummary && (
         <div className="p-4 bg-[#0d0f12] border border-zinc-800 text-xs text-white font-mono space-y-1">
           <div className="flex items-center gap-2 font-black text-white">
-            <Sparkles className="w-4 h-4 text-[#00c5db]" />
+            <Sparkles className="w-4 h-4 text-zinc-400" />
             <span>J.A.R.V.I.S. SEMANTIC SUMMARY</span>
           </div>
           <p className="leading-relaxed bg-[#111318] p-3 border border-zinc-800">{searchSummary}</p>
@@ -188,7 +188,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                   className={`px-2 py-0.5 text-[10px] font-mono font-black border border-transparent uppercase whitespace-nowrap ${
                     mem.importance === "High"
                       ? "bg-rose-500 text-white"
-                      : "bg-[#00e5ff] text-black"
+                      : "bg-zinc-700 text-white"
                   }`}
                 >
                   {mem.importance} PRIORITY
@@ -317,7 +317,7 @@ export const MemoryView: React.FC<MemoryViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#00E5FF] border border-transparent text-black font-mono font-black text-xs"
+                  className="px-4 py-2 bg-white hover:bg-zinc-100 border border-transparent text-black font-mono font-black text-xs"
                 >
                   SAVE NODE
                 </button>

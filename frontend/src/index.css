@@ -5,7 +5,7 @@
     --color-bg-base: #0d0f12;
     --color-surface: #111318;
     --color-border: #27272a;
-    --color-accent: #00E5FF;
+    --color-accent: #ffffff;
     --color-text-primary: #ffffff;
     --color-text-secondary: #71717a;
   }
@@ -41,11 +41,11 @@
 }
 
 .text-accent-cyan {
-  color: #00E5FF;
+  color: #a1a1aa;
 }
 
 .bg-accent-cyan {
-  background-color: #00E5FF;
+  background-color: #ffffff;
 }
 
 /* Editorial Panel System */
@@ -76,7 +76,7 @@
 
 .editorial-input:focus {
   outline: none;
-  box-shadow: 0 0 0 1px #00E5FF;
+  box-shadow: 0 0 0 1px #ffffff;
   border-color: #27272a;
 }
 
@@ -92,7 +92,7 @@
 
 /* Buttons */
 .editorial-btn-primary {
-  background-color: #00E5FF;
+  background-color: #ffffff;
   color: #000000;
   font-family: "JetBrains Mono", "Space Mono", monospace;
   font-weight: 700;
@@ -152,7 +152,7 @@
   font-family: "JetBrains Mono", "Space Mono", monospace;
   font-size: 10.5px;
   text-transform: uppercase;
-  color: #00E5FF;
+  color: #71717a;
   letter-spacing: 0.14em;
   font-weight: 700;
 }

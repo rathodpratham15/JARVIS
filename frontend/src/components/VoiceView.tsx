@@ -252,15 +252,15 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   };
 
   const stateColor = {
-    idle: "bg-zinc-800 hover:bg-[#00E5FF]",
-    listening: "bg-[#00E5FF] scale-110",
+    idle: "bg-zinc-800 hover:bg-white hover:text-black",
+    listening: "bg-white scale-110",
     thinking: "bg-amber-400 scale-105 hover:bg-red-400",
     speaking: "bg-emerald-500 scale-105 hover:bg-red-400",
   }[voiceState];
 
   const ringColor = {
     idle: "",
-    listening: "#00E5FF",
+    listening: "#ffffff",
     thinking: "#fbbf24",
     speaking: "#34d399",
   }[voiceState];
@@ -270,7 +270,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-[#111318] border border-zinc-800 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-[#00E5FF] text-black border border-zinc-800">
+          <div className="p-3 bg-zinc-700 text-white border border-zinc-800">
             <Radio className="w-6 h-6 animate-pulse" />
           </div>
           <div>
@@ -279,7 +279,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             </h2>
             <p className="text-xs font-mono font-bold text-zinc-400">
               Wake word:{" "}
-              <strong className="text-black bg-[#00E5FF] px-1 py-0.5">
+              <strong className="text-black bg-white px-1 py-0.5">
                 "{wakeWord}"
               </strong>{" "}
               • Low-latency audio pipeline
@@ -291,7 +291,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           <button
             onClick={() => setWakeActive(v => !v)}
             className={`text-[10px] font-mono font-black px-3 py-1.5 border border-zinc-800 transition ${
-              wakeActive ? "bg-[#00E5FF] text-black border-transparent" : "bg-zinc-800 text-zinc-400 hover:text-white"
+              wakeActive ? "bg-white text-black border-transparent" : "bg-zinc-800 text-zinc-400 hover:text-white"
             }`}
           >
             {wakeActive ? "WAKE WORD: ON" : "WAKE WORD: OFF"}
@@ -331,7 +331,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             <div
               key={i}
               className={`w-2 rounded-sm transition-all duration-150 ${
-                voiceState === "listening" ? "bg-[#00E5FF] animate-pulse"
+                voiceState === "listening" ? "bg-white animate-pulse"
                 : voiceState === "thinking" ? "bg-amber-400 animate-pulse"
                 : voiceState === "speaking" ? "bg-emerald-400 animate-pulse"
                 : "bg-zinc-700"
@@ -363,7 +363,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
             )}
             {aiReply && (
               <div className="space-y-0.5 pt-2 border-t border-zinc-800">
-                <span className="text-[10px] font-mono font-black text-[#00E5FF]">J.A.R.V.I.S. VERBAL RESPONSE:</span>
+                <span className="text-[10px] font-mono font-black text-zinc-400">J.A.R.V.I.S. VERBAL RESPONSE:</span>
                 <p className="text-zinc-100 font-bold">{aiReply}</p>
               </div>
             )}

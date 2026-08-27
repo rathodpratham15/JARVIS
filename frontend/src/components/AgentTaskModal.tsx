@@ -43,7 +43,7 @@ export const AgentTaskModal: React.FC<AgentTaskModalProps> = ({
       <div className="w-full max-w-2xl p-6 bg-[#111318] border border-zinc-800 space-y-5 shadow-xl max-h-[90vh] overflow-y-auto font-mono text-black">
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#00E5FF] text-black border border-transparent">
+            <div className="p-2.5 bg-zinc-700 text-white border border-zinc-800">
               <Play className="w-5 h-5 fill-current" />
             </div>
             <div>
@@ -80,7 +80,7 @@ export const AgentTaskModal: React.FC<AgentTaskModalProps> = ({
             <button
               type="submit"
               disabled={isRunning || !taskDescription.trim()}
-              className="px-5 py-2.5 bg-[#00E5FF] hover:bg-[#00c5db] disabled:opacity-50 text-black font-mono font-black text-xs flex items-center gap-2 border border-transparent transition"
+              className="px-5 py-2.5 bg-white hover:bg-zinc-100 disabled:opacity-50 text-black font-mono font-black text-xs flex items-center gap-2 border border-transparent transition"
             >
               {isRunning ? (
                 <span>AGENT RUNNING...</span>
@@ -99,7 +99,7 @@ export const AgentTaskModal: React.FC<AgentTaskModalProps> = ({
           <div className="p-5 bg-[#0d0f12] border border-zinc-800 space-y-4 text-xs font-mono text-white">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2 font-mono">
               <span className="text-white font-heading font-black">EXECUTION STEPS COMPLETE</span>
-              <span className="px-2 py-0.5 bg-black text-[#00e5ff] font-black text-[10px]">
+              <span className="px-2 py-0.5 bg-zinc-700 text-white font-black text-[10px]">
                 STATUS: DONE
               </span>
             </div>

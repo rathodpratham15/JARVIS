@@ -105,8 +105,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
     switch (status) {
       case "running":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#00E5FF] text-black font-mono text-[10px] font-bold border border-zinc-800">
-            <span className="w-1.5 h-1.5 rounded-full bg-black animate-ping" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-zinc-700 text-white font-mono text-[10px] font-bold border border-zinc-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
             RUNNING
           </span>
         );
@@ -183,7 +183,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     onClick={() => setFilter(f)}
                     className={`px-2.5 py-1 text-[10px] font-mono uppercase font-bold transition ${
                       filter === f
-                        ? "bg-[#00E5FF] text-black"
+                        ? "bg-white text-black"
                         : "text-zinc-400 hover:text-white"
                     }`}
                   >
@@ -270,7 +270,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       {/* Progress Bar */}
                       <div className="w-full h-1 bg-zinc-800 border-y border-zinc-900">
                         <div
-                          className="h-full bg-[#00E5FF] transition-all duration-500"
+                          className="h-full bg-white transition-all duration-500"
                           style={{ width: `${task.progressPercent ?? 0}%` }}
                         />
                       </div>
@@ -296,7 +296,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 bg-[#1a1a1a] text-[#00E5FF]">
+                                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.2 bg-zinc-800 text-zinc-300">
                                       STEP 0{step.step}
                                     </span>
                                     <span className="font-mono text-xs font-bold text-white">
@@ -313,7 +313,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                           {/* Final Output Dossier */}
                           {task.output && (
-                            <div className="p-3.5 bg-[#00E5FF]/10 border border-zinc-800 space-y-1">
+                            <div className="p-3.5 bg-zinc-800/30 border border-zinc-800 space-y-1">
                               <span className="overline-cyan text-[10px]">
                                 AGENT SYNTHESIS OUTPUT
                               </span>
@@ -336,7 +336,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 <button
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-zinc-700 transition"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -346,7 +346,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 <button
                   onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={page >= totalPages - 1}
-                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-[#00E5FF] transition"
+                  className="p-1.5 border border-zinc-800 bg-[#111318] text-white disabled:opacity-30 hover:bg-zinc-700 transition"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -416,7 +416,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     onClick={() => {
                       setNewTaskInput(tpl);
                     }}
-                    className="w-full text-left p-3 bg-[#111318] hover:bg-[#00E5FF] hover:text-black border border-zinc-800 font-mono text-[11px] text-white transition font-medium"
+                    className="w-full text-left p-3 bg-[#111318] hover:bg-zinc-700 hover:text-black border border-zinc-800 font-mono text-[11px] text-white transition font-medium"
                   >
                     "{tpl}"
                   </button>
