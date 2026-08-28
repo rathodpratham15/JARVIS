@@ -51,13 +51,18 @@ def _verify_password(password: str, hashed: str) -> bool:
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    id          TEXT PRIMARY KEY,
-    username    TEXT NOT NULL UNIQUE,
-    email       TEXT,
-    password    TEXT,
-    role        TEXT NOT NULL DEFAULT 'user',
-    google_sub  TEXT,
-    created_at  TEXT NOT NULL
+    id              TEXT PRIMARY KEY,
+    username        TEXT NOT NULL UNIQUE,
+    email           TEXT,
+    password        TEXT,
+    role            TEXT NOT NULL DEFAULT 'user',
+    google_sub      TEXT,
+    microsoft_sub   TEXT,
+    saml_name_id    TEXT,
+    saml_idp        TEXT,
+    scim_external_id TEXT,
+    scim_active     INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     token       TEXT PRIMARY KEY,
@@ -65,6 +70,15 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     expires_at  TEXT NOT NULL
 );
 """
+
+# Migrate older databases that lack the new columns (idempotent)
+_MIGRATIONS = [
+    "ALTER TABLE users ADD COLUMN microsoft_sub TEXT",
+    "ALTER TABLE users ADD COLUMN saml_name_id TEXT",
+    "ALTER TABLE users ADD COLUMN saml_idp TEXT",
+    "ALTER TABLE users ADD COLUMN scim_external_id TEXT",
+    "ALTER TABLE users ADD COLUMN scim_active INTEGER NOT NULL DEFAULT 1",
+]
 
 _ACCESS_EXPIRE_MINUTES = 60
 _REFRESH_EXPIRE_DAYS   = 30
@@ -131,6 +145,213 @@ class AuthManager:
             )
         logger.info("New user created via Google OAuth: %s", email)
         return {"id": uid, "username": username, "email": email, "role": "user"}
+
+    def create_or_get_saml_user(self, email: str, name: str, name_id: str, idp: str) -> dict:
+        """Find or create a user authenticated via SAML 2.0 SSO."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, username, email, role FROM users WHERE saml_name_id = ? OR email = ?",
+                (name_id, email),
+            ).fetchone()
+        if row:
+            with self._connect() as conn:
+                conn.execute(
+                    "UPDATE users SET saml_name_id = ?, saml_idp = ? WHERE id = ?",
+                    (name_id, idp, row["id"]),
+                )
+            return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+
+        uid = str(uuid.uuid4())
+        username = email.split("@")[0]
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO users (id, username, email, role, saml_name_id, saml_idp, created_at) VALUES (?,?,?,?,?,?,?)",
+                (uid, username, email, "user", name_id, idp, now),
+            )
+        logger.info("New user created via SAML SSO: %s (IdP: %s)", email, idp)
+        return {"id": uid, "username": username, "email": email, "role": "user"}
+
+    def create_or_get_microsoft_user(self, email: str, name: str, microsoft_sub: str) -> dict:
+        """Find or create a user authenticated via Microsoft OIDC."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, username, email, role FROM users WHERE microsoft_sub = ? OR email = ?",
+                (microsoft_sub, email),
+            ).fetchone()
+        if row:
+            with self._connect() as conn:
+                conn.execute(
+                    "UPDATE users SET microsoft_sub = ? WHERE id = ?",
+                    (microsoft_sub, row["id"]),
+                )
+            return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+
+        uid = str(uuid.uuid4())
+        username = email.split("@")[0]
+        now = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO users (id, username, email, role, microsoft_sub, created_at) VALUES (?,?,?,?,?,?)",
+                (uid, username, email, "user", microsoft_sub, now),
+            )
+        logger.info("New user created via Microsoft OIDC: %s", email)
+        return {"id": uid, "username": username, "email": email, "role": "user"}
+
+    # ── SCIM 2.0 user management ───────────────────────────────────────────
+
+    def scim_list_users(self, start_index: int = 1, count: int = 100,
+                        filter_attr: str = "", filter_val: str = "") -> tuple[list[dict], int]:
+        """Return (resources, totalResults) for SCIM ListResponse."""
+        with self._connect() as conn:
+            if filter_attr == "userName":
+                rows = conn.execute(
+                    "SELECT * FROM users WHERE username = ?", (filter_val,)
+                ).fetchall()
+            elif filter_attr in ("emails.value", "email"):
+                rows = conn.execute(
+                    "SELECT * FROM users WHERE email = ?", (filter_val,)
+                ).fetchall()
+            elif filter_attr == "externalId":
+                rows = conn.execute(
+                    "SELECT * FROM users WHERE scim_external_id = ?", (filter_val,)
+                ).fetchall()
+            else:
+                rows = conn.execute("SELECT * FROM users").fetchall()
+            total = len(rows)
+            page = rows[start_index - 1: start_index - 1 + count]
+        return [self._to_scim_user(r) for r in page], total
+
+    def scim_get_user(self, user_id: str) -> Optional[dict]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        return self._to_scim_user(row) if row else None
+
+    def scim_provision_user(self, payload: dict) -> dict:
+        """Create a user from a SCIM User resource payload."""
+        username = payload.get("userName", "").strip()
+        if not username:
+            raise ValueError("userName is required")
+        email = ""
+        for e in payload.get("emails", []):
+            if e.get("primary") or not email:
+                email = e.get("value", "")
+        display_name = payload.get("displayName", username)
+        external_id = payload.get("externalId", "")
+        active = payload.get("active", True)
+
+        uid = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT INTO users (id, username, email, role, scim_external_id, scim_active, created_at) VALUES (?,?,?,?,?,?,?)",
+                    (uid, username, email or None, "user", external_id or None, int(active), now),
+                )
+        except Exception as exc:
+            raise ValueError(f"userName already taken: {exc}") from exc
+        return self._to_scim_user_dict(uid, username, email, True, external_id)
+
+    def scim_replace_user(self, user_id: str, payload: dict) -> Optional[dict]:
+        """Full replace (PUT) of a SCIM User resource."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return None
+        username = payload.get("userName", row["username"]).strip()
+        email = row["email"] or ""
+        for e in payload.get("emails", []):
+            if e.get("primary") or not email:
+                email = e.get("value", "")
+        active = payload.get("active", True)
+        external_id = payload.get("externalId", row["scim_external_id"] or "")
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET username=?, email=?, scim_active=?, scim_external_id=? WHERE id=?",
+                (username, email or None, int(active), external_id or None, user_id),
+            )
+        return self._to_scim_user_dict(user_id, username, email, active, external_id)
+
+    def scim_patch_user(self, user_id: str, operations: list[dict]) -> Optional[dict]:
+        """Apply RFC 7644 PATCH operations to a user."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not row:
+            return None
+
+        updates: dict[str, object] = {}
+        for op in operations:
+            op_type = (op.get("op") or "").lower()
+            path = (op.get("path") or "").lower()
+            value = op.get("value")
+
+            if op_type in ("replace", "add"):
+                if path == "active" or path == "":
+                    # value may be a dict {"active": false} or a bool
+                    if isinstance(value, dict):
+                        if "active" in value:
+                            updates["scim_active"] = int(bool(value["active"]))
+                        if "userName" in value:
+                            updates["username"] = value["userName"]
+                        if "externalId" in value:
+                            updates["scim_external_id"] = value["externalId"]
+                        emails = value.get("emails", [])
+                        if emails:
+                            updates["email"] = emails[0].get("value", "")
+                    elif isinstance(value, bool):
+                        updates["scim_active"] = int(value)
+                elif path == "username":
+                    updates["username"] = str(value)
+                elif path == "externalid":
+                    updates["scim_external_id"] = str(value)
+            elif op_type == "remove":
+                if path == "active":
+                    updates["scim_active"] = 1  # re-enable (RFC says remove → default)
+
+        if updates:
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            with self._connect() as conn:
+                conn.execute(
+                    f"UPDATE users SET {set_clause} WHERE id = ?",
+                    [*updates.values(), user_id],
+                )
+
+        return self.scim_get_user(user_id)
+
+    def scim_deprovision_user(self, user_id: str) -> bool:
+        """Hard-delete a SCIM-provisioned user. Returns True if found."""
+        with self._connect() as conn:
+            changed = conn.execute("DELETE FROM users WHERE id = ?", (user_id,)).rowcount
+        return changed > 0
+
+    def _to_scim_user(self, row) -> dict:  # row is sqlite3.Row
+        return self._to_scim_user_dict(
+            user_id=row["id"],
+            username=row["username"],
+            email=row["email"] or "",
+            active=bool(row["scim_active"]) if "scim_active" in row.keys() else True,
+            external_id=row["scim_external_id"] if "scim_external_id" in row.keys() else "",
+        )
+
+    @staticmethod
+    def _to_scim_user_dict(user_id: str, username: str, email: str,
+                            active: bool, external_id: str) -> dict:
+        resource: dict = {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "id": user_id,
+            "userName": username,
+            "displayName": username,
+            "active": active,
+            "meta": {
+                "resourceType": "User",
+                "location": f"/scim/v2/Users/{user_id}",
+            },
+        }
+        if email:
+            resource["emails"] = [{"value": email, "type": "work", "primary": True}]
+        if external_id:
+            resource["externalId"] = external_id
+        return resource
 
     def verify_password(self, username: str, password: str) -> Optional[dict]:
         with self._connect() as conn:
@@ -221,6 +442,11 @@ class AuthManager:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            for stmt in _MIGRATIONS:
+                try:
+                    conn.execute(stmt)
+                except Exception:
+                    pass  # column already exists
 
     @contextlib.contextmanager
     def _connect(self):

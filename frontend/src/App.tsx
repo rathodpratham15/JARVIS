@@ -823,6 +823,19 @@ export default function App() {
     return <PrivacyPolicy />;
   }
 
+  // SSO callback — render LoginView so its useEffect can consume the tokens
+  if (location.pathname === "/auth/callback") {
+    return (
+      <LoginView
+        onLoginSuccess={() => {
+          setAuthedUser(getStoredUser());
+          setAuthRequired(false);
+          navigate("/dashboard", { replace: true });
+        }}
+      />
+    );
+  }
+
   if (authRequired && !authedUser) {
     if (showLanding) {
       return <LandingPage onEnter={() => setShowLanding(false)} />;

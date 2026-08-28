@@ -1,0 +1,10 @@
+# Railway build configuration
+# python3-saml requires libxmlsec1 for XML signature verification (SAML 2.0)
+
+[phases.setup]
+aptPkgs = [
+    "libxmlsec1-dev",
+    "pkg-config",
+    "libssl-dev",
+    "libffi-dev",
+]
