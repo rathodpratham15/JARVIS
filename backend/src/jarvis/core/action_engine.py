@@ -29,6 +29,37 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Web equivalents for common apps — used as fallback when running on Linux servers
+# where desktop apps cannot be launched.
+_APP_WEB_URLS: dict[str, str] = {
+    "whatsapp": "https://web.whatsapp.com",
+    "instagram": "https://www.instagram.com",
+    "twitter": "https://twitter.com",
+    "x": "https://x.com",
+    "facebook": "https://www.facebook.com",
+    "messenger": "https://www.messenger.com",
+    "gmail": "https://mail.google.com",
+    "youtube": "https://www.youtube.com",
+    "spotify": "https://open.spotify.com",
+    "netflix": "https://www.netflix.com",
+    "linkedin": "https://www.linkedin.com",
+    "slack": "https://slack.com",
+    "discord": "https://discord.com/app",
+    "telegram": "https://web.telegram.org",
+    "maps": "https://maps.google.com",
+    "google maps": "https://maps.google.com",
+    "calendar": "https://calendar.google.com",
+    "google calendar": "https://calendar.google.com",
+    "drive": "https://drive.google.com",
+    "google drive": "https://drive.google.com",
+    "docs": "https://docs.google.com",
+    "sheets": "https://sheets.google.com",
+    "reddit": "https://www.reddit.com",
+    "github": "https://github.com",
+    "notion": "https://notion.so",
+    "figma": "https://figma.com",
+}
+
 JOKES = [
     "Why don't scientists trust atoms? Because they make up everything!",
     "I told my wife she was drawing her eyebrows too high. She looked surprised.",
@@ -255,25 +286,37 @@ class ActionEngine:
         if not app:
             return "Which application would you like me to open?"
         system = platform.system()
+        app_key = app.lower()
+        web_url = _APP_WEB_URLS.get(app_key)
         if system == "Darwin":
             result = subprocess.run(["open", "-a", app], capture_output=True, text=True)
             if result.returncode == 0:
                 return f"Opening {app}."
+            if web_url:
+                webbrowser.open(web_url)
+                return f"Opening the web version of {app}."
             return f"I couldn't find or open {app}."
         if system == "Windows":
             try:
                 subprocess.run(["start", "", app], shell=True, check=True)
                 return f"Opening {app}."
             except subprocess.CalledProcessError:
+                if web_url:
+                    webbrowser.open(web_url)
+                    return f"Opening the web version of {app}."
                 return f"I couldn't open {app}."
         if system == "Linux":
             from shutil import which
-
-            executable = which(app)
-            if not executable:
-                return f"I couldn't find {app} on your PATH."
-            subprocess.Popen([executable])
-            return f"Opening {app}."
+            executable = which(app) or which(app_key)
+            if executable:
+                subprocess.Popen([executable])
+                return f"Opening {app}."
+            if web_url:
+                return f"Here's the web version of {app}: [{app}]({web_url})"
+            return (
+                f"I can't launch desktop apps on this server. "
+                f"Run JARVIS locally to open {app} on your device."
+            )
         return f"Opening apps isn't supported on {system}."
 
     @staticmethod

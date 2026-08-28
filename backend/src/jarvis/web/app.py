@@ -410,6 +410,7 @@ def create_app() -> Flask:
             "password_enabled": True,
             "microsoft_enabled": _ms.configured,
             "saml_enabled": bool(os.getenv("SAML_IDP_SSO_URL", "")),
+            "tts_backend_enabled": bool(os.getenv("ELEVENLABS_API_KEY", "")),
         }, 200
 
     # ── SAML 2.0 SP routes ────────────────────────────────────────────────
