@@ -275,6 +275,7 @@ class ActionController:
 
     @staticmethod
     def _exec_open(action: SystemAction) -> dict:
+        from jarvis.core.action_engine import _APP_WEB_URLS
         name = action.parameters["name"]
         args = list(action.parameters.get("args", []))
         system = platform.system()
@@ -284,10 +285,14 @@ class ActionController:
             cmd = ["cmd", "/c", "start", "", name, *args]  # no shell=True
         else:
             from shutil import which
-
-            executable = which(name)
+            executable = which(name) or which(name.lower())
             if not executable:
-                raise FileNotFoundError(f"{name!r} not on PATH")
+                web_url = _APP_WEB_URLS.get(name.lower())
+                if web_url:
+                    return {"launched": name, "web_url": web_url, "return_code": 0}
+                raise FileNotFoundError(
+                    f"{name!r} not on PATH. Desktop apps can't be launched from the server."
+                )
             cmd = [executable, *args]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         return {"launched": name, "return_code": result.returncode}
