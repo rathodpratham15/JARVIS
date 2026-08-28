@@ -158,6 +158,7 @@ export interface ScheduleJob {
   lastResult?: string;
   runCount?: number;
   nextRun: string;
+  nextRunAt?: string;
   status: "idle" | "running" | "success" | "failed";
 }
 
