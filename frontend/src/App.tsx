@@ -139,29 +139,33 @@ export default function App() {
 
   // Auth: check on mount; listen for token expiry events
   const [authRequired, setAuthRequired] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true); // true until auth state is known
   const [authedUser, setAuthedUser] = useState(getStoredUser);
 
   useEffect(() => {
     fetchAuthConfig().then(async cfg => {
-      if (!cfg.auth_enabled) return;
+      if (!cfg.auth_enabled) { setAuthChecking(false); return; }
       setAuthRequired(true);
       const token = getAccessToken();
-      if (!token) { setAuthedUser(null); return; }
+      if (!token) { setAuthedUser(null); setAuthChecking(false); return; }
       try {
         const res = await apiFetch("/api/auth/me");
         if (!res.ok) { clearTokens(); setAuthedUser(null); }
       } catch {
         clearTokens(); setAuthedUser(null);
+      } finally {
+        setAuthChecking(false);
       }
     });
   }, []);
 
-  // Redirect authenticated users away from /login and /signup
+  // Navigate to /dashboard once user is confirmed authenticated on a public path
+  const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
   useEffect(() => {
-    if (authedUser && (location.pathname === "/login" || location.pathname === "/signup")) {
+    if (authedUser && PUBLIC_PATHS.includes(location.pathname)) {
       navigate("/dashboard", { replace: true });
     }
-  }, [authRequired, authedUser]);
+  }, [authedUser, location.pathname]);
 
   useEffect(() => {
     const handler = () => {
@@ -830,7 +834,8 @@ export default function App() {
   const handleLoginSuccess = () => {
     setAuthedUser(getStoredUser());
     setAuthRequired(false);
-    navigate("/dashboard", { replace: true });
+    setAuthChecking(false);
+    // navigation is driven by the authedUser useEffect above
   };
 
   // SSO callback — consume tokens then go to dashboard
@@ -846,7 +851,8 @@ export default function App() {
     return <LoginView onLoginSuccess={handleLoginSuccess} initialMode="signup" />;
   }
 
-  // Protected routes — redirect unauthenticated users to /login
+  // Protected routes — wait for auth check, then redirect if unauthenticated
+  if (authChecking) return null;
   if (authRequired && !authedUser) {
     navigate("/login", { replace: true });
     return null;
