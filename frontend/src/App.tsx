@@ -38,7 +38,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
-import { speakJarvisText, playUiSound, unlockAudioContext } from "./utils/audio";
+import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
 import { LoginView } from "./components/LoginView";
@@ -144,6 +144,7 @@ export default function App() {
 
   useEffect(() => {
     fetchAuthConfig().then(async cfg => {
+      setTtsBackendEnabled(cfg.tts_backend_enabled ?? false);
       if (!cfg.auth_enabled) { setAuthChecking(false); return; }
       setAuthRequired(true);
       const token = getAccessToken();
