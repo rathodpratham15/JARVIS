@@ -126,6 +126,26 @@ async function sendToBackend(message: string): Promise<string> {
   return (data.response as string) || ''
 }
 
+// ── Screen wake lock ──────────────────────────────────────────────────────────
+// Prevents the screen from dimming/locking during voice sessions.
+// Works on Chrome 84+, Safari iOS 16.4+, and Android Chrome.
+
+let _wakeLock: WakeLockSentinel | null = null
+
+async function acquireWakeLock(): Promise<void> {
+  if (!('wakeLock' in navigator)) return
+  try {
+    _wakeLock = await (navigator as any).wakeLock.request('screen')
+  } catch { /* denied or not supported */ }
+}
+
+function releaseWakeLock(): void {
+  if (_wakeLock) {
+    _wakeLock.release().catch(() => {})
+    _wakeLock = null
+  }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useVoiceMode() {
@@ -137,11 +157,10 @@ export function useVoiceMode() {
 
   const stop = useCallback(() => {
     running.current = false
-    // Abort any in-flight web recognition immediately so the mic is freed
-    // before useWakeWord tries to restart its own session.
     if (_abortWeb) { _abortWeb(); _abortWeb = null }
     window.speechSynthesis?.cancel()
     if (Capacitor.isNativePlatform()) SpeechRecognition.stop().catch(() => {})
+    releaseWakeLock()
     setActive(false)
     setTranscript('')
     setReply('')
@@ -150,14 +169,16 @@ export function useVoiceMode() {
   const start = useCallback(() => {
     if (running.current) return
 
-    // Unlock HTML5 audio and speechSynthesis while still in the gesture handler
     if (!Capacitor.isNativePlatform()) unlockAudio()
 
     running.current = true
     setActive(true)
 
     ;(async () => {
-      // Wait for speech synthesis voices (first call may return [])
+      // Keep screen on during voice session
+      await acquireWakeLock()
+
+      // Wait for speechSynthesis voices on first load
       if (!Capacitor.isNativePlatform() && window.speechSynthesis) {
         if (window.speechSynthesis.getVoices().length === 0) {
           await new Promise<void>(res => {
@@ -199,6 +220,7 @@ export function useVoiceMode() {
       }
 
       running.current = false
+      releaseWakeLock()
       setActive(false)
     })()
   }, [])
@@ -206,6 +228,7 @@ export function useVoiceMode() {
   useEffect(() => () => {
     running.current = false
     window.speechSynthesis?.cancel()
+    releaseWakeLock()
   }, [])
 
   return { active, voiceState, transcript, reply, start, stop }

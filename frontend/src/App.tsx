@@ -380,7 +380,7 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const fetchNotes = useCallback(() => {
     apiFetch(`/api/notes`).then(r => r.json()).then(d => {
       if (d.notes) setNotes(d.notes.map((n: any): NoteEntry => ({
         id: n.id, title: n.title, content: n.content,
@@ -390,7 +390,7 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const fetchReminders = useCallback(() => {
     apiFetch(`/api/reminders`).then(r => r.json()).then(d => {
       if (d.reminders) setReminders(d.reminders.map((r: any): ReminderItem => ({
         id: r.id, title: r.title,
@@ -401,6 +401,25 @@ export default function App() {
       })));
     }).catch(() => {});
   }, []);
+
+  // Initial fetch
+  useEffect(() => { fetchNotes(); }, [fetchNotes]);
+  useEffect(() => { fetchReminders(); }, [fetchReminders]);
+
+  // Cross-device sync: poll /api/sync/status every 60s, re-fetch collections
+  // whose timestamp advanced since last check (catches edits from other devices).
+  useEffect(() => {
+    let lastNotes = "";
+    let lastReminders = "";
+    const tick = () => {
+      apiFetch("/api/sync/status").then(r => r.json()).then(s => {
+        if (s.notes && s.notes !== lastNotes) { lastNotes = s.notes; fetchNotes(); }
+        if (s.reminders && s.reminders !== lastReminders) { lastReminders = s.reminders; fetchReminders(); }
+      }).catch(() => {});
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [fetchNotes, fetchReminders]);
 
   const refreshPlugins = useCallback(() => {
     apiFetch(`/api/plugins`).then(r => r.json()).then(d => {

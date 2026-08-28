@@ -1436,6 +1436,24 @@ class MyPlugin(BasePlugin):
             return {"success": False, "error": f"Person '{name}' not found"}, 404
         return {"success": True, "remaining": len(face_engine.known_faces)}, 200
 
+    @app.post("/api/face/person/<name>/dossier")
+    def face_save_dossier(name: str) -> tuple[dict, int]:
+        """Cache a research dossier against a known person so repeat scans
+        return it instantly without re-running the research pipeline."""
+        if face_engine is None:
+            return {"success": False, "error": "Face recognition unavailable"}, 503
+        payload = request.get_json(silent=True) or {}
+        dossier = payload.get("dossier")
+        if not dossier:
+            return {"success": False, "error": "dossier is required"}, 400
+        person = next((p for p in face_engine.known_faces if p.name == name), None)
+        if person is None:
+            return {"success": False, "error": f"Person '{name}' not found"}, 404
+        person.additional_data["dossier"] = dossier
+        person.additional_data["dossier_cached_at"] = datetime.now(timezone.utc).isoformat()
+        face_engine.save()
+        return {"success": True}, 200
+
     @app.post("/api/face/reencode-all")
     def face_reencode_all() -> tuple[dict, int]:
         """Re-run InsightFace encoding on every person's stored image paths.
@@ -2203,6 +2221,58 @@ class MyPlugin(BasePlugin):
         if isinstance(result, str):
             return {"error": result}, 400
         return result, 200
+
+    # ── Cross-device sync status ─────────────────────────────────────────
+    # Lightweight endpoint: returns the latest modification timestamp for
+    # each data type so clients can decide whether to re-fetch.
+
+    _sync_modified: dict[str, str] = {}
+
+    def _touch_sync(key: str) -> None:
+        _sync_modified[key] = datetime.now(timezone.utc).isoformat()
+
+    @app.get("/api/sync/status")
+    def sync_status() -> tuple[dict, int]:
+        """Return last-modified ISO timestamps for each data category.
+
+        Clients poll this every 30–60 s and re-fetch a collection only when
+        its timestamp is newer than what they last saw.
+        """
+        # Derive a live timestamp from DB row counts as a fallback when nothing
+        # has been mutated in this process lifetime (e.g. after a cold restart).
+        def _notes_ts() -> str:
+            try:
+                with notes._connect() as conn:
+                    row = conn.execute("SELECT MAX(updated_at) FROM notes").fetchone()
+                    return row[0] or datetime.now(timezone.utc).isoformat()
+            except Exception:
+                return _sync_modified.get("notes", datetime.now(timezone.utc).isoformat())
+
+        def _reminders_ts() -> str:
+            try:
+                with reminders._connect() as conn:
+                    row = conn.execute("SELECT MAX(created_at) FROM reminders").fetchone()
+                    return row[0] or datetime.now(timezone.utc).isoformat()
+            except Exception:
+                return _sync_modified.get("reminders", datetime.now(timezone.utc).isoformat())
+
+        return {
+            "notes": _sync_modified.get("notes") or _notes_ts(),
+            "reminders": _sync_modified.get("reminders") or _reminders_ts(),
+            "memory": _sync_modified.get("memory", ""),
+        }, 200
+
+    # Patch notes and reminders write routes to call _touch_sync so the
+    # /api/sync/status timestamp advances on any mutation.
+    _orig_dashboard_notes = app.view_functions.get("dashboard_notes")
+    if _orig_dashboard_notes:
+        def _patched_notes(*a, **kw):
+            resp = _orig_dashboard_notes(*a, **kw)
+            if request.method in ("POST", "DELETE"):
+                _touch_sync("notes")
+            return resp
+        _patched_notes.__name__ = "dashboard_notes"
+        app.view_functions["dashboard_notes"] = _patched_notes
 
     return app
 
