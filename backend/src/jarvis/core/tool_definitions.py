@@ -330,7 +330,8 @@ TOOLS: list[dict] = [
                         "type": "string",
                         "description": (
                             "Schedule expression. Examples: 'every 30 minutes', 'every 2 hours', "
-                            "'every day at 09:00', 'every monday at 08:00', 'every friday at 17:00'"
+                            "'every day at 09:00', 'every monday at 08:00', 'every friday at 17:00', "
+                            "'every month on the 15th at 10:00', 'every year on july 1st at 9am'"
                         ),
                     },
                 },
@@ -511,6 +512,46 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "send_sms",
+            "description": (
+                "Send an SMS text message to a phone number via Twilio. "
+                "Use when the user asks to text, SMS, or message someone by phone number. "
+                "Also used by scheduled jobs like 'send happy birthday SMS to +1234567890'."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "to": {"type": "string", "description": "Recipient phone number in E.164 format, e.g. +14155552671"},
+                    "message": {"type": "string", "description": "The text message body to send"},
+                },
+                "required": ["to", "message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_whatsapp",
+            "description": (
+                "Send a WhatsApp message to a phone number via Twilio. "
+                "Use when the user asks to send a WhatsApp message. "
+                "Also used by scheduled jobs like 'send happy birthday on WhatsApp to +967xxxxxx'."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "to": {"type": "string", "description": "Recipient phone number in E.164 format, e.g. +14155552671"},
+                    "message": {"type": "string", "description": "The WhatsApp message body to send"},
+                },
+                "required": ["to", "message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "system_api",
             "description": (
                 "Control system-level settings: volume, screen brightness, Do Not Disturb (Focus mode), and WiFi. "
@@ -663,5 +704,11 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "drive_create":
         return {**base, "type": "drive_create", "name": args.get("name", ""), "content": args.get("content", "")}
+
+    if name == "send_sms":
+        return {**base, "type": "send_sms", "to": args.get("to", ""), "message": args.get("message", "")}
+
+    if name == "send_whatsapp":
+        return {**base, "type": "send_whatsapp", "to": args.get("to", ""), "message": args.get("message", "")}
 
     return {**base, "type": "conversation"}

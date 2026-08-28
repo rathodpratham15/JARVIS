@@ -241,6 +241,8 @@ class ActionEngine:
             "calendar_update": self._calendar_update,
             "drive_list": self._drive_list,
             "drive_create": self._drive_create,
+            "send_sms": self._send_sms,
+            "send_whatsapp": self._send_whatsapp,
         }
 
     def _require(self, perm_name: str, label: str) -> Optional[str]:
@@ -771,6 +773,26 @@ class ActionEngine:
         if isinstance(result, str):
             return result
         return f"File '{name}' created in Drive." + (f" View: {result['link']}" if result.get("link") else "")
+
+    def _send_sms(self, intent: dict) -> str:
+        to = intent.get("to", "").strip()
+        message = intent.get("message", "").strip()
+        if not to:
+            return "Please provide a phone number to send the SMS to."
+        if not message:
+            return "Please provide a message to send."
+        from jarvis.services.twilio_service import send_sms
+        return send_sms(to=to, message=message)
+
+    def _send_whatsapp(self, intent: dict) -> str:
+        to = intent.get("to", "").strip()
+        message = intent.get("message", "").strip()
+        if not to:
+            return "Please provide a phone number to send the WhatsApp message to."
+        if not message:
+            return "Please provide a message to send."
+        from jarvis.services.twilio_service import send_whatsapp
+        return send_whatsapp(to=to, message=message)
 
     def get_reminders(self) -> list[dict]:
         return self._reminders.list_pending()
