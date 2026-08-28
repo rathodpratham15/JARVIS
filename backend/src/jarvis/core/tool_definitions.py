@@ -522,7 +522,7 @@ TOOLS: list[dict] = [
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "to": {"type": "string", "description": "Recipient phone number in E.164 format, e.g. +14155552671"},
+                    "to": {"type": "string", "description": "Recipient phone number in E.164 format (e.g. +14155552671) OR a contact name (e.g. 'mom', 'John')"},
                     "message": {"type": "string", "description": "The text message body to send"},
                 },
                 "required": ["to", "message"],
@@ -542,7 +542,7 @@ TOOLS: list[dict] = [
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "to": {"type": "string", "description": "Recipient phone number in E.164 format, e.g. +14155552671"},
+                    "to": {"type": "string", "description": "Recipient phone number in E.164 format (e.g. +14155552671) OR a contact name (e.g. 'mom', 'John')"},
                     "message": {"type": "string", "description": "The WhatsApp message body to send"},
                 },
                 "required": ["to", "message"],

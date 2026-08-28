@@ -183,6 +183,7 @@ class ActionEngine:
         scheduler: "Optional[Scheduler]" = None,
         permissions: "Optional[PermissionsManager]" = None,
         google_service=None,
+        contacts_store=None,
     ) -> None:
         if notes_store is None:
             from jarvis.dashboard.notes import NotesStore
@@ -193,6 +194,9 @@ class ActionEngine:
         if settings_store is None:
             from jarvis.dashboard.settings import SettingsStore
             settings_store = SettingsStore()
+        if contacts_store is None:
+            from jarvis.core.contacts import ContactStore
+            contacts_store = ContactStore()
         self._notes = notes_store
         self._reminders = reminders_store
         self._settings = settings_store
@@ -200,6 +204,7 @@ class ActionEngine:
         self._scheduler = scheduler
         self._permissions = permissions
         self._google = google_service
+        self._contacts = contacts_store
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -774,13 +779,34 @@ class ActionEngine:
             return result
         return f"File '{name}' created in Drive." + (f" View: {result['link']}" if result.get("link") else "")
 
+    def _resolve_to_phone(self, to: str, user_id: Optional[str]) -> str:
+        """Resolve a contact name to a phone number, or return the number as-is."""
+        if re.match(r"^\+?\d[\d\s\-().]+$", to):
+            return to
+        matches = self._contacts.find_by_name(to, user_id=user_id)
+        if not matches:
+            raise ValueError(
+                f"No contact named '{to}'. Add them in Contacts or use a phone number directly."
+            )
+        c = matches[0]
+        number = c.get("whatsapp") or c.get("phone") or ""
+        if not number:
+            raise ValueError(
+                f"Contact '{c['name']}' has no phone number saved. Edit the contact to add one."
+            )
+        return number
+
     def _send_sms(self, intent: dict) -> str:
         to = intent.get("to", "").strip()
         message = intent.get("message", "").strip()
         if not to:
-            return "Please provide a phone number to send the SMS to."
+            return "Please provide a phone number or contact name to send the SMS to."
         if not message:
             return "Please provide a message to send."
+        try:
+            to = self._resolve_to_phone(to, intent.get("_user_id"))
+        except ValueError as exc:
+            return str(exc)
         from jarvis.services.twilio_service import send_sms
         return send_sms(to=to, message=message)
 
@@ -788,9 +814,13 @@ class ActionEngine:
         to = intent.get("to", "").strip()
         message = intent.get("message", "").strip()
         if not to:
-            return "Please provide a phone number to send the WhatsApp message to."
+            return "Please provide a phone number or contact name to send the WhatsApp message to."
         if not message:
             return "Please provide a message to send."
+        try:
+            to = self._resolve_to_phone(to, intent.get("_user_id"))
+        except ValueError as exc:
+            return str(exc)
         from jarvis.services.twilio_service import send_whatsapp
         return send_whatsapp(to=to, message=message)
 

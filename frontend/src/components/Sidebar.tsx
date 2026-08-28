@@ -12,6 +12,7 @@ import {
   Mic,
   Eye,
   Search,
+  Users,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -74,7 +75,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: dueRemindersCount > 0 ? `${dueRemindersCount} DUE` : undefined,
     },
     { id: "research", label: "Research", code: "11", icon: <Search className="w-4 h-4" /> },
-    { id: "settings", label: "Settings", code: "12", icon: <Settings className="w-4 h-4" /> },
+    { id: "contacts", label: "Contacts", code: "13", icon: <Users className="w-4 h-4" /> },
+    { id: "settings", label: "Settings", code: "14", icon: <Settings className="w-4 h-4" /> },
   ];
 
   const ExpandedItem = ({

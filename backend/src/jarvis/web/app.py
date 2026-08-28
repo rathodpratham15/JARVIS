@@ -35,6 +35,7 @@ from jarvis.core.agent import ReActAgent
 from jarvis.core.task_manager import TaskManager
 from jarvis.core.memory import Memory
 from jarvis.core.reminders import RemindersStore
+from jarvis.core.contacts import ContactStore
 from jarvis.core.semantic_memory import SemanticMemory
 from jarvis.dashboard import NotesStore, SettingsStore
 from jarvis.core.permissions import Permission, PermissionsManager
@@ -195,6 +196,7 @@ def create_app() -> Flask:
 
     notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
     reminders = RemindersStore(db_path=os.getenv("JARVIS_REMINDERS_DB", "data/reminders.db"))
+    contacts = ContactStore(db_path=os.getenv("JARVIS_CONTACTS_DB", "data/contacts.db"))
     settings = SettingsStore(path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
     knowledge = KnowledgeBase(db_path=os.getenv("JARVIS_KNOWLEDGE_DB", "data/knowledge.db"))
     emotion = EmotionAnalyzer()
@@ -214,6 +216,7 @@ def create_app() -> Flask:
     actions = ActionEngine(
         notes_store=notes,
         reminders_store=reminders,
+        contacts_store=contacts,
         settings_store=settings,
         llm=llm,
         permissions=permissions,
@@ -699,6 +702,9 @@ def create_app() -> Flask:
         if not user_input:
             return {"error": "message field is required"}, 400
 
+        wearable_mode = bool(payload.get("wearable_mode", False))
+        sys_override = (llm.system_prompt + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else None
+
         intent = parser.parse_intent(user_input)
         uid = _uid()
         intent["_user_id"] = uid
@@ -715,7 +721,8 @@ def create_app() -> Flask:
             else:
                 # Let the LLM decide: answer directly or call a tool
                 text, tool_name, tool_args = llm.query_with_tools(
-                    user_input, tools=TOOLS, memory=ctx
+                    user_input, tools=TOOLS, memory=ctx,
+                    system_prompt_override=sys_override,
                 )
                 if tool_name:
                     tool_intent = tool_call_to_intent(tool_name, tool_args or {})
@@ -723,7 +730,8 @@ def create_app() -> Flask:
                     tool_result = actions.execute_action(tool_intent)
                     tool_used = tool_name
                     response = llm.finish_after_tool(
-                        user_input, tool_name, tool_result, memory=ctx
+                        user_input, tool_name, tool_result, memory=ctx,
+                        system_prompt_override=sys_override,
                     )
                     intent = {**intent, "type": tool_intent.get("type", intent.get("type"))}
                 else:
@@ -751,6 +759,11 @@ def create_app() -> Flask:
         "Be direct and natural, as if speaking aloud."
     )
 
+    _WEARABLE_SYSTEM_PROMPT_SUFFIX = (
+        " Respond in 1-2 short sentences only. No markdown, no bullet points, no headers. "
+        "Speak naturally as if talking out loud."
+    )
+
     @app.post("/api/voice-chat")
     def voice_chat() -> tuple[dict, int]:
         """Voice mode endpoint — runs full tool-calling loop so commands like
@@ -761,6 +774,9 @@ def create_app() -> Flask:
         if not user_input:
             return {"error": "message field is required"}, 400
 
+        wearable_mode = bool(payload.get("wearable_mode", False))
+        voice_sys = _VOICE_SYSTEM_PROMPT + (_WEARABLE_SYSTEM_PROMPT_SUFFIX if wearable_mode else "")
+
         uid = _uid()
         ctx = _build_context(memory, user_id=uid)
         tool_used: str | None = None
@@ -769,8 +785,8 @@ def create_app() -> Flask:
             user_input,
             tools=TOOLS,
             memory=ctx,
-            system_prompt_override=_VOICE_SYSTEM_PROMPT,
-            max_tokens_override=120,
+            system_prompt_override=voice_sys,
+            max_tokens_override=80 if wearable_mode else 120,
         )
 
         if tool_name:
@@ -783,8 +799,8 @@ def create_app() -> Flask:
                 tool_name,
                 tool_result,
                 memory=ctx,
-                system_prompt_override=_VOICE_SYSTEM_PROMPT,
-                max_tokens_override=80,
+                system_prompt_override=voice_sys,
+                max_tokens_override=60 if wearable_mode else 80,
             )
         else:
             response = text or ""
@@ -1391,6 +1407,43 @@ class MyPlugin(BasePlugin):
             "processing_time": scene.processing_time,
         }, 200
 
+    @app.post("/api/glasses/photo")
+    def glasses_photo() -> tuple[dict, int]:
+        """Accepts a photo shared from smart glasses (e.g. Meta Ray-Ban) and runs scene analysis."""
+        if scene_analyzer is None:
+            return {"error": "Scene analysis unavailable on this server"}, 503
+        image = request.files.get("image") or request.files.get("photo")
+        if image is None or not image.filename:
+            return {"error": "image or photo file is required"}, 400
+        capture_name = f"{int(datetime.now(timezone.utc).timestamp())}_{secure_filename(image.filename)}"
+        capture_path = captures_dir / capture_name
+        image.save(capture_path)
+        scene = scene_analyzer.describe_scene(str(capture_path))
+        results = {
+            "description": scene.description,
+            "scene_description": scene.description,
+            "confidence": scene.confidence,
+            "objects": scene.objects_detected,
+            "objects_detected": scene.objects_detected,
+            "scene_type": scene.scene_type,
+            "colors": scene.colors,
+            "mood": scene.mood,
+            "model_used": scene.model_used,
+        }
+        entry_id = scene_history.record(
+            {**results, "model_used": scene.model_used},
+            image_url=f"/api/captures/{capture_name}",
+        ) if scene_history else None
+        return {
+            "id": entry_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "image_url": f"/api/captures/{capture_name}",
+            "results": results,
+            "source": "glasses",
+            "model_used": scene.model_used,
+            "processing_time": scene.processing_time,
+        }, 200
+
     @app.post("/api/vision/reverse-search")
     def vision_reverse_search() -> tuple[dict, int]:
         """Reverse image search via Google Vision Web Detection."""
@@ -1817,6 +1870,56 @@ class MyPlugin(BasePlugin):
     @app.delete("/api/reminders/<reminder_id>")
     def delete_reminder(reminder_id: str) -> tuple[dict, int]:
         if reminders.delete(reminder_id, user_id=_uid()):
+            return {"deleted": True}, 200
+        return {"error": "not found"}, 404
+
+    # ── contacts ──────────────────────────────────────────────────────
+
+    @app.get("/api/contacts")
+    def list_contacts() -> tuple[dict, int]:
+        return {"contacts": contacts.list_all(user_id=_uid())}, 200
+
+    @app.post("/api/contacts")
+    def create_contact() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        c = contacts.add(
+            name=name,
+            user_id=_uid(),
+            phone=payload.get("phone") or None,
+            whatsapp=payload.get("whatsapp") or None,
+            email=payload.get("email") or None,
+            notes=payload.get("notes") or None,
+        )
+        return {"contact": c}, 201
+
+    @app.get("/api/contacts/search")
+    def search_contacts() -> tuple[dict, int]:
+        q = request.args.get("q", "").strip()
+        if not q:
+            return {"contacts": []}, 200
+        return {"contacts": contacts.find_by_name(q, user_id=_uid())}, 200
+
+    @app.get("/api/contacts/<contact_id>")
+    def get_contact(contact_id: str) -> tuple[dict, int]:
+        c = contacts.get(contact_id, user_id=_uid())
+        if not c:
+            return {"error": "not found"}, 404
+        return {"contact": c}, 200
+
+    @app.put("/api/contacts/<contact_id>")
+    def update_contact(contact_id: str) -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        c = contacts.update(contact_id, user_id=_uid(), **payload)
+        if not c:
+            return {"error": "not found"}, 404
+        return {"contact": c}, 200
+
+    @app.delete("/api/contacts/<contact_id>")
+    def delete_contact(contact_id: str) -> tuple[dict, int]:
+        if contacts.delete(contact_id, user_id=_uid()):
             return {"deleted": True}, 200
         return {"error": "not found"}, 404
 

@@ -12,7 +12,19 @@ export type PageId =
   | "vision"
   | "memory"
   | "plugins"
-  | "research";
+  | "research"
+  | "contacts";
+
+export interface Contact {
+  id: string;
+  name: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export type PersonalityMode = "Standard" | "Tactical" | "Formal" | "Concise";
 
