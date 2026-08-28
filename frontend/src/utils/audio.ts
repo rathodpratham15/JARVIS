@@ -19,12 +19,20 @@ function getAudioContext(): AudioContext | null {
 }
 
 // Call once inside a user-gesture handler to satisfy Chrome's autoplay policy.
-// After this, speakJarvisText will always use ElevenLabs via AudioContext.
 export function unlockAudioContext() {
   const ctx = getAudioContext();
   if (ctx && ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
+}
+
+// Whether to attempt the backend /api/tts call (ElevenLabs).
+// Set to true only when the backend has ELEVENLABS_API_KEY configured.
+// App.tsx calls setTtsBackendEnabled() after fetching auth config.
+let _backendTtsEnabled = false;
+
+export function setTtsBackendEnabled(enabled: boolean): void {
+  _backendTtsEnabled = enabled;
 }
 
 // Play futuristic UI beep sound effect
@@ -83,7 +91,7 @@ export function playUiSound(type: "beep" | "success" | "alert" | "scan" | "power
       osc.start(now);
       osc.stop(now + 0.35);
     }
-  } catch (err) {
+  } catch {
     // Ignore audio context errors silently
   }
 }
@@ -91,79 +99,37 @@ export function playUiSound(type: "beep" | "success" | "alert" | "scan" | "power
 // Active AudioContext source node so we can stop mid-speech
 let activeTtsSource: AudioBufferSourceNode | null = null;
 
-// Text-To-Speech: calls /api/tts (macOS say → WAV, or ElevenLabs if configured)
-// and plays the returned audio through AudioContext. Falls back to browser
-// speechSynthesis if the backend call fails.
-export async function speakJarvisText(text: string, onEnd?: () => void): Promise<void> {
-  if (typeof window === "undefined") { onEnd?.(); return; }
+// Pick the best available native voice for speechSynthesis.
+// Priority: local service voices (Siri on iOS/macOS, Google TTS on Android)
+// with English language, preferring a natural-sounding male voice.
+function pickNativeVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  const en = voices.filter(v => v.lang.startsWith("en"));
+  if (en.length === 0) return voices[0] ?? null;
 
-  // Stop any currently playing TTS
-  stopJarvisSpeech();
+  // Local service = the OS's own TTS engine (Siri on Apple, Google TTS on Android)
+  const local = en.filter(v => v.localService);
+  const pool = local.length > 0 ? local : en;
 
-  const cleanText = text
-    .replace(/```[\s\S]*?```/g, "")           // fenced code blocks
-    .replace(/\|[^\n]+\|/g, "")               // table rows
-    .replace(/^[-:|]+$/gm, "")               // table separators
-    .replace(/---+/g, "")                     // horizontal rules
-    .replace(/\*\*(.*?)\*\*/g, "$1")          // bold
-    .replace(/\*(.*?)\*/g, "$1")              // italic
-    .replace(/`(.*?)`/g, "$1")               // inline code
-    .replace(/#+\s+/g, "")                   // headers
-    .replace(/\[(.*?)\]\(.*?\)/g, "$1")      // links
-    .replace(/^\s*[-*+]\s+/gm, "")           // bullet points
-    .replace(/^\s*\d+\.\s+/gm, "")           // numbered lists
-    .replace(/\n+/g, " ")                     // newlines → spaces
-    .replace(/\s{2,}/g, " ")                  // collapse whitespace
-    .trim();
-
-  // ── Backend TTS via AudioContext (bypasses Chrome autoplay restrictions) ──
-  try {
-    const res = await apiFetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: cleanText }),
-    });
-    if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
-    const arrayBuf = await res.arrayBuffer();
-    const ctx = getAudioContext();
-    if (!ctx) throw new Error("No AudioContext");
-    // Ensure the context is running before decoding/playing
-    if (ctx.state === "suspended") await ctx.resume();
-    const audioBuf = await ctx.decodeAudioData(arrayBuf);
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuf;
-    source.connect(ctx.destination);
-    activeTtsSource = source;
-    source.onended = () => {
-      activeTtsSource = null;
-      onEnd?.();
-    };
-    source.start(0);
-    console.log("[JARVIS TTS] backend TTS playing, duration:", audioBuf.duration.toFixed(1) + "s");
-    return;
-  } catch (err) {
-    console.warn("[JARVIS TTS] backend TTS failed, falling back to speechSynthesis:", err);
+  // Prefer specific high-quality named voices
+  const preferredNames = ["daniel", "oliver", "arthur", "rishi", "siri", "google uk english male", "google us english"];
+  for (const name of preferredNames) {
+    const match = pool.find(v => v.name.toLowerCase().includes(name));
+    if (match) return match;
   }
+  return pool[0] ?? en[0];
+}
 
-  // ── Fallback: browser SpeechSynthesis ────────────────────────────────────
+function speakNative(text: string, onEnd?: () => void): void {
   if (!("speechSynthesis" in window)) { onEnd?.(); return; }
 
   const buildAndSpeak = (voices: SpeechSynthesisVoice[]) => {
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const britishVoice =
-      voices.find(
-        (v) =>
-          v.lang.includes("en-GB") ||
-          v.name.toLowerCase().includes("british") ||
-          v.name.toLowerCase().includes("daniel") ||
-          v.name.toLowerCase().includes("george") ||
-          v.name.toLowerCase().includes("male")
-      ) || voices.find((v) => v.lang.startsWith("en"));
-    if (britishVoice) utterance.voice = britishVoice;
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = pickNativeVoice(voices);
+    if (voice) utterance.voice = voice;
     utterance.pitch = 0.95;
     utterance.rate = 1.05;
-    utterance.onend = () => { onEnd?.(); };
-    utterance.onerror = () => { onEnd?.(); };
+    utterance.onend = () => onEnd?.();
+    utterance.onerror = () => onEnd?.();
     window.speechSynthesis.resume();
     window.speechSynthesis.speak(utterance);
   };
@@ -177,6 +143,66 @@ export async function speakJarvisText(text: string, onEnd?: () => void): Promise
       buildAndSpeak(window.speechSynthesis.getVoices());
     };
   }
+}
+
+// Strips markdown formatting so the TTS engine speaks clean text.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\|[^\n]+\|/g, "")
+    .replace(/^[-:|]+$/gm, "")
+    .replace(/---+/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/`(.*?)`/g, "$1")
+    .replace(/#+\s+/g, "")
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\n+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// Text-To-Speech entry point.
+// Uses ElevenLabs via backend only when ELEVENLABS_API_KEY is configured
+// (signalled by setTtsBackendEnabled(true) at app startup).
+// Otherwise uses the device's native voice engine (Siri on iOS/macOS,
+// Google TTS on Android, Microsoft voices on Windows) via speechSynthesis.
+export async function speakJarvisText(text: string, onEnd?: () => void): Promise<void> {
+  if (typeof window === "undefined") { onEnd?.(); return; }
+
+  stopJarvisSpeech();
+  const cleanText = stripMarkdown(text);
+
+  // ── ElevenLabs via backend (only when configured) ─────────────────────────
+  if (_backendTtsEnabled) {
+    try {
+      const res = await apiFetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const arrayBuf = await res.arrayBuffer();
+      const ctx = getAudioContext();
+      if (!ctx) throw new Error("No AudioContext");
+      if (ctx.state === "suspended") await ctx.resume();
+      const audioBuf = await ctx.decodeAudioData(arrayBuf);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuf;
+      source.connect(ctx.destination);
+      activeTtsSource = source;
+      source.onended = () => { activeTtsSource = null; onEnd?.(); };
+      source.start(0);
+      return;
+    } catch {
+      // ElevenLabs failed — fall through to native
+    }
+  }
+
+  // ── Native OS voice (Siri / Google TTS / Microsoft) ─────────────────────
+  speakNative(cleanText, onEnd);
 }
 
 export function stopJarvisSpeech() {

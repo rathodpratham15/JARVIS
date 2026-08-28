@@ -159,6 +159,7 @@ export interface AuthConfig {
   password_enabled: boolean;
   microsoft_enabled?: boolean;
   saml_enabled?: boolean;
+  tts_backend_enabled?: boolean;
 }
 
 export async function fetchAuthConfig(): Promise<AuthConfig> {
