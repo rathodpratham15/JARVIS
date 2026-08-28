@@ -40,10 +40,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMod
       return;
     }
     if (access_token && refresh_token) {
+      console.log("[sso] tokens found, storing and calling onLoginSuccess");
       localStorage.setItem("jarvis_access_token", access_token);
       localStorage.setItem("jarvis_refresh_token", refresh_token);
-      window.history.replaceState({}, "", "/");
+      window.history.replaceState({}, "", "/login");
       onLoginSuccess();
+    } else {
+      console.log("[sso] /auth/callback hit but no tokens in URL");
     }
   }, [onLoginSuccess]);
 

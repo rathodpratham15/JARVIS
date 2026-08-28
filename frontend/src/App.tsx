@@ -143,18 +143,24 @@ export default function App() {
   const [authedUser, setAuthedUser] = useState(getStoredUser);
 
   useEffect(() => {
+    console.log("[auth] checking auth config, path=", location.pathname);
     fetchAuthConfig().then(async cfg => {
+      console.log("[auth] config:", cfg);
       if (!cfg.auth_enabled) { setAuthChecking(false); return; }
       setAuthRequired(true);
       const token = getAccessToken();
+      console.log("[auth] token present:", !!token);
       if (!token) { setAuthedUser(null); setAuthChecking(false); return; }
       try {
         const res = await apiFetch("/api/auth/me");
+        console.log("[auth] /me status:", res.status);
         if (!res.ok) { clearTokens(); setAuthedUser(null); }
-      } catch {
+      } catch (e) {
+        console.log("[auth] /me fetch error:", e);
         clearTokens(); setAuthedUser(null);
       } finally {
         setAuthChecking(false);
+        console.log("[auth] authChecking done");
       }
     });
   }, []);
@@ -162,7 +168,9 @@ export default function App() {
   // Navigate to /dashboard once user is confirmed authenticated on a public path
   const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
   useEffect(() => {
+    console.log("[auth] authedUser changed:", authedUser, "path:", location.pathname);
     if (authedUser && PUBLIC_PATHS.includes(location.pathname)) {
+      console.log("[auth] navigating to /dashboard");
       navigate("/dashboard", { replace: true });
     }
   }, [authedUser, location.pathname]);
