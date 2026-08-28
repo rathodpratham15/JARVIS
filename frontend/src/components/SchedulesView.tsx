@@ -21,14 +21,17 @@ interface SchedulesViewProps {
 }
 
 const SCHEDULE_PRESETS = [
-  { label: "Every 15 minutes", value: "every 15 minutes" },
-  { label: "Every 30 minutes", value: "every 30 minutes" },
-  { label: "Every hour",       value: "every 1 hours" },
-  { label: "Every 6 hours",    value: "every 6 hours" },
-  { label: "Every day at 9am", value: "every day at 09:00" },
-  { label: "Every day at 8pm", value: "every day at 20:00" },
-  { label: "Every Monday",     value: "every monday at 09:00" },
-  { label: "Custom…",          value: "custom" },
+  { label: "Every 15 minutes",     value: "every 15 minutes" },
+  { label: "Every 30 minutes",     value: "every 30 minutes" },
+  { label: "Every hour",           value: "every 1 hours" },
+  { label: "Every 6 hours",        value: "every 6 hours" },
+  { label: "Every day at 9am",     value: "every day at 09:00" },
+  { label: "Every day at 8pm",     value: "every day at 20:00" },
+  { label: "Every Monday",         value: "every monday at 09:00" },
+  { label: "Every month on 1st",   value: "every month on the 1st at 09:00" },
+  { label: "Every month on 15th",  value: "every month on the 15th at 09:00" },
+  { label: "Yearly (birthday…)",   value: "every year on january 1st at 09:00" },
+  { label: "Custom…",              value: "custom" },
 ];
 
 const TARGET_MODULES: ScheduleJob["targetModule"][] = [
@@ -194,9 +197,11 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
 
                         {/* Telemetry row */}
                         <div className="pt-3 border-t border-zinc-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[11px] font-mono">
-                          <div className="text-zinc-400">
-                            LAST RUN:{" "}
-                            <strong className="text-white">{job.lastRun || "Never"}</strong>
+                          <div className="flex flex-col gap-0.5 text-zinc-400">
+                            <span>LAST RUN: <strong className="text-white">{job.lastRun || "Never"}</strong></span>
+                            {job.nextRun && job.nextRun !== "—" && (
+                              <span>NEXT RUN: <strong className="text-cyan-400">{job.nextRun}</strong></span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -338,13 +343,16 @@ export const SchedulesView: React.FC<SchedulesViewProps> = ({
                     type="text"
                     value={customExpr}
                     onChange={(e) => setCustomExpr(e.target.value)}
-                    placeholder="every 2 hours / every day at 09:00 / every monday at 10:00"
+                    placeholder="e.g. every year on july 1st at 9am"
                     className="editorial-input"
                     required
                   />
-                  <p className="font-mono text-[10px] text-zinc-500">
-                    Syntax: "every N minutes/hours/days", "every day at HH:MM", "every [weekday] at HH:MM"
-                  </p>
+                  <div className="font-mono text-[10px] text-zinc-500 space-y-0.5">
+                    <p>Interval: "every N minutes/hours/days"</p>
+                    <p>Daily/Weekly: "every day at 09:00" · "every monday at 10:00"</p>
+                    <p>Monthly: "every month on the 15th at 10:00"</p>
+                    <p>Yearly: "every year on july 1st at 9am"</p>
+                  </div>
                 </div>
               )}
 

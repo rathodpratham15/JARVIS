@@ -59,7 +59,8 @@ function mapBackendSchedule(s: any): ScheduleJob {
     lastRun: s.last_run ? new Date(s.last_run).toLocaleString() : undefined,
     lastResult: s.last_result ?? undefined,
     runCount: s.run_count ?? 0,
-    nextRun: "—",
+    nextRun: s.next_run_at ? new Date(s.next_run_at).toLocaleString() : "—",
+    nextRunAt: s.next_run_at ?? undefined,
     status: s.last_status === "running" ? "running" : s.last_status === "done" ? "success" : s.last_status === "failed" ? "failed" : "idle",
   };
 }
