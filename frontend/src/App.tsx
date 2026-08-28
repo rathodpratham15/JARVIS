@@ -118,7 +118,7 @@ function mapBackendTask(t: any): AgentTask {
 
 // Map URL path ↔ PageId
 const PATH_TO_PAGE: Record<string, PageId> = {
-  "/": "dashboard", "/dashboard": "dashboard", "/chat": "chat",
+  "/dashboard": "dashboard", "/chat": "chat",
   "/voice": "voice", "/vision": "vision", "/tasks": "tasks",
   "/schedules": "schedules", "/permissions": "permissions",
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
@@ -140,7 +140,6 @@ export default function App() {
   // Auth: check on mount; listen for token expiry events
   const [authRequired, setAuthRequired] = useState(false);
   const [authedUser, setAuthedUser] = useState(getStoredUser);
-  const [showLanding, setShowLanding] = useState(!getStoredUser());
 
   useEffect(() => {
     fetchAuthConfig().then(async cfg => {
@@ -157,9 +156,9 @@ export default function App() {
     });
   }, []);
 
-  // Keep URL in sync with auth state — unauthenticated users stay at / (landing page)
+  // Redirect authenticated users away from /login and /signup
   useEffect(() => {
-    if (authedUser && (location.pathname === "/" || location.pathname === "/login")) {
+    if (authedUser && (location.pathname === "/login" || location.pathname === "/signup")) {
       navigate("/dashboard", { replace: true });
     }
   }, [authRequired, authedUser]);
@@ -823,33 +822,34 @@ export default function App() {
     return <PrivacyPolicy />;
   }
 
-  // SSO callback — render LoginView so its useEffect can consume the tokens
-  if (location.pathname === "/auth/callback") {
-    return (
-      <LoginView
-        onLoginSuccess={() => {
-          setAuthedUser(getStoredUser());
-          setAuthRequired(false);
-          navigate("/dashboard", { replace: true });
-        }}
-      />
-    );
+  // Landing page — always public
+  if (location.pathname === "/") {
+    return <LandingPage onEnter={() => navigate("/login")} />;
   }
 
+  const handleLoginSuccess = () => {
+    setAuthedUser(getStoredUser());
+    setAuthRequired(false);
+    navigate("/dashboard", { replace: true });
+  };
+
+  // SSO callback — consume tokens then go to dashboard
+  if (location.pathname === "/auth/callback") {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Login / signup routes
+  if (location.pathname === "/login") {
+    return <LoginView onLoginSuccess={handleLoginSuccess} initialMode="login" />;
+  }
+  if (location.pathname === "/signup") {
+    return <LoginView onLoginSuccess={handleLoginSuccess} initialMode="signup" />;
+  }
+
+  // Protected routes — redirect unauthenticated users to /login
   if (authRequired && !authedUser) {
-    if (showLanding) {
-      return <LandingPage onEnter={() => setShowLanding(false)} />;
-    }
-    return (
-      <LoginView
-        onLoginSuccess={() => {
-          setAuthedUser(getStoredUser());
-          setAuthRequired(false);
-          setShowLanding(false);
-          navigate("/dashboard", { replace: true });
-        }}
-      />
-    );
+    navigate("/login", { replace: true });
+    return null;
   }
 
   return (

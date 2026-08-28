@@ -10,11 +10,12 @@ const isNative = Capacitor.isNativePlatform();
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
+  initialMode?: "login" | "signup";
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMode = "login" }) => {
   const [config, setConfig] = useState<AuthConfig | null>(null);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
