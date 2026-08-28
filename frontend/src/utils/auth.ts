@@ -157,6 +157,8 @@ export interface AuthConfig {
   google_enabled: boolean;
   google_client_id: string;
   password_enabled: boolean;
+  microsoft_enabled?: boolean;
+  saml_enabled?: boolean;
 }
 
 export async function fetchAuthConfig(): Promise<AuthConfig> {

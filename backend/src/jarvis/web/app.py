@@ -99,7 +99,11 @@ def create_app() -> Flask:
         "capacitor://localhost,https://localhost,http://localhost"
     )
     _allowed_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
-    CORS(app, resources={r"/api/*": {"origins": _allowed_origins}}, supports_credentials=True)
+    CORS(app, resources={
+        r"/api/*":   {"origins": _allowed_origins},
+        r"/auth/*":  {"origins": _allowed_origins},
+        r"/scim/*":  {"origins": _allowed_origins},
+    }, supports_credentials=True)
 
     # ── Auth (opt-in via JARVIS_AUTH_ENABLED=true) ────────────────────────
     _auth_enabled = os.getenv("JARVIS_AUTH_ENABLED", "false").lower() in ("1", "true", "yes")
@@ -156,15 +160,30 @@ def create_app() -> Flask:
         "https://www.googleapis.com/auth/drive",
     ]
 
-    _PUBLIC_ROUTES = {"/api/auth/login", "/api/auth/signup", "/api/auth/refresh", "/api/auth/google", "/api/auth/config", "/api/health", "/api/google/callback", "/api/face/image"}
+    _PUBLIC_ROUTES = {
+        "/api/auth/login", "/api/auth/signup", "/api/auth/refresh",
+        "/api/auth/google", "/api/auth/config", "/api/health",
+        "/api/google/callback", "/api/face/image",
+        # SSO / SAML / Microsoft OIDC — must be public (browser redirect flows)
+        "/auth/saml/metadata", "/auth/saml/login", "/auth/saml/acs", "/auth/saml/slo",
+        "/auth/microsoft/login", "/auth/microsoft/callback",
+    }
+
+    # SCIM endpoints use their own Bearer-token auth, not the JARVIS JWT
+    def _is_scim(path: str) -> bool:
+        return path.startswith("/scim/")
 
     # Apply auth globally via before_request
     @app.before_request
     def _check_auth():
         if not _auth_enabled:
             return
-        if request.path in _PUBLIC_ROUTES or request.method == "OPTIONS":
+        if request.method == "OPTIONS":
             return
+        if request.path in _PUBLIC_ROUTES:
+            return
+        if _is_scim(request.path):
+            return  # SCIM routes enforce their own Bearer token
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return {"error": "unauthorized"}, 401
@@ -382,12 +401,259 @@ def create_app() -> Flask:
     @app.get("/api/auth/config")
     def auth_config() -> tuple[dict, int]:
         """Tell the frontend which login methods are available."""
+        from jarvis.auth.microsoft_oidc import MicrosoftOIDC as _MSOIDC
+        _ms = _MSOIDC()
         return {
             "auth_enabled": _auth_enabled,
             "google_enabled": bool(_google_client_id),
             "google_client_id": _google_client_id,
             "password_enabled": True,
+            "microsoft_enabled": _ms.configured,
+            "saml_enabled": bool(os.getenv("SAML_IDP_SSO_URL", "")),
         }, 200
+
+    # ── SAML 2.0 SP routes ────────────────────────────────────────────────
+
+    @app.get("/auth/saml/metadata")
+    def saml_metadata():
+        """SP metadata XML — register this URL in your IdP (Okta, Azure, etc.)."""
+        try:
+            from jarvis.auth.saml_provider import SAMLProvider as _SP
+            xml = _SP().get_metadata(_backend_url)
+            from flask import Response
+            return Response(xml, mimetype="application/xml")
+        except ImportError:
+            return {"error": "python3-saml not installed"}, 501
+        except Exception as exc:
+            logger.exception("saml_metadata error: %s", exc)
+            return {"error": str(exc)}, 500
+
+    @app.get("/auth/saml/login")
+    def saml_login():
+        """Redirect browser to IdP SSO URL (SP-initiated login)."""
+        try:
+            from jarvis.auth.saml_provider import SAMLProvider as _SP
+            relay = request.args.get("relay_state", "")
+            redirect_url = _SP().build_login_redirect(_backend_url, relay_state=relay)
+            from flask import redirect as _redirect
+            return _redirect(redirect_url)
+        except ImportError:
+            return {"error": "python3-saml not installed"}, 501
+        except RuntimeError as exc:
+            return {"error": str(exc)}, 501
+        except Exception as exc:
+            logger.exception("saml_login error: %s", exc)
+            return {"error": str(exc)}, 500
+
+    @app.post("/auth/saml/acs")
+    def saml_acs():
+        """Assertion Consumer Service — IdP POSTs the SAMLResponse here."""
+        try:
+            from jarvis.auth.saml_provider import SAMLProvider as _SP
+            from urllib.parse import urlparse as _up
+            parsed = _up(_backend_url)
+
+            request_data = {
+                "https": "on" if parsed.scheme == "https" else "off",
+                "http_host": parsed.netloc,
+                "server_port": str(parsed.port or (443 if parsed.scheme == "https" else 80)),
+                "script_name": "/auth/saml/acs",
+                "request_uri": "/auth/saml/acs",
+                "get_data": {},
+                "post_data": {
+                    "SAMLResponse": request.form.get("SAMLResponse", ""),
+                    "RelayState": request.form.get("RelayState", ""),
+                },
+            }
+            attrs = _SP().process_response(_backend_url, request_data)
+        except ImportError:
+            return {"error": "python3-saml not installed"}, 501
+        except ValueError as exc:
+            return {"error": str(exc)}, 401
+        except Exception as exc:
+            logger.exception("saml_acs error: %s", exc)
+            return {"error": str(exc)}, 500
+
+        user = _auth_mgr.create_or_get_saml_user(
+            email=attrs["email"],
+            name=attrs["name"],
+            name_id=attrs["name_id"],
+            idp=attrs["idp_entity_id"],
+        )
+        tokens = _auth_mgr.create_tokens(user)
+        # Redirect to frontend with tokens in query string
+        # (SPA reads them via useEffect on /auth/callback)
+        from flask import redirect as _redirect
+        from urllib.parse import urlencode as _ue
+        params = _ue({
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+        })
+        return _redirect(f"{_frontend_url}/auth/callback?{params}")
+
+    @app.post("/auth/saml/slo")
+    def saml_slo():
+        """Single Logout — IdP-initiated SLO (best-effort)."""
+        refresh_token = request.form.get("refresh_token") or request.args.get("refresh_token", "")
+        if refresh_token:
+            _auth_mgr.revoke_refresh_token(refresh_token)
+        from flask import redirect as _redirect
+        return _redirect(f"{_frontend_url}?slo=1")
+
+    # ── Microsoft OIDC routes ─────────────────────────────────────────────
+
+    @app.get("/auth/microsoft/login")
+    def microsoft_login():
+        """Redirect to Microsoft authorization endpoint."""
+        try:
+            from jarvis.auth.microsoft_oidc import MicrosoftOIDC as _MSOIDC
+            ms = _MSOIDC()
+            if not ms.configured:
+                return {"error": "Microsoft OIDC not configured"}, 501
+            redirect_uri = f"{_backend_url}/auth/microsoft/callback"
+            state = request.args.get("state", "")
+            url = ms.get_login_url(redirect_uri=redirect_uri, state=state)
+            from flask import redirect as _redirect
+            return _redirect(url)
+        except Exception as exc:
+            logger.exception("microsoft_login error: %s", exc)
+            return {"error": str(exc)}, 500
+
+    @app.get("/auth/microsoft/callback")
+    def microsoft_callback():
+        """Exchange authorization code, create/find user, redirect to frontend."""
+        code = request.args.get("code", "")
+        error = request.args.get("error", "")
+        if error or not code:
+            desc = request.args.get("error_description", error or "no code")
+            from flask import redirect as _redirect
+            from urllib.parse import urlencode as _ue
+            return _redirect(f"{_frontend_url}/login?error={_ue({'e': desc})}")
+        try:
+            from jarvis.auth.microsoft_oidc import MicrosoftOIDC as _MSOIDC
+            ms = _MSOIDC()
+            redirect_uri = f"{_backend_url}/auth/microsoft/callback"
+            identity = ms.exchange_code(code=code, redirect_uri=redirect_uri)
+        except Exception as exc:
+            logger.exception("microsoft_callback error: %s", exc)
+            from flask import redirect as _redirect
+            return _redirect(f"{_frontend_url}/login?error=microsoft_failed")
+
+        email = identity["email"]
+        if _allowed_emails and email not in _allowed_emails:
+            logger.warning("Microsoft login from non-allowed email: %s", email)
+            from flask import redirect as _redirect
+            return _redirect(f"{_frontend_url}/login?error=not_allowed")
+
+        user = _auth_mgr.create_or_get_microsoft_user(
+            email=email, name=identity["name"], microsoft_sub=identity["sub"]
+        )
+        tokens = _auth_mgr.create_tokens(user)
+        from flask import redirect as _redirect
+        from urllib.parse import urlencode as _ue
+        params = _ue({
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+        })
+        return _redirect(f"{_frontend_url}/auth/callback?{params}")
+
+    # ── SCIM 2.0 endpoints ────────────────────────────────────────────────
+
+    from jarvis.auth.scim_server import (
+        check_scim_auth as _scim_auth,
+        scim_error as _scim_err,
+        SERVICE_PROVIDER_CONFIG as _SPC,
+        RESOURCE_TYPES as _RTS,
+        SCHEMA_USER as _SCHEMA_USER,
+        parse_filter as _parse_filter,
+        SCIM_SCHEMA_LIST,
+    )
+
+    @app.get("/scim/v2/ServiceProviderConfig")
+    def scim_service_provider_config():
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        return _SPC, 200
+
+    @app.get("/scim/v2/ResourceTypes")
+    def scim_resource_types():
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        return _RTS, 200
+
+    @app.get("/scim/v2/Schemas")
+    def scim_schemas():
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        return _SCHEMA_USER, 200
+
+    @app.get("/scim/v2/Users")
+    def scim_list_users():
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        start_index = int(request.args.get("startIndex", 1))
+        count = int(request.args.get("count", 100))
+        filter_str = request.args.get("filter", "")
+        f = _parse_filter(filter_str)
+        attr, val = (list(f.items())[0] if f else ("", ""))
+        resources, total = _auth_mgr.scim_list_users(start_index, count, attr, val)
+        return {
+            "schemas": [SCIM_SCHEMA_LIST],
+            "totalResults": total,
+            "startIndex": start_index,
+            "itemsPerPage": len(resources),
+            "Resources": resources,
+        }, 200
+
+    @app.post("/scim/v2/Users")
+    def scim_create_user():
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        payload = request.get_json(silent=True) or {}
+        try:
+            user = _auth_mgr.scim_provision_user(payload)
+        except ValueError as exc:
+            return _scim_err(str(exc), 409, "uniqueness")
+        return user, 201
+
+    @app.get("/scim/v2/Users/<user_id>")
+    def scim_get_user(user_id: str):
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        user = _auth_mgr.scim_get_user(user_id)
+        if not user:
+            return _scim_err("User not found", 404)
+        return user, 200
+
+    @app.put("/scim/v2/Users/<user_id>")
+    def scim_replace_user(user_id: str):
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        payload = request.get_json(silent=True) or {}
+        user = _auth_mgr.scim_replace_user(user_id, payload)
+        if not user:
+            return _scim_err("User not found", 404)
+        return user, 200
+
+    @app.patch("/scim/v2/Users/<user_id>")
+    def scim_patch_user(user_id: str):
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        payload = request.get_json(silent=True) or {}
+        operations = payload.get("Operations", [])
+        user = _auth_mgr.scim_patch_user(user_id, operations)
+        if not user:
+            return _scim_err("User not found", 404)
+        return user, 200
+
+    @app.delete("/scim/v2/Users/<user_id>")
+    def scim_delete_user(user_id: str):
+        if not _scim_auth():
+            return _scim_err("Unauthorized", 401)
+        ok = _auth_mgr.scim_deprovision_user(user_id)
+        if not ok:
+            return _scim_err("User not found", 404)
+        return "", 204
 
     @app.get("/api/permissions")
     def get_permissions() -> tuple[dict, int]:

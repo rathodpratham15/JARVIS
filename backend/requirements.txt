@@ -31,3 +31,7 @@ google-auth>=2.28.0
 google-api-python-client>=2.100.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
+# SAML 2.0 SP (requires libxmlsec1-dev — see nixpacks.toml)
+python3-saml>=1.16.0
+# Microsoft OIDC (no native deps needed)
+requests>=2.31.0
