@@ -156,10 +156,7 @@ class SAMLProvider:
             "urn:oid:2.16.840.1.113730.3.1.241",
         ) or email.split("@")[0]
 
-        idp_entity_id = auth.get_last_response_xml_document().find(
-            ".//{urn:oasis:names:tc:SAML:2.0:assertion}Issuer"
-        )
-        issuer = idp_entity_id.text.strip() if idp_entity_id is not None else _env("SAML_IDP_ENTITY_ID")
+        issuer = _env("SAML_IDP_ENTITY_ID")
 
         return {"email": email, "name": name, "name_id": name_id, "idp_entity_id": issuer}
 
