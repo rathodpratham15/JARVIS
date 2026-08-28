@@ -1,4 +1,4 @@
-const CACHE = 'jarvis-v1';
+const CACHE = 'jarvis-v2';
 const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', (e) => {
