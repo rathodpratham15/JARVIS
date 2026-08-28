@@ -79,7 +79,13 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enrollFileRef = useRef<HTMLInputElement>(null);
 
-  const runOsint = async (subject: string, company?: string) => {
+  const runOsint = async (subject: string, company?: string, cachedDossier?: ResearchDossier | null) => {
+    // Show cached dossier instantly if available; still refresh in background
+    if (cachedDossier) {
+      setOsintDossier(cachedDossier);
+      setOsintLoading(false);
+      return;
+    }
     setOsintLoading(true);
     setOsintError(null);
     setOsintDossier(null);
@@ -93,6 +99,12 @@ export const VisionView: React.FC<VisionViewProps> = ({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ResearchDossier = await res.json();
       setOsintDossier(data);
+      // Persist dossier to face DB so repeat scans don't re-run research
+      apiFetch(`/api/face/person/${encodeURIComponent(subject)}/dossier`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dossier: data }),
+      }).catch(() => {});
     } catch (err: any) {
       setOsintError(err.message ?? "Research failed");
     } finally {
@@ -297,7 +309,8 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setCapturedFrame(imageBase64 ?? null);
       if (res.faceMatch) {
         const org = res.facePerson?.additional_data?.organization || res.facePerson?.profession || undefined;
-        runOsint(res.faceMatch, org);
+        const cachedDossier = res.facePerson?.additional_data?.dossier ?? null;
+        runOsint(res.faceMatch, org, cachedDossier);
       } else if (imageBase64) {
         runReverseSearch(imageBase64);
       } else {
@@ -713,9 +726,18 @@ const IntelPanel: React.FC<IntelPanelProps> = ({
             </span>
           )}
           {osintDossier && (
-            <span className="text-[10px] font-mono bg-emerald-900/30 text-emerald-400 border border-emerald-900 px-2 py-0.5">
-              DOSSIER READY
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono bg-emerald-900/30 text-emerald-400 border border-emerald-900 px-2 py-0.5">
+                DOSSIER READY
+              </span>
+              <button
+                onClick={() => subject && onRunOsint(subject)}
+                title="Refresh research"
+                className="p-0.5 text-zinc-500 hover:text-white transition"
+              >
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
           )}
         </div>
       </div>

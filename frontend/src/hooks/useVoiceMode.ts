@@ -63,6 +63,26 @@ async function sendToBackend(message: string): Promise<string> {
   return (data.response as string) || ''
 }
 
+// ── Screen wake lock ──────────────────────────────────────────────────────────
+// Prevents the screen from dimming/locking during voice sessions.
+// Works on Chrome 84+, Safari iOS 16.4+, and Android Chrome.
+
+let _wakeLock: WakeLockSentinel | null = null
+
+async function acquireWakeLock(): Promise<void> {
+  if (!('wakeLock' in navigator)) return
+  try {
+    _wakeLock = await (navigator as any).wakeLock.request('screen')
+  } catch { /* denied or not supported */ }
+}
+
+function releaseWakeLock(): void {
+  if (_wakeLock) {
+    _wakeLock.release().catch(() => {})
+    _wakeLock = null
+  }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useVoiceMode() {
@@ -77,6 +97,7 @@ export function useVoiceMode() {
     if (_abortWeb) { _abortWeb(); _abortWeb = null }
     stopJarvisSpeech()
     if (Capacitor.isNativePlatform()) SpeechRecognition.stop().catch(() => {})
+    releaseWakeLock()
     setActive(false)
     setTranscript('')
     setReply('')
@@ -92,6 +113,9 @@ export function useVoiceMode() {
     setActive(true)
 
     ;(async () => {
+      // Keep screen on during voice session
+      await acquireWakeLock()
+
       // Wait for speechSynthesis voices on first load (browser may return [] initially)
       if (!Capacitor.isNativePlatform() && window.speechSynthesis) {
         if (window.speechSynthesis.getVoices().length === 0) {
@@ -134,6 +158,7 @@ export function useVoiceMode() {
       }
 
       running.current = false
+      releaseWakeLock()
       setActive(false)
     })()
   }, [])
@@ -141,6 +166,7 @@ export function useVoiceMode() {
   useEffect(() => () => {
     running.current = false
     stopJarvisSpeech()
+    releaseWakeLock()
   }, [])
 
   return { active, voiceState, transcript, reply, start, stop }
