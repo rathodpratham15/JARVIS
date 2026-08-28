@@ -28,6 +28,7 @@ from jarvis.ai import EmotionAnalyzer, KnowledgeBase
 from jarvis.services.google import GoogleServiceBundle
 from jarvis.core.action_engine import ActionEngine
 from jarvis.core.auth import AuthManager
+from jarvis.core.contacts import ContactStore
 from jarvis.core.intent_parser import IntentParser
 from jarvis.core.llm_core import LLMCore
 from jarvis.core.tool_definitions import TOOLS, tool_call_to_intent
@@ -195,6 +196,11 @@ def create_app() -> Flask:
             return {"error": "token expired or invalid"}, 401
         request.current_user = payload  # type: ignore[attr-defined]
 
+    from jarvis.core.push_store import PushTokenStore
+    from jarvis.services.push_service import PushService
+    push_store = PushTokenStore(db_path=os.getenv("JARVIS_PUSH_DB", "data/push_tokens.db"))
+    push_service = PushService(token_store=push_store)
+
     notes = NotesStore(db_path=os.getenv("JARVIS_NOTES_DB", "data/notes.db"))
     reminders = RemindersStore(db_path=os.getenv("JARVIS_REMINDERS_DB", "data/reminders.db"))
     contacts = ContactStore(db_path=os.getenv("JARVIS_CONTACTS_DB", "data/contacts.db"))
@@ -213,6 +219,7 @@ def create_app() -> Flask:
     if _saved_model and not os.getenv("JARVIS_LLM_MODEL"):
         llm.model = _saved_model
     permissions = PermissionsManager(settings_path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
+    contacts = ContactStore(db_path=os.getenv("JARVIS_CONTACTS_DB", "data/contacts.db"))
 
     from jarvis.services.spotify import SpotifyService
     from jarvis.services.home_assistant import HomeAssistantService
@@ -275,6 +282,7 @@ def create_app() -> Flask:
     sched = Scheduler(
         task_manager=task_mgr,
         db_path=os.getenv("JARVIS_SCHEDULER_DB", "data/scheduler.db"),
+        push_service=push_service,
     )
     sched.start()
     # Wire scheduler into action engine now that it exists
@@ -308,7 +316,7 @@ def create_app() -> Flask:
     transcriber = Transcriber() if _speech_available else None
     synthesizer = Synthesizer() if _speech_available else None
 
-    _start_reminder_poller(reminders)
+    _start_reminder_poller(reminders, push_service=push_service)
 
     # ── auth endpoints ────────────────────────────────────────────────────
 
@@ -702,6 +710,11 @@ def create_app() -> Flask:
     @app.get("/api/health")
     def health() -> tuple[dict, int]:
         return {"status": "ok", "interactions": memory.count()}, 200
+
+    _WEARABLE_SYSTEM_PROMPT_SUFFIX = (
+        " Respond in 1-2 short sentences only. No markdown, no bullet points, no headers. "
+        "Speak naturally as if talking out loud."
+    )
 
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
@@ -2463,10 +2476,93 @@ class MyPlugin(BasePlugin):
         _patched_notes.__name__ = "dashboard_notes"
         app.view_functions["dashboard_notes"] = _patched_notes
 
+    # ── contacts ──────────────────────────────────────────────────────
+
+    @app.get("/api/contacts")
+    def list_contacts() -> tuple[dict, int]:
+        return {"contacts": contacts.list_all(user_id=_uid())}, 200
+
+    @app.post("/api/contacts")
+    def create_contact() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        name = (payload.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        contact = contacts.add(
+            name=name,
+            user_id=_uid(),
+            phone=(payload.get("phone") or "").strip() or None,
+            whatsapp=(payload.get("whatsapp") or "").strip() or None,
+            email=(payload.get("email") or "").strip() or None,
+            notes=(payload.get("notes") or "").strip() or None,
+        )
+        return {"contact": contact}, 201
+
+    @app.get("/api/contacts/search")
+    def search_contacts() -> tuple[dict, int]:
+        q = (request.args.get("q") or "").strip()
+        if not q:
+            return {"contacts": []}, 200
+        return {"contacts": contacts.find_by_name(q, user_id=_uid())}, 200
+
+    @app.get("/api/contacts/<contact_id>")
+    def get_contact(contact_id: str) -> tuple[dict, int]:
+        contact = contacts.get(contact_id, user_id=_uid())
+        if not contact:
+            return {"error": "not found"}, 404
+        return {"contact": contact}, 200
+
+    @app.put("/api/contacts/<contact_id>")
+    def update_contact(contact_id: str) -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        updated = contacts.update(contact_id, user_id=_uid(), **payload)
+        if not updated:
+            return {"error": "not found"}, 404
+        return {"contact": updated}, 200
+
+    @app.delete("/api/contacts/<contact_id>")
+    def delete_contact(contact_id: str) -> tuple[dict, int]:
+        if contacts.delete(contact_id, user_id=_uid()):
+            return {"deleted": True}, 200
+        return {"error": "not found"}, 404
+
+    # ── push notifications ────────────────────────────────────────────────
+
+    @app.post("/api/push/register")
+    def push_register() -> tuple[dict, int]:
+        uid = _uid()
+        payload = request.get_json(silent=True) or {}
+        token = (payload.get("token") or "").strip()
+        platform = (payload.get("platform") or "").strip()
+        subscription = payload.get("subscription")
+        if not token or platform not in ("fcm", "webpush"):
+            return {"error": "token and platform ('fcm' or 'webpush') required"}, 400
+        sub_str = subscription if isinstance(subscription, str) else (
+            __import__("json").dumps(subscription) if subscription else None
+        )
+        entry = push_store.register(uid or "anonymous", token, platform, sub_str)
+        return {"registered": True, "id": entry["id"]}, 200
+
+    @app.delete("/api/push/unregister")
+    def push_unregister() -> tuple[dict, int]:
+        payload = request.get_json(silent=True) or {}
+        token = (payload.get("token") or "").strip()
+        if not token:
+            return {"error": "token required"}, 400
+        push_store.unregister(token)
+        return {"unregistered": True}, 200
+
+    @app.get("/api/push/vapid-public-key")
+    def push_vapid_key() -> tuple[dict, int]:
+        key = os.getenv("VAPID_PUBLIC_KEY", "")
+        if not key:
+            return {"error": "VAPID not configured"}, 503
+        return {"publicKey": key}, 200
+
     return app
 
 
-def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30) -> None:
+def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30, push_service=None) -> None:
     """Background thread: marks due reminders as fired every `interval` seconds."""
     def _poll() -> None:
         while True:
@@ -2475,6 +2571,12 @@ def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30) 
                 for r in reminders_store.list_due():
                     reminders_store.mark_fired(r["id"])
                     logger.info("Reminder fired: %s", r["text"])
+                    if push_service and r.get("user_id"):
+                        push_service.notify_user(
+                            r["user_id"],
+                            "Reminder",
+                            r["text"],
+                        )
             except Exception:
                 logger.exception("Reminder poller error")
 

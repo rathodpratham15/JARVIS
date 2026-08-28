@@ -38,8 +38,8 @@ import { MemoryView } from "./components/MemoryView";
 import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
-import { AgentTaskModal } from "./components/AgentTaskModal";
 import { ContactsView } from "./components/ContactsView";
+import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
@@ -47,6 +47,7 @@ import { LoginView } from "./components/LoginView";
 import { LandingPage } from "./components/LandingPage";
 import { PrivacyPolicy } from "./components/PrivacyPolicy";
 import { API_BASE, apiFetch } from "./utils/api";
+import { registerPushNotifications } from "./utils/push";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ export default function App() {
             localStorage.setItem("jarvis_user", JSON.stringify({ id: me.id, username: me.username, role: me.role ?? "user" }));
           }
           setAuthedUser(getStoredUser());
+          registerPushNotifications().catch(() => {});
         }
       } catch {
         clearTokens(); setAuthedUser(null);
@@ -430,25 +432,33 @@ export default function App() {
   }, []);
 
   const fetchContacts = useCallback(() => {
-    apiFetch(`/api/contacts`).then(r => r.json()).then(d => {
-      if (d.contacts) setContacts(d.contacts as Contact[]);
+    apiFetch("/api/contacts").then(r => r.json()).then(d => {
+      if (d.contacts) setContacts(d.contacts);
     }).catch(() => {});
   }, []);
 
-  const handleAddContact = async (c: Omit<Contact, "id" | "created_at" | "updated_at">) => {
-    await apiFetch(`/api/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
-    fetchContacts();
-  };
+  const handleAddContact = useCallback(async (c: Omit<Contact, "id" | "created_at" | "updated_at">) => {
+    const res = await apiFetch("/api/contacts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(c),
+    });
+    const d = await res.json();
+    if (d.contact) setContacts(prev => [...prev, d.contact].sort((a, b) => a.name.localeCompare(b.name)));
+  }, []);
 
-  const handleUpdateContact = async (id: string, c: Partial<Contact>) => {
-    await apiFetch(`/api/contacts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
-    fetchContacts();
-  };
+  const handleUpdateContact = useCallback(async (id: string, c: Partial<Contact>) => {
+    const res = await apiFetch(`/api/contacts/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(c),
+    });
+    const d = await res.json();
+    if (d.contact) setContacts(prev => prev.map(x => x.id === id ? d.contact : x));
+  }, []);
 
-  const handleDeleteContact = async (id: string) => {
+  const handleDeleteContact = useCallback(async (id: string) => {
     await apiFetch(`/api/contacts/${id}`, { method: "DELETE" });
-    fetchContacts();
-  };
+    setContacts(prev => prev.filter(x => x.id !== id));
+  }, []);
 
   // Initial fetch
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
