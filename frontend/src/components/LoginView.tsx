@@ -40,7 +40,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMod
       return;
     }
     if (access_token && refresh_token) {
-      console.log("[sso] tokens found, storing and calling onLoginSuccess");
       // Decode JWT payload to extract user info (no crypto verification needed client-side)
       try {
         const payload = JSON.parse(atob(access_token.split(".")[1]));
@@ -54,8 +53,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMod
       }
       window.history.replaceState({}, "", "/login");
       onLoginSuccess();
-    } else {
-      console.log("[sso] /auth/callback hit but no tokens in URL");
     }
   }, [onLoginSuccess]);
 
