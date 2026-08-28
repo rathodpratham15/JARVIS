@@ -155,6 +155,13 @@ export default function App() {
         const res = await apiFetch("/api/auth/me");
         console.log("[auth] /me status:", res.status);
         if (!res.ok) { clearTokens(); setAuthedUser(null); }
+        else {
+          const me = await res.json();
+          if (!getStoredUser()) {
+            localStorage.setItem("jarvis_user", JSON.stringify({ id: me.id, username: me.username, role: me.role ?? "user" }));
+          }
+          setAuthedUser(getStoredUser());
+        }
       } catch (e) {
         console.log("[auth] /me fetch error:", e);
         clearTokens(); setAuthedUser(null);

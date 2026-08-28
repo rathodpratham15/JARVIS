@@ -41,8 +41,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMod
     }
     if (access_token && refresh_token) {
       console.log("[sso] tokens found, storing and calling onLoginSuccess");
-      localStorage.setItem("jarvis_access_token", access_token);
-      localStorage.setItem("jarvis_refresh_token", refresh_token);
+      // Decode JWT payload to extract user info (no crypto verification needed client-side)
+      try {
+        const payload = JSON.parse(atob(access_token.split(".")[1]));
+        const user = { id: payload.sub, username: payload.username ?? payload.email, role: payload.role ?? "user" };
+        localStorage.setItem("jarvis_access_token", access_token);
+        localStorage.setItem("jarvis_refresh_token", refresh_token);
+        localStorage.setItem("jarvis_user", JSON.stringify(user));
+      } catch {
+        localStorage.setItem("jarvis_access_token", access_token);
+        localStorage.setItem("jarvis_refresh_token", refresh_token);
+      }
       window.history.replaceState({}, "", "/login");
       onLoginSuccess();
     } else {
