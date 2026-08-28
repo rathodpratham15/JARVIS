@@ -216,6 +216,12 @@ export default function App() {
   const [accentColor, setAccentColor] = useState<ThemeAccent>("brutalist");
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(false);
   const [wakeWord] = useState<string>("Hey Jarvis");
+  const [wearableMode, setWearableMode] = useState<boolean>(
+    () => localStorage.getItem("jarvis_wearable_mode") === "true"
+  );
+  const [hideVoiceTranscript, setHideVoiceTranscript] = useState<boolean>(
+    () => localStorage.getItem("jarvis_hide_voice_transcript") === "true"
+  );
 
   // Load persisted settings on mount
   useEffect(() => {
@@ -247,6 +253,22 @@ export default function App() {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       localStorage.setItem("jarvis-sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
+  const handleToggleWearableMode = () => {
+    setWearableMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("jarvis_wearable_mode", String(next));
+      return next;
+    });
+  };
+
+  const handleToggleHideVoiceTranscript = () => {
+    setHideVoiceTranscript((prev) => {
+      const next = !prev;
+      localStorage.setItem("jarvis_hide_voice_transcript", String(next));
       return next;
     });
   };
@@ -581,7 +603,7 @@ export default function App() {
       const res = await apiFetch(`/api/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, wearable_mode: wearableMode }),
       });
       if (!res.ok || !res.body) throw new Error("Stream unavailable");
       const reader = res.body.getReader();
@@ -1051,6 +1073,10 @@ export default function App() {
               onChangeAccentColor={handleSetAccentColor}
               wakeWord={wakeWord}
               onChangeWakeWord={() => {}}
+              wearableMode={wearableMode}
+              onToggleWearableMode={handleToggleWearableMode}
+              hideVoiceTranscript={hideVoiceTranscript}
+              onToggleHideVoiceTranscript={handleToggleHideVoiceTranscript}
             />
           )}
 
@@ -1059,6 +1085,7 @@ export default function App() {
               onProcessVoiceCommand={async t => await handleSendMessage(t, undefined, true)}
               wakeWord={wakeWord}
               accentColor={accentColor}
+              hideTranscript={hideVoiceTranscript}
             />
           )}
 
