@@ -1,10 +1,7 @@
-const CACHE = 'jarvis-v2';
-const PRECACHE = ['/', '/index.html'];
+const CACHE = 'jarvis-v3';
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  );
+  e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (e) => {
@@ -24,23 +21,27 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Navigation requests (HTML page loads) → return index.html (SPA routing)
+  // Navigation requests (HTML) — always fresh from network so index.html never goes stale
   if (e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).catch(() => new Response('Offline', { status: 503 })));
+    return;
+  }
+
+  // Versioned assets (/assets/xxx-hash.js) — cache-first, safe because hash changes per deploy
+  if (url.pathname.startsWith('/assets/')) {
     e.respondWith(
-      caches.match('/index.html').then((cached) => cached || fetch('/index.html'))
+      caches.match(e.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(e.request).then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+          return res;
+        });
+      })
     );
     return;
   }
 
-  // Cache-first for static assets (JS, CSS, images, fonts)
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const network = fetch(e.request).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, clone));
-        return res;
-      });
-      return cached || network;
-    })
-  );
+  // Everything else — network
+  e.respondWith(fetch(e.request).catch(() => new Response('Offline', { status: 503 })));
 });
