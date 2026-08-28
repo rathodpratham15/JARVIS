@@ -1,5 +1,5 @@
 const CACHE = 'jarvis-v1';
-const PRECACHE = ['/'];
+const PRECACHE = ['/', '/index.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -15,7 +15,6 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Network-first for API calls, cache-first for static assets
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
@@ -25,7 +24,15 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Cache-first for static assets
+  // Navigation requests (HTML page loads) → return index.html (SPA routing)
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      caches.match('/index.html').then((cached) => cached || fetch('/index.html'))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (JS, CSS, images, fonts)
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request).then((res) => {
