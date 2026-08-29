@@ -184,6 +184,8 @@ class ActionEngine:
         permissions: "Optional[PermissionsManager]" = None,
         google_service=None,
         contacts_store=None,
+        spotify_service=None,
+        ha_service=None,
     ) -> None:
         if notes_store is None:
             from jarvis.dashboard.notes import NotesStore
@@ -205,6 +207,8 @@ class ActionEngine:
         self._permissions = permissions
         self._google = google_service
         self._contacts = contacts_store
+        self._spotify = spotify_service
+        self._ha = ha_service
         self.actions: dict[str, Callable[[dict], str]] = {
             "search": self._search,
             "weather": self._weather,
@@ -248,6 +252,8 @@ class ActionEngine:
             "drive_create": self._drive_create,
             "send_sms": self._send_sms,
             "send_whatsapp": self._send_whatsapp,
+            "control_spotify": self._control_spotify,
+            "list_ha_devices": self._list_ha_devices,
         }
 
     def _require(self, perm_name: str, label: str) -> Optional[str]:
@@ -411,6 +417,9 @@ class ActionEngine:
         if not device:
             return "Which device would you like to control?"
         action = intent.get("smart_home_action", "toggle")
+        if self._ha is not None:
+            temperature = intent.get("temperature")
+            return self._ha.control(device, action, temperature=temperature)
         extra = {"temperature": intent["temperature"]} if "temperature" in intent else None
         ha_url = self._settings.get("ha_url", "")
         ha_token = self._settings.get("ha_token", "")
@@ -823,6 +832,40 @@ class ActionEngine:
             return str(exc)
         from jarvis.services.twilio_service import send_whatsapp
         return send_whatsapp(to=to, message=message)
+
+    def _control_spotify(self, intent: dict) -> str:
+        if self._spotify is None:
+            from jarvis.services.spotify import SpotifyService
+            self._spotify = SpotifyService()
+        action = (intent.get("spotify_action") or intent.get("action") or "").lower()
+        query = (intent.get("query") or intent.get("song") or "").strip()
+        volume = intent.get("volume")
+        if action in ("play", "resume"):
+            if query:
+                return self._spotify.search_and_play(query)
+            return self._spotify.play()
+        if action == "pause":
+            return self._spotify.pause()
+        if action in ("next", "skip"):
+            return self._spotify.skip_next()
+        if action in ("previous", "prev", "back"):
+            return self._spotify.skip_prev()
+        if action in ("volume", "set_volume"):
+            if volume is None:
+                return "What volume level would you like (0–100)?"
+            return self._spotify.set_volume(int(volume))
+        if action in ("current", "what", "now_playing"):
+            return self._spotify.current_track()
+        if query:
+            return self._spotify.search_and_play(query)
+        return self._spotify.current_track()
+
+    def _list_ha_devices(self, intent: dict) -> str:
+        if self._ha is None:
+            from jarvis.services.home_assistant import HomeAssistantService
+            self._ha = HomeAssistantService()
+        domain = (intent.get("domain") or "").strip() or None
+        return self._ha.list_devices(domain=domain)
 
     def get_reminders(self) -> list[dict]:
         return self._reminders.list_pending()
