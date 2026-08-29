@@ -1698,6 +1698,11 @@ class MyPlugin(BasePlugin):
             data = settings.get_all()
             data.setdefault("llm_model", llm.model)
             data["llm_provider"] = llm.provider.name
+            from jarvis.core.providers import PROVIDERS
+            data["available_providers"] = [
+                {"id": p.name, "default_model": p.default_chat_model}
+                for p in PROVIDERS.values()
+            ]
             return {"settings": data}, 200
         payload = request.get_json(silent=True) or {}
         if not isinstance(payload, dict):

@@ -44,6 +44,13 @@ PROVIDERS: dict[str, ProviderConfig] = {
         default_chat_model="models/gemini-3.6-flash",
         default_stt_model="",
     ),
+    "meta": ProviderConfig(
+        name="meta",
+        api_key_env=("META_LLAMA_API_KEY",),
+        base_url="https://api.llamameta.net/v1",
+        default_chat_model="Llama-3.3-70B-Instruct",
+        default_stt_model="",
+    ),
 }
 
 
@@ -77,4 +84,6 @@ def select_provider(env_var: str = "JARVIS_LLM_PROVIDER") -> ProviderConfig:
             return PROVIDERS["openai"]
     if os.getenv("GROQ_API_KEY"):
         return PROVIDERS["groq"]
+    if os.getenv("META_LLAMA_API_KEY"):
+        return PROVIDERS["meta"]
     return PROVIDERS["openai"]

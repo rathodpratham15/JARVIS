@@ -231,7 +231,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <option value="gpt-4o">gpt-4o</option>
                     <option value="gpt-4o-mini">gpt-4o-mini (Efficient)</option>
                   </optgroup>
+                  <optgroup label="Meta Llama (dev.meta.ai)">
+                    <option value="Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct (Recommended)</option>
+                    <option value="Llama-3.1-8B-Instruct">Llama-3.1-8B-Instruct (Fast)</option>
+                    <option value="Llama-3.2-11B-Vision-Instruct">Llama-3.2-11B-Vision-Instruct (Multimodal)</option>
+                  </optgroup>
                 </select>
+                <p className="font-mono text-[10px] text-zinc-500 mt-1">
+                  For Meta Llama: set <span className="text-zinc-300">META_LLAMA_API_KEY</span> + <span className="text-zinc-300">JARVIS_LLM_PROVIDER=meta</span> · Get key at <span className="text-zinc-300">dev.meta.ai</span>
+                </p>
               </div>
 
               <div className="border-b border-dashed border-zinc-800/30 my-4" />
