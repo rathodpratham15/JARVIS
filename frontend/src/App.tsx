@@ -18,6 +18,7 @@ import {
   CapabilityPermission,
   ReminderItem,
   AppNotification,
+  Contact,
 } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -38,6 +39,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
+import { ContactsView } from "./components/ContactsView";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
@@ -124,14 +126,14 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   "/schedules": "schedules", "/permissions": "permissions",
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
   "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
-  "/research": "research",
+  "/research": "research", "/contacts": "contacts",
 };
 const PAGE_TO_PATH: Record<PageId, string> = {
   dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
   tasks: "/tasks", schedules: "/schedules", permissions: "/permissions",
   computer: "/computer", notes: "/notes", reminders: "/reminders",
   settings: "/settings", memory: "/memory", plugins: "/plugins",
-  research: "/research",
+  research: "/research", contacts: "/contacts",
 };
 
 export default function App() {
@@ -273,6 +275,7 @@ export default function App() {
   const [permissions, setPermissions] = useState<CapabilityPermission[]>([]);
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
   const [plugins, setPlugins] = useState<PluginItem[]>([]);
   const [faces, setFaces] = useState<DetectedFace[]>([]);
@@ -404,9 +407,31 @@ export default function App() {
     }).catch(() => {});
   }, []);
 
+  const fetchContacts = useCallback(() => {
+    apiFetch(`/api/contacts`).then(r => r.json()).then(d => {
+      if (d.contacts) setContacts(d.contacts as Contact[]);
+    }).catch(() => {});
+  }, []);
+
+  const handleAddContact = async (c: Omit<Contact, "id" | "created_at" | "updated_at">) => {
+    await apiFetch(`/api/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
+    fetchContacts();
+  };
+
+  const handleUpdateContact = async (id: string, c: Partial<Contact>) => {
+    await apiFetch(`/api/contacts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) });
+    fetchContacts();
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    await apiFetch(`/api/contacts/${id}`, { method: "DELETE" });
+    fetchContacts();
+  };
+
   // Initial fetch
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
   useEffect(() => { fetchReminders(); }, [fetchReminders]);
+  useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   // Cross-device sync: poll /api/sync/status every 60s, re-fetch collections
   // whose timestamp advanced since last check (catches edits from other devices).
@@ -1130,6 +1155,15 @@ export default function App() {
           )}
 
           {currentPage === "research" && <ResearchView />}
+
+          {currentPage === "contacts" && (
+            <ContactsView
+              contacts={contacts}
+              onAdd={handleAddContact}
+              onUpdate={handleUpdateContact}
+              onDelete={handleDeleteContact}
+            />
+          )}
         </main>
       </div>
 
