@@ -12,7 +12,7 @@ export async function requestPermission(): Promise<boolean> {
   if (Capacitor.isNativePlatform()) {
     try {
       // @ts-ignore — optional native package; gracefully absent on web builds
-      const { PushNotifications } = await import('@capacitor/push-notifications')
+      const { PushNotifications } = await import(/* @vite-ignore */ '@capacitor/push-notifications')
       const result = await PushNotifications.requestPermissions()
       return result.receive === 'granted'
     } catch {
@@ -33,7 +33,7 @@ export async function registerPushNotifications(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
       // @ts-ignore — optional native package; gracefully absent on web builds
-      const { PushNotifications } = await import('@capacitor/push-notifications')
+      const { PushNotifications } = await import(/* @vite-ignore */ '@capacitor/push-notifications')
       await PushNotifications.register()
       PushNotifications.addListener('registration', async ({ value: token }: { value: string }) => {
         try {
