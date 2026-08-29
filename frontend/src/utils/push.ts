@@ -11,7 +11,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export async function requestPermission(): Promise<boolean> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { PushNotifications } = await (import('@capacitor/push-notifications') as any)
       const result = await PushNotifications.requestPermissions()
       return result.receive === 'granted'
     } catch {
@@ -31,9 +32,10 @@ export async function registerPushNotifications(): Promise<void> {
 
   if (Capacitor.isNativePlatform()) {
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { PushNotifications } = await (import('@capacitor/push-notifications') as any)
       await PushNotifications.register()
-      PushNotifications.addListener('registration', async ({ value: token }) => {
+      PushNotifications.addListener('registration', async ({ value: token }: { value: string }) => {
         try {
           await apiFetch('/api/push/register', {
             method: 'POST',
