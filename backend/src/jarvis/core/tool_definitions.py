@@ -552,6 +552,57 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "control_spotify",
+            "description": (
+                "Control Spotify playback. Use for: play/pause music, skip tracks, "
+                "set volume, play a specific song/artist/playlist, or ask what's playing."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "spotify_action": {
+                        "type": "string",
+                        "enum": ["play", "pause", "next", "previous", "volume", "current"],
+                        "description": "Playback action to perform.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Song name, artist, or search query for 'play' action (optional).",
+                    },
+                    "volume": {
+                        "type": "integer",
+                        "description": "Volume level 0–100 for 'volume' action.",
+                    },
+                },
+                "required": ["spotify_action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_ha_devices",
+            "description": (
+                "List smart home devices from Home Assistant. "
+                "Use when the user asks 'what devices do I have', 'list my lights', etc."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "Filter by domain: light, switch, climate, fan, lock, cover, media_player (optional).",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "system_api",
             "description": (
                 "Control system-level settings: volume, screen brightness, Do Not Disturb (Focus mode), and WiFi. "
@@ -710,5 +761,17 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "send_whatsapp":
         return {**base, "type": "send_whatsapp", "to": args.get("to", ""), "message": args.get("message", "")}
+
+    if name == "control_spotify":
+        return {
+            **base,
+            "type": "control_spotify",
+            "spotify_action": args.get("spotify_action", "current"),
+            "query": args.get("query", ""),
+            "volume": args.get("volume"),
+        }
+
+    if name == "list_ha_devices":
+        return {**base, "type": "list_ha_devices", "domain": args.get("domain", "")}
 
     return {**base, "type": "conversation"}

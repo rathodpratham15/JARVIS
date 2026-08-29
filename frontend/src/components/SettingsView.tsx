@@ -15,6 +15,8 @@ import {
   Link2,
   Link2Off,
   Loader2,
+  Music,
+  Home,
 } from "lucide-react";
 import { PersonalityMode, ThemeAccent } from "../types";
 import { THEME_CONFIGS } from "../utils/theme";
@@ -48,6 +50,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [providerName, setProviderName] = useState("—");
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; gmail: boolean; calendar: boolean; drive: boolean } | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [spotifyStatus, setSpotifyStatus] = useState<{ configured: boolean; connected: boolean; current_track?: string | null } | null>(null);
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [haStatus, setHaStatus] = useState<{ available: boolean; entities_count?: number; domains?: string[] } | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/settings`)
@@ -79,6 +84,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         .then(setGoogleStatus)
         .catch(() => {});
     }
+
+    // Spotify status
+    fetch(`${API_BASE}/api/spotify/status`)
+      .then((r) => r.json())
+      .then(setSpotifyStatus)
+      .catch(() => {});
+
+    if (params.get("spotify") === "connected") {
+      window.history.replaceState({}, "", "/settings");
+      fetch(`${API_BASE}/api/spotify/status`)
+        .then((r) => r.json())
+        .then(setSpotifyStatus)
+        .catch(() => {});
+    }
+
+    // Home Assistant status
+    fetch(`${API_BASE}/api/ha/status`)
+      .then((r) => r.json())
+      .then(setHaStatus)
+      .catch(() => {});
   }, []);
 
   const handleSave = async () => {
@@ -121,6 +146,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setGoogleStatus((s) => s ? { ...s, connected: false, gmail: false, calendar: false, drive: false } : s);
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleConnectSpotify = () => {
+    setSpotifyLoading(true);
+    window.location.href = `${API_BASE}/api/spotify/connect`;
+  };
+
+  const handleDisconnectSpotify = async () => {
+    setSpotifyLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/spotify/disconnect`, { method: "DELETE" });
+      setSpotifyStatus((s) => s ? { ...s, connected: false, current_track: null } : s);
+    } finally {
+      setSpotifyLoading(false);
     }
   };
 
@@ -444,6 +484,90 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span>CONNECT GOOGLE</span>
               </button>
             )}
+          </div>
+        </div>
+
+        <div className="border-b border-zinc-800" />
+
+        {/* Spotify */}
+        <div className="flex items-start justify-between gap-6">
+          <div className="space-y-2 flex-1">
+            <div className="flex items-center gap-2">
+              <Music className="w-4 h-4 text-green-400" />
+              <span className="font-mono text-xs font-bold text-white uppercase">Spotify</span>
+              {spotifyStatus?.connected && (
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-800 text-[10px] font-mono">
+                  CONNECTED
+                </span>
+              )}
+              {spotifyStatus && !spotifyStatus.configured && (
+                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-500 font-bold text-[10px] font-mono">
+                  NOT CONFIGURED
+                </span>
+              )}
+            </div>
+            {spotifyStatus?.connected && spotifyStatus.current_track && (
+              <p className="text-xs text-zinc-400 font-mono">{spotifyStatus.current_track}</p>
+            )}
+            <p className="text-xs text-zinc-400 font-sans">
+              {spotifyStatus?.connected
+                ? "JARVIS can play, pause, skip tracks, and control playback via voice or chat."
+                : spotifyStatus?.configured
+                  ? "Connect Spotify to control playback via JARVIS."
+                  : "Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to enable."}
+            </p>
+          </div>
+          <div>
+            {spotifyStatus?.connected ? (
+              <button
+                onClick={handleDisconnectSpotify}
+                disabled={spotifyLoading}
+                className="editorial-btn-outline flex items-center gap-1.5"
+              >
+                {spotifyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2Off className="w-3.5 h-3.5" />}
+                <span>DISCONNECT</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleConnectSpotify}
+                disabled={spotifyLoading || !spotifyStatus?.configured}
+                className="editorial-btn-primary flex items-center gap-1.5 disabled:opacity-40"
+              >
+                {spotifyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Music className="w-3.5 h-3.5" />}
+                <span>CONNECT SPOTIFY</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="border-b border-zinc-800" />
+
+        {/* Home Assistant */}
+        <div className="flex items-start justify-between gap-6">
+          <div className="space-y-2 flex-1">
+            <div className="flex items-center gap-2">
+              <Home className="w-4 h-4 text-orange-400" />
+              <span className="font-mono text-xs font-bold text-white uppercase">Home Assistant</span>
+              {haStatus?.available ? (
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-800 text-[10px] font-mono">
+                  CONNECTED
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-500 font-bold text-[10px] font-mono">
+                  NOT CONFIGURED
+                </span>
+              )}
+            </div>
+            {haStatus?.available && (
+              <p className="text-xs text-green-400 font-mono">
+                {haStatus.entities_count} entities · {haStatus.domains?.join(", ")}
+              </p>
+            )}
+            <p className="text-xs text-zinc-400 font-sans">
+              {haStatus?.available
+                ? "JARVIS can control lights, climate, locks, and other smart home devices."
+                : "Add HOMEASSISTANT_URL and HOMEASSISTANT_TOKEN environment variables to enable."}
+            </p>
           </div>
         </div>
       </div>
