@@ -15,6 +15,7 @@ import {
   Link2,
   Link2Off,
   Loader2,
+  Glasses,
   Music,
   Home,
 } from "lucide-react";
@@ -32,6 +33,10 @@ interface SettingsViewProps {
   onChangeAccentColor: (color: ThemeAccent) => void;
   wakeWord: string;
   onChangeWakeWord: (word: string) => void;
+  wearableMode: boolean;
+  onToggleWearableMode: () => void;
+  hideVoiceTranscript: boolean;
+  onToggleHideVoiceTranscript: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -43,6 +48,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onChangeAccentColor,
   wakeWord,
   onChangeWakeWord,
+  wearableMode,
+  onToggleWearableMode,
+  hideVoiceTranscript,
+  onToggleHideVoiceTranscript,
 }) => {
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("Kore (British Male - J.A.R.V.I.S.)");
@@ -568,6 +577,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 ? "JARVIS can control lights, climate, locks, and other smart home devices."
                 : "Add HOMEASSISTANT_URL and HOMEASSISTANT_TOKEN environment variables to enable."}
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Wearable / Smart Glasses */}
+      <div className="editorial-panel space-y-6">
+        <div className="flex items-center gap-3">
+          <Glasses className="w-5 h-5 text-cyan-400" />
+          <div>
+            <div className="overline-cyan">PANEL 04</div>
+            <h2 className="font-serif text-2xl font-bold text-white">Wearable / Smart Glasses</h2>
+            <p className="text-xs text-zinc-400 font-sans mt-0.5">
+              Optimise JARVIS for Bluetooth audio devices like Meta Ray-Ban glasses
+            </p>
+          </div>
+        </div>
+
+        <div className="border-b border-zinc-800" />
+
+        <div className="space-y-4">
+          {/* Wearable Mode toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-mono text-sm font-bold text-white">WEARABLE MODE</p>
+              <p className="font-mono text-[10px] text-zinc-400 mt-0.5 max-w-xs">
+                Limits responses to 1-2 sentences with no markdown. Works with any Bluetooth headset including Meta Ray-Ban glasses.
+              </p>
+            </div>
+            <button
+              onClick={onToggleWearableMode}
+              className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
+                wearableMode ? "bg-white justify-end" : "bg-zinc-700 justify-start"
+              }`}
+              title={wearableMode ? "Disable wearable mode" : "Enable wearable mode"}
+            >
+              <div className="w-3.5 h-3.5 bg-black" />
+            </button>
+          </div>
+
+          {/* Hide transcript toggle — only visible when wearable mode on */}
+          {wearableMode && (
+            <div className="flex items-center justify-between pl-4 border-l border-zinc-800">
+              <div>
+                <p className="font-mono text-sm font-bold text-white">HIDE VOICE TRANSCRIPT</p>
+                <p className="font-mono text-[10px] text-zinc-400 mt-0.5">
+                  Show only a pulsing indicator during voice mode. Useful when the phone is pocketed.
+                </p>
+              </div>
+              <button
+                onClick={onToggleHideVoiceTranscript}
+                className={`w-9 h-5 border border-zinc-800 transition p-0.5 flex items-center ${
+                  hideVoiceTranscript ? "bg-white justify-end" : "bg-zinc-700 justify-start"
+                }`}
+              >
+                <div className="w-3.5 h-3.5 bg-black" />
+              </button>
+            </div>
+          )}
+
+          <div className="border-b border-dashed border-zinc-800/30 my-2" />
+
+          <div className="font-mono text-[11px] text-zinc-500 space-y-1">
+            <p>GLASSES PHOTO: Share an image from your glasses to JARVIS Vision via the Android share sheet.</p>
+            <p>Endpoint: POST /api/glasses/photo (multipart, field: image or photo)</p>
           </div>
         </div>
       </div>

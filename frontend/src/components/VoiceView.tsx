@@ -6,6 +6,7 @@ interface VoiceViewProps {
   onProcessVoiceCommand: (transcript: string) => Promise<string>;
   wakeWord?: string;
   accentColor?: string;
+  hideTranscript?: boolean;
 }
 
 const SpeechRecognitionAPI =
@@ -17,6 +18,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   onProcessVoiceCommand,
   wakeWord = "Hey Jarvis",
   accentColor = "cyan",
+  hideTranscript = false,
 }) => {
   const [voiceState, setVoiceState] = useState<"idle" | "listening" | "thinking" | "speaking">("idle");
   const [transcript, setTranscript] = useState("");
@@ -352,8 +354,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
           {voiceState === "speaking"  && `J.A.R.V.I.S. replying verbally… tap or say "${wakeWord}" to interrupt`}
         </p>
 
-        {/* Transcript / reply box */}
-        {(transcript || aiReply) && (
+        {/* Transcript / reply box — hidden in wearable mode */}
+        {!hideTranscript && (transcript || aiReply) && (
           <div className="w-full max-w-2xl p-4 bg-[#0d0f12] border border-zinc-800 text-xs sm:text-sm font-mono space-y-2 text-left shadow-lg">
             {transcript && (
               <div className="space-y-0.5">
