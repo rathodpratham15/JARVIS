@@ -154,6 +154,7 @@ def create_app() -> Flask:
     import secrets as _secrets_mod
     import time as _time_mod
     _oauth_states: dict[str, tuple[str, float]] = {}  # state → (user_id, expiry)
+    _spotify_oauth_states: dict[str, float] = {}  # state → expiry
 
     _GOOGLE_SCOPES = [
         "https://www.googleapis.com/auth/gmail.modify",
@@ -164,7 +165,7 @@ def create_app() -> Flask:
     _PUBLIC_ROUTES = {
         "/api/auth/login", "/api/auth/signup", "/api/auth/refresh",
         "/api/auth/google", "/api/auth/config", "/api/health",
-        "/api/google/callback", "/api/face/image",
+        "/api/google/callback", "/api/face/image", "/api/spotify/callback",
         # SSO / SAML / Microsoft OIDC — must be public (browser redirect flows)
         "/auth/saml/metadata", "/auth/saml/login", "/auth/saml/acs", "/auth/saml/slo",
         "/auth/microsoft/login", "/auth/microsoft/callback",
@@ -213,6 +214,11 @@ def create_app() -> Flask:
         llm.model = _saved_model
     permissions = PermissionsManager(settings_path=os.getenv("JARVIS_SETTINGS", "data/settings.json"))
 
+    from jarvis.services.spotify import SpotifyService
+    from jarvis.services.home_assistant import HomeAssistantService
+    _spotify_svc = SpotifyService(token_path=os.getenv("SPOTIFY_TOKEN_PATH", "data/spotify_tokens.json"))
+    _ha_svc = HomeAssistantService()
+
     actions = ActionEngine(
         notes_store=notes,
         reminders_store=reminders,
@@ -221,6 +227,8 @@ def create_app() -> Flask:
         llm=llm,
         permissions=permissions,
         google_service=_google_svc,
+        spotify_service=_spotify_svc,
+        ha_service=_ha_svc,
     )
     from jarvis.core.gemini_pool import GeminiKeyPool
     from jarvis.core.vision_provider import VisionProviderChain
@@ -2152,6 +2160,78 @@ class MyPlugin(BasePlugin):
         if _google_svc:
             _google_svc.token_store.delete(uid)
         return {"disconnected": True}, 200
+
+    # ── Spotify integration ───────────────────────────────────────────────
+
+    @app.get("/api/spotify/status")
+    def spotify_status() -> tuple[dict, int]:
+        status = _spotify_svc.status()
+        current = None
+        if status["connected"]:
+            try:
+                current = _spotify_svc.current_track()
+            except Exception:
+                pass
+        return {**status, "current_track": current}, 200
+
+    @app.get("/api/spotify/connect")
+    def spotify_connect():
+        from flask import redirect as _flask_redirect
+        if not _spotify_svc.configured:
+            return {"error": "Spotify not configured (set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET)"}, 503
+        state = _secrets_mod.token_urlsafe(24)
+        _spotify_oauth_states[state] = _time_mod.time() + 600
+        redirect_uri = f"{_backend_url}/api/spotify/callback"
+        try:
+            auth_url = _spotify_svc.get_auth_url(redirect_uri=redirect_uri, state=state)
+            return _flask_redirect(auth_url)
+        except Exception as exc:
+            return {"error": str(exc)}, 500
+
+    @app.get("/api/spotify/callback")
+    def spotify_callback():
+        from flask import redirect as _flask_redirect
+        code = request.args.get("code")
+        state = request.args.get("state", "")
+        error = request.args.get("error")
+        if error:
+            return _flask_redirect(f"{_frontend_url}/settings?spotify=error&reason={error}")
+        if not code or state not in _spotify_oauth_states:
+            return _flask_redirect(f"{_frontend_url}/settings?spotify=error&reason=invalid_state")
+        expiry = _spotify_oauth_states.pop(state)
+        if _time_mod.time() > expiry:
+            return _flask_redirect(f"{_frontend_url}/settings?spotify=error&reason=state_expired")
+        redirect_uri = f"{_backend_url}/api/spotify/callback"
+        ok = _spotify_svc.exchange_code(code=code, redirect_uri=redirect_uri)
+        if ok:
+            return _flask_redirect(f"{_frontend_url}/settings?spotify=connected")
+        return _flask_redirect(f"{_frontend_url}/settings?spotify=error&reason=token_exchange_failed")
+
+    @app.delete("/api/spotify/disconnect")
+    def spotify_disconnect() -> tuple[dict, int]:
+        _spotify_svc.disconnect()
+        return {"disconnected": True}, 200
+
+    # ── Home Assistant integration ────────────────────────────────────────
+
+    @app.get("/api/ha/status")
+    def ha_status() -> tuple[dict, int]:
+        return _ha_svc.status(), 200
+
+    @app.get("/api/ha/devices")
+    def ha_devices() -> tuple[dict, int]:
+        domain = request.args.get("domain") or None
+        states = _ha_svc.get_states(domain=domain)
+        devices = [
+            {
+                "entity_id": s["entity_id"],
+                "name": s.get("attributes", {}).get("friendly_name") or s["entity_id"],
+                "state": s.get("state"),
+                "domain": s["entity_id"].split(".")[0],
+            }
+            for s in states
+        ]
+        return {"devices": devices}, 200
 
     # ── Gmail REST endpoints ──────────────────────────────────────────────
 
