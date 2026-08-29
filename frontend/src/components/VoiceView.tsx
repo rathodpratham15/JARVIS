@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Aperture, Volume2, Radio, Play, RefreshCw } from "lucide-react";
 import { speakJarvisText, stopJarvisSpeech, playUiSound } from "../utils/audio";
+import { useWakeWord } from "../hooks/useWakeWord";
 
 interface VoiceViewProps {
   onProcessVoiceCommand: (transcript: string) => Promise<string>;
@@ -40,6 +41,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const wakeRecognitionRef = useRef<any>(null);
   const commandRecognitionRef = useRef<any>(null);
   const startWakeListenerRef = useRef<(() => void) | null>(null);
+  const startCommandListeningRef = useRef<(() => void) | null>(null);
 
   const wakeWordLower = wakeWord.toLowerCase();
 
@@ -51,12 +53,12 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     playUiSound("scan");
 
     commandInProgressRef.current = false;
-    if (wakeActiveRef.current && !wakeRecognitionRef.current) {
+    if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
       startWakeListenerRef.current?.();
     }
 
     const ensureWake = () => {
-      if (wakeActiveRef.current && !wakeRecognitionRef.current) {
+      if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
         startWakeListenerRef.current?.();
       }
     };
@@ -113,6 +115,12 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       setTranscript(finalText || interim);
     };
 
+    const restartWakeIfNeeded = () => {
+      if (wakeActiveRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
+        startWakeListenerRef.current?.();
+      }
+    };
+
     rec.onend = () => {
       const query = (finalText || lastInterim).trim();
       if (query) {
@@ -120,14 +128,14 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       } else {
         commandInProgressRef.current = false;
         setVoiceState("idle");
-        if (wakeActiveRef.current) startWakeListenerRef.current?.();
+        restartWakeIfNeeded();
       }
     };
 
     rec.onerror = () => {
       commandInProgressRef.current = false;
       setVoiceState("idle");
-      if (wakeActiveRef.current) startWakeListenerRef.current?.();
+      restartWakeIfNeeded();
     };
     rec.start();
   }, [processQuery]);
@@ -189,8 +197,35 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   }, [wakeWordLower, startCommandListening]);
 
   useEffect(() => { startWakeListenerRef.current = startWakeListener; }, [startWakeListener]);
+  useEffect(() => { startCommandListeningRef.current = startCommandListening; }, [startCommandListening]);
+
+  const handlePorcupineDetected = useCallback(() => {
+    if (voiceStateRef.current === "thinking" || voiceStateRef.current === "speaking") {
+      queryIdRef.current++;
+      stopJarvisSpeech();
+      playUiSound("alert");
+    } else if (voiceStateRef.current !== "idle") {
+      return;
+    } else {
+      playUiSound("beep");
+    }
+    commandInProgressRef.current = true;
+    const wakeRec = wakeRecognitionRef.current;
+    wakeRecognitionRef.current = null;
+    wakeRec?.stop();
+    setTranscript("");
+    setAiReply("");
+    setVoiceState("listening");
+    startCommandListeningRef.current?.();
+  }, []);
+
+  const { porcupineActive } = useWakeWord({
+    enabled: wakeActive,
+    onDetected: handlePorcupineDetected,
+  });
 
   useEffect(() => {
+    if (porcupineActive) return; // Porcupine handles wake word — skip SpeechRecognition listener
     if (wakeActive) {
       startWakeListener();
     } else {
@@ -203,7 +238,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       wakeRecognitionRef.current = null;
       r?.stop();
     };
-  }, [wakeActive, startWakeListener]);
+  }, [wakeActive, porcupineActive, startWakeListener]);
 
   const handleOrbClick = () => {
     if (voiceState === "thinking" || voiceState === "speaking") {
@@ -284,7 +319,10 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
               <strong className="text-black bg-white px-1 py-0.5">
                 "{wakeWord}"
               </strong>{" "}
-              • Low-latency audio pipeline
+              •{" "}
+              {porcupineActive
+                ? <span className="text-emerald-400">Porcupine WASM</span>
+                : <span className="text-zinc-400">SpeechRecognition</span>}
             </p>
           </div>
         </div>
