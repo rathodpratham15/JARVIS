@@ -2476,56 +2476,6 @@ class MyPlugin(BasePlugin):
         _patched_notes.__name__ = "dashboard_notes"
         app.view_functions["dashboard_notes"] = _patched_notes
 
-    # ── contacts ──────────────────────────────────────────────────────
-
-    @app.get("/api/contacts")
-    def list_contacts() -> tuple[dict, int]:
-        return {"contacts": contacts.list_all(user_id=_uid())}, 200
-
-    @app.post("/api/contacts")
-    def create_contact() -> tuple[dict, int]:
-        payload = request.get_json(silent=True) or {}
-        name = (payload.get("name") or "").strip()
-        if not name:
-            return {"error": "name is required"}, 400
-        contact = contacts.add(
-            name=name,
-            user_id=_uid(),
-            phone=(payload.get("phone") or "").strip() or None,
-            whatsapp=(payload.get("whatsapp") or "").strip() or None,
-            email=(payload.get("email") or "").strip() or None,
-            notes=(payload.get("notes") or "").strip() or None,
-        )
-        return {"contact": contact}, 201
-
-    @app.get("/api/contacts/search")
-    def search_contacts() -> tuple[dict, int]:
-        q = (request.args.get("q") or "").strip()
-        if not q:
-            return {"contacts": []}, 200
-        return {"contacts": contacts.find_by_name(q, user_id=_uid())}, 200
-
-    @app.get("/api/contacts/<contact_id>")
-    def get_contact(contact_id: str) -> tuple[dict, int]:
-        contact = contacts.get(contact_id, user_id=_uid())
-        if not contact:
-            return {"error": "not found"}, 404
-        return {"contact": contact}, 200
-
-    @app.put("/api/contacts/<contact_id>")
-    def update_contact(contact_id: str) -> tuple[dict, int]:
-        payload = request.get_json(silent=True) or {}
-        updated = contacts.update(contact_id, user_id=_uid(), **payload)
-        if not updated:
-            return {"error": "not found"}, 404
-        return {"contact": updated}, 200
-
-    @app.delete("/api/contacts/<contact_id>")
-    def delete_contact(contact_id: str) -> tuple[dict, int]:
-        if contacts.delete(contact_id, user_id=_uid()):
-            return {"deleted": True}, 200
-        return {"error": "not found"}, 404
-
     # ── push notifications ────────────────────────────────────────────────
 
     @app.post("/api/push/register")
