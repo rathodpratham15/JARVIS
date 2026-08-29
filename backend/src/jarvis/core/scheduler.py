@@ -264,10 +264,12 @@ class Scheduler:
         task_manager: "TaskManager",
         db_path: str = "data/scheduler.db",
         max_steps: int = 8,
+        push_service=None,
     ) -> None:
         self._tm = task_manager
         self._db_path = db_path
         self._max_steps = max_steps
+        self._push_service = push_service
         self._scheduler = _sched.Scheduler()
         self._jobs: dict[str, ScheduledJob] = {}
         self._lock = threading.RLock()
@@ -451,6 +453,11 @@ class Scheduler:
                 self._save_result(job)
                 logger.info("Job %r finished: status=%s result=%s",
                             job.name, status_text, result_text[:80])
+                if self._push_service and job.user_id:
+                    title = "Task Complete" if status_text == "done" else "Task Failed"
+                    self._push_service.notify_user(
+                        job.user_id, title, f"{job.name}: {result_text[:80]}"
+                    )
                 return
         with self._lock:
             if job.last_status == "running":
