@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        external: ['@capacitor/push-notifications'],
+      },
+    },
     server: {
       port: 5173,
       allowedHosts: true,
