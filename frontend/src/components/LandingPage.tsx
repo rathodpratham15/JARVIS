@@ -121,20 +121,22 @@ const TAB_LABELS: Record<TabKey, string> = {
 };
 
 const CAPABILITIES = [
-  { icon: "🎤", title: "VOICE MODE", desc: "Natural hands-free interaction with JARVIS.", tech: "WHISPER + ELEVENLABS" },
-  { icon: "👁️", title: "VISION & OSINT", desc: "Understand images, faces, and public information.", tech: "GEMINI VISION + INSIGHTFACE" },
-  { icon: "🤖", title: "AGENT LOOP", desc: "Plan, execute, verify, and adapt autonomously.", tech: "REACT LOOP + SSE STREAM" },
-  { icon: "📧", title: "GMAIL / CALENDAR / DRIVE", desc: "Connect everyday productivity workflows.", tech: "GOOGLE WORKSPACE OAUTH" },
-  { icon: "🖥️", title: "COMPUTER USE", desc: "See and interact with the desktop like a human operator.", tech: "PYAUTOGUI + OCR GROUNDING" },
-  { icon: "🔬", title: "RESEARCH PIPELINE", desc: "Search, synthesize, structure, and cite information.", tech: "TAVILY 5X PARALLEL SEARCH" },
-  { icon: "⏰", title: "AUTONOMOUS SCHEDULING", desc: "Run tasks and workflows automatically on a schedule.", tech: "BACKGROUND CRON DAEMON" },
-  { icon: "🔒", title: "SECURE AUTH", desc: "Protected access using modern authentication.", tech: "LOCAL ENCRYPTION + JWT" },
+  { icon: "🎤", title: "VOICE MODE", desc: "Hands-free conversation with Picovoice wake word, Whisper STT, and ElevenLabs neural TTS.", tech: "PICOVOICE + WHISPER + ELEVENLABS" },
+  { icon: "👁️", title: "VISION & OSINT", desc: "Real-time face recognition and autonomous intelligence dossier assembly.", tech: "INSIGHTFACE + GEMINI VISION" },
+  { icon: "🤖", title: "AGENT LOOP", desc: "Multi-step autonomous planning, tool orchestration, and self-correction.", tech: "REACT LOOP + SSE STREAMING" },
+  { icon: "📧", title: "GMAIL / CALENDAR / DRIVE", desc: "Read, send, search Gmail; create calendar events; manage Drive files.", tech: "GOOGLE WORKSPACE OAUTH" },
+  { icon: "🎵", title: "SPOTIFY + SMART HOME", desc: "Control music playback and Home Assistant devices by voice or command.", tech: "SPOTIFY OAUTH + HA REST API" },
+  { icon: "📱", title: "SMS & WHATSAPP", desc: "Send messages to contacts by name via the agent — runs on the server 24/7.", tech: "TWILIO + CONTACT STORE" },
+  { icon: "🖥️", title: "COMPUTER USE", desc: "See and interact with the desktop — screenshot, click, type, and hotkeys.", tech: "PYAUTOGUI + GEMINI VISION" },
+  { icon: "⏰", title: "AUTONOMOUS SCHEDULING", desc: "Agent tasks on interval, daily, weekly, monthly, or yearly recurrence.", tech: "BACKGROUND CRON DAEMON" },
 ];
 
 const STACK = [
   "Python 3.12", "Flask", "React 18", "TypeScript", "TailwindCSS",
-  "Groq LLaMA", "Gemini Vision", "ElevenLabs TTS", "InsightFace",
-  "SQLite", "Tavily Search", "Google OAuth", "Capacitor",
+  "Groq LLaMA", "Meta Llama 3.3", "Gemini Vision", "OpenAI",
+  "ElevenLabs TTS", "Whisper STT", "InsightFace", "Picovoice",
+  "SQLite", "Tavily Search", "Google OAuth", "Twilio",
+  "Spotify API", "Home Assistant", "Capacitor", "PWA",
 ];
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
@@ -201,7 +203,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
               <div className="w-2.5 h-2.5 bg-[#00E5FF] shadow-[0_0_8px_#00E5FF] animate-pulse" />
               <span className="text-lg font-extrabold tracking-[0.25em] text-white">J.A.R.V.I.S.</span>
               <span className="hidden sm:inline-block text-[10px] uppercase tracking-widest text-[#00E5FF]/60 border border-[#00E5FF]/30 px-1.5 py-0.5">
-                CORE // v2.0
+                CORE // v3.0
               </span>
             </div>
             <nav className="flex items-center gap-3 sm:gap-5">
@@ -226,7 +228,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
           <div className="max-w-5xl mx-auto text-center relative z-10 space-y-8">
             <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 border border-[#00E5FF]/40 bg-[#00E5FF]/5 text-xs tracking-widest text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.15)]">
               <span className="w-2 h-2 bg-[#00E5FF] shadow-[0_0_6px_#00E5FF] animate-ping" />
-              <span>SYSTEM ONLINE // v2.0</span>
+              <span>SYSTEM ONLINE // v3.0</span>
             </div>
 
             <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold tracking-[0.2em] sm:tracking-[0.25em] text-white uppercase select-none drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
@@ -246,7 +248,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
 
             <div className="pt-6 pb-2 max-w-4xl mx-auto">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-left">
-                {[["8+", "AI Models"], ["20+", "Agent Tools"], ["3", "Platforms"], ["∞", "Possibility"]].map(([v, l]) => (
+                {[["10+", "AI Models"], ["25+", "Agent Tools"], ["3", "Platforms"], ["∞", "Possibility"]].map(([v, l]) => (
                   <div key={l} className="p-4 sm:p-5 border border-white/10 bg-[#111318]/60 jarvis-card">
                     <div className="text-2xl sm:text-3xl font-bold text-[#00E5FF] tracking-tight">{v}</div>
                     <div className="text-[11px] uppercase tracking-wider text-white/50 mt-1">{l}</div>
@@ -427,7 +429,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
                 {
                   num: "03", label: "AI LAYER", badge: "COGNITIVE SUITE",
                   desc: "Multi-model cognitive pipeline leveraging low-latency inference, biometrics, vision reasoning, and search grounding.",
-                  items: [["Groq LLaMA", "FAST REASONING"], ["Gemini Vision", "MULTIMODAL OCR"], ["Whisper", "NEURAL STT"], ["ElevenLabs", "TTS SYNTHESIS"], ["InsightFace", "BIOMETRIC EMBED"], ["Tavily Search", "PARALLEL OSINT"]],
+                  items: [["Groq LLaMA", "FAST REASONING"], ["Meta Llama 3.3", "OPEN WEIGHTS"], ["Gemini Vision", "MULTIMODAL OCR"], ["Whisper", "NEURAL STT"], ["ElevenLabs", "TTS SYNTHESIS"], ["InsightFace", "BIOMETRIC EMBED"], ["Picovoice", "WAKE WORD WASM"], ["Tavily Search", "PARALLEL OSINT"]],
                 },
               ].map(col => (
                 <div key={col.num} className="border border-white/10 bg-[#111318]/70 p-6 sm:p-8 space-y-6 jarvis-card">
