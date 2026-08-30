@@ -1,7 +1,9 @@
 # Cloud-safe dependencies — excludes hardware/platform-specific packages:
 # face_recognition (needs dlib+cmake), pyaudio (needs PortAudio),
 # sounddevice (needs libsndfile), openai-whisper (huge model download),
-# pyautogui (needs display), opencv-python (large), sentence-transformers (needs torch)
+# pyautogui (needs display)
+# torch CPU-only index (avoids pulling 2 GB CUDA wheels)
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 flask>=2.3.0
 flask-cors>=4.0.0
@@ -35,3 +37,12 @@ google-auth-httplib2>=0.2.0
 python3-saml>=1.16.0
 # Microsoft OIDC (no native deps needed)
 requests>=2.31.0
+# ElevenLabs TTS
+elevenlabs>=1.0.0
+# Face recognition (InsightFace + headless OpenCV + ONNX runtime)
+insightface>=0.7.3
+onnxruntime>=1.16.0
+opencv-python-headless>=4.8.0
+# Semantic memory embeddings (CPU-only torch pulled from index above)
+torch>=2.0.0
+sentence-transformers>=2.7.0
