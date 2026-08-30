@@ -111,17 +111,19 @@ class Synthesizer:
         )
         return _DEFAULT_VOICE_ID
 
-    def synthesize(self, text: str) -> Optional[bytes]:
+    def synthesize(self, text: str, language: str = "en") -> Optional[bytes]:
         if not text or not text.strip():
             return None
         if self._client is None:
             return None
+        # eleven_turbo_v2_5 is English-only; use the multilingual model for other languages
+        model_id = "eleven_turbo_v2_5" if language in ("en", "en-US", "en-GB", "") else "eleven_multilingual_v2"
         try:
             stream = self._client.text_to_speech.convert(
                 voice_id=self.voice_id,
                 output_format="mp3_44100_128",
                 text=text,
-                model_id="eleven_turbo_v2_5",
+                model_id=model_id,
             )
             return b"".join(stream)
         except Exception as exc:
@@ -135,7 +137,7 @@ class Synthesizer:
                         voice_id=self.voice_id,
                         output_format="mp3_44100_128",
                         text=text,
-                        model_id="eleven_turbo_v2_5",
+                        model_id=model_id,
                     )
                     return b"".join(stream)
                 except Exception as exc2:

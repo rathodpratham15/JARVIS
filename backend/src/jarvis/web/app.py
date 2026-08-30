@@ -1754,9 +1754,10 @@ class MyPlugin(BasePlugin):
 
         payload = request.get_json(silent=True) or {}
         text = (payload.get("text") or "").strip()
+        language = (payload.get("language") or "en").strip()
         if not text:
             return {"error": "text is required"}, 400
-        audio_bytes = synthesizer.synthesize(text)
+        audio_bytes = synthesizer.synthesize(text, language=language)
         if audio_bytes is None:
             return {"error": "TTS is not configured (set ELEVENLABS_API_KEY)."}, 503
         return Response(audio_bytes, mimetype="audio/mpeg")
