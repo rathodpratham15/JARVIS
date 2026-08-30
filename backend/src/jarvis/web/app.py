@@ -310,6 +310,9 @@ def create_app() -> Flask:
     ) if _scene_available else None
     captures_dir = Path(os.getenv("JARVIS_CAPTURES_DIR", "data/captures"))
     captures_dir.mkdir(parents=True, exist_ok=True)
+
+    from jarvis.core.vision_osint_store import VisionOsintStore
+    vision_osint_store = VisionOsintStore(db_path=os.getenv("JARVIS_VISION_OSINT_DB", "data/vision_osint.db"))
     system_controller = ActionController(
         log_path=os.getenv("JARVIS_SYSTEM_LOG", "logs/system_actions.jsonl"),
     ) if _system_available else None
@@ -716,6 +719,18 @@ def create_app() -> Flask:
         "Speak naturally as if talking out loud."
     )
 
+    _LANGUAGE_NAMES: dict[str, str] = {
+        "en": "English", "hi": "Hindi", "es": "Spanish", "fr": "French",
+        "de": "German", "ja": "Japanese", "zh": "Chinese", "ar": "Arabic",
+        "pt": "Portuguese", "ko": "Korean", "ru": "Russian", "it": "Italian",
+    }
+
+    def _language_suffix() -> str:
+        lang = settings.get("preferred_language", "auto")
+        if lang and lang != "auto" and lang in _LANGUAGE_NAMES:
+            return f" Always respond in {_LANGUAGE_NAMES[lang]}, regardless of the language the user writes in."
+        return ""
+
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -724,7 +739,9 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         wearable_mode = bool(payload.get("wearable_mode", False))
-        sys_override = (llm.system_prompt + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else None
+        lang_suffix = _language_suffix()
+        base = llm.system_prompt + lang_suffix
+        sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (lang_suffix and base or None)
 
         intent = parser.parse_intent(user_input)
         uid = _uid()
@@ -1031,10 +1048,11 @@ def create_app() -> Flask:
 
         # LLM path: stream tokens
         ctx = _build_context(memory, user_id=uid)
+        stream_sys = (llm.system_prompt + _language_suffix()) or None
 
         def _stream():
             full: list[str] = []
-            for token in llm.stream_llm(user_input, memory=ctx):
+            for token in llm.stream_llm(user_input, memory=ctx, system_prompt_override=stream_sys):
                 full.append(token)
                 yield f"data: {_json.dumps({'token': token})}\n\n"
             full_text = "".join(full)
@@ -1254,6 +1272,42 @@ class MyPlugin(BasePlugin):
             return {"success": False, "error": "image file is required"}, 400
         with _saved_upload(image) as path:
             result = face_engine.recognize_face(path)
+
+        face_id: str | None = None
+        if result.matched and result.person and result.confidence >= 0.6:
+            face_id = result.person.name
+            cached = result.person.additional_data.get("dossier")
+            if not cached:
+                entry = vision_osint_store.get(face_id)
+                if not entry or entry["status"] == "error":
+                    vision_osint_store.set_pending(face_id, face_id)
+                    def _bg_research(name: str, fid: str) -> None:
+                        try:
+                            from jarvis.services.people_research import research_person
+                            profile = research_person(name, llm=llm)
+                            dossier = {
+                                "subject": name,
+                                "kind": "person",
+                                "summary": profile.summary,
+                                "sections": {
+                                    "Career": profile.current_role or profile.company or "",
+                                    "Education": "; ".join(profile.education),
+                                    "Notable Work": "; ".join(profile.notable_work),
+                                    "Online Presence": " ".join(profile.public_links),
+                                },
+                                "sources": [{"title": s, "url": s, "snippet": ""} for s in profile.sources],
+                            }
+                            vision_osint_store.set_done(fid, dossier)
+                            if face_engine:
+                                person = next((p for p in face_engine.known_faces if p.name == name), None)
+                                if person:
+                                    person.additional_data["dossier"] = dossier
+                                    face_engine.save()
+                        except Exception as exc:
+                            vision_osint_store.set_error(fid, str(exc))
+                    import threading
+                    threading.Thread(target=_bg_research, args=(face_id, face_id), daemon=True).start()
+
         return {
             "success": True,
             "matched": result.matched,
@@ -1262,6 +1316,7 @@ class MyPlugin(BasePlugin):
             "person": _person_to_dict(result.person) if result.person else None,
             "formatted_result": format_recognition_result(result),
             "error": result.error_message,
+            "face_id": face_id,
         }, 200
 
     # Frontend dashboard expects this name; we keep the route as an alias.

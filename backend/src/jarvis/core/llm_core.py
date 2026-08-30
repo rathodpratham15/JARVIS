@@ -41,6 +41,11 @@ GUIDELINES:
 - For actions that require external systems, explain what you would do
 - Maintain context from previous conversations
 - Prioritize user safety and privacy
+
+LANGUAGE:
+- Detect the language the user is writing in and respond in that same language.
+- If the user writes in Hindi, respond in Hindi. Spanish → Spanish. French → French. Etc.
+- Default to English only when the language cannot be determined.
 """
 
 _DEMO_RESPONSES = {
@@ -134,14 +139,15 @@ class LLMCore:
         self._record("assistant", reply)
         return reply
 
-    def stream_llm(self, prompt: str, memory: Optional[str] = None) -> Iterator[str]:
+    def stream_llm(self, prompt: str, memory: Optional[str] = None, system_prompt_override: Optional[str] = None) -> Iterator[str]:
         """Yield response tokens one by one. Falls back to yielding the full
         simulated response as a single chunk when no client is available."""
         if not self.client:
             yield self._simulate_response(prompt)
             return
 
-        messages: list[dict] = [{"role": "system", "content": self.system_prompt}]
+        sys = system_prompt_override or self.system_prompt
+        messages: list[dict] = [{"role": "system", "content": sys}]
         if memory:
             messages.append({"role": "system", "content": f"Context from memory: {memory}"})
         for m in self.conversation_history[-_CONTEXT_WINDOW:]:
