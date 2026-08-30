@@ -55,6 +55,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("Kore (British Male - J.A.R.V.I.S.)");
+  const [preferredLanguage, setPreferredLanguage] = useState("auto");
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [providerName, setProviderName] = useState("—");
   const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; gmail: boolean; calendar: boolean; drive: boolean } | null>(null);
@@ -70,6 +71,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const s = data.settings ?? {};
         if (s.llm_model) setSelectedModel(s.llm_model);
         if (s.llm_provider) setProviderName(s.llm_provider.toUpperCase());
+        if (s.preferred_language) setPreferredLanguage(s.preferred_language);
       })
       .catch(() => {});
   }, []);
@@ -120,7 +122,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       await fetch(`${API_BASE}/api/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ llm_model: selectedModel }),
+        body: JSON.stringify({ llm_model: selectedModel, preferred_language: preferredLanguage }),
       });
     } catch (_) {}
     playUiSound("success");
@@ -306,6 +308,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
+                  <label className="label-secondary">RESPONSE LANGUAGE</label>
+                  <select
+                    value={preferredLanguage}
+                    onChange={(e) => setPreferredLanguage(e.target.value)}
+                    className="editorial-input"
+                  >
+                    <option value="auto">Auto (detect from message)</option>
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="ja">Japanese</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ar">Arabic</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ko">Korean</option>
+                    <option value="ru">Russian</option>
+                    <option value="it">Italian</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <label className="label-secondary">SYNTHESIS ACOUSTICS</label>
                   <select
                     value={selectedVoice}
@@ -318,6 +345,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <option value="Aoede (Soft Alto)">Aoede (Soft Alto)</option>
                   </select>
                 </div>
+                <div />
               </div>
 
               {/* Verbal Speech Toggle */}

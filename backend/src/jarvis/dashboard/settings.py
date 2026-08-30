@@ -12,6 +12,7 @@ _DEFAULTS: dict[str, Any] = {
     "voice_enabled": False,
     "auto_speak_responses": False,
     "default_language": "en",
+    "preferred_language": "auto",
     "ha_url": "",
     "ha_token": "",
     "llm_model": "",
