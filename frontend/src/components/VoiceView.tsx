@@ -2,9 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Aperture, Volume2, Radio, Play, RefreshCw } from "lucide-react";
 import { speakJarvisText, stopJarvisSpeech, playUiSound } from "../utils/audio";
 import { useWakeWord } from "../hooks/useWakeWord";
+import type { OrbVariant } from "./JarvisOrb3D";
 const JarvisOrb3D = React.lazy(() =>
   import("./JarvisOrb3D").then((m) => ({ default: m.JarvisOrb3D }))
 );
+
+const ORB_VARIANTS: { id: OrbVariant; label: string; desc: string }[] = [
+  { id: "holographic", label: "HOLOGRAPHIC", desc: "Fresnel rim glow + wireframe cage" },
+  { id: "plasma",      label: "PLASMA",       desc: "Animated vertex-displacement surface" },
+  { id: "neural",      label: "NEURAL NET",   desc: "Node graph on sphere surface" },
+];
 
 interface VoiceViewProps {
   onProcessVoiceCommand: (transcript: string) => Promise<string>;
@@ -28,6 +35,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
   const [transcript, setTranscript] = useState("");
   const [aiReply, setAiReply] = useState("");
   const [wakeActive, setWakeActive] = useState(true);
+  const [orbVariant, setOrbVariant] = useState<OrbVariant>("holographic");
   const [voiceHistory, setVoiceHistory] = useState<
     { id: string; time: string; input: string; reply: string }[]
   >([]);
@@ -342,6 +350,24 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
       {/* Orb Hub */}
       <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-[#111318] border border-zinc-800 shadow-lg space-y-6">
+        {/* Variant picker */}
+        <div className="flex items-center gap-2">
+          {ORB_VARIANTS.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setOrbVariant(v.id)}
+              title={v.desc}
+              className={`text-[10px] font-mono font-black px-3 py-1.5 border transition ${
+                orbVariant === v.id
+                  ? "bg-white text-black border-transparent"
+                  : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
         {/* 3D Orb — lazy-loaded so Three.js doesn't bloat the initial bundle */}
         <button
           onClick={handleOrbClick}
@@ -353,7 +379,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
               <div className="w-24 h-24 rounded-full border-2 border-cyan-500 animate-pulse" />
             </div>
           }>
-            <JarvisOrb3D voiceState={voiceState} size={260} />
+            <JarvisOrb3D voiceState={voiceState} size={260} variant={orbVariant} />
           </React.Suspense>
           <span className="absolute inset-0 rounded-full group-hover:bg-white/5 transition-colors duration-300 pointer-events-none" />
         </button>
