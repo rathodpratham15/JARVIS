@@ -56,9 +56,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     playUiSound("scan");
 
     commandInProgressRef.current = false;
-    if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
-      startWakeListenerRef.current?.();
-    }
+    // Do NOT restart wake listener here — it must only resume after speech ends
+    // to prevent the mic from picking up JARVIS's own speaker output.
 
     const ensureWake = () => {
       if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
@@ -155,7 +154,9 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
     rec.onresult = (e: any) => {
       const state = voiceStateRef.current;
-      if (state === "listening") return;
+      // Ignore mic input while JARVIS is listening, thinking, or speaking
+      // to prevent the speaker output from re-triggering the wake word.
+      if (state !== "idle") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
