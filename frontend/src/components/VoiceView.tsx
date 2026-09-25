@@ -160,13 +160,7 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
-          if (state === "thinking" || state === "speaking") {
-            queryIdRef.current++;
-            stopJarvisSpeech();
-            playUiSound("alert");
-          } else {
-            playUiSound("beep");
-          }
+          playUiSound("beep");
           commandInProgressRef.current = true;
           wakeRecognitionRef.current = null;
           rec.stop();
