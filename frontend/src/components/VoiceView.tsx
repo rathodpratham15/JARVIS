@@ -348,26 +348,43 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
         </div>
       </div>
 
-      {/* Orb Hub */}
-      <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-[#111318] border border-zinc-800 shadow-lg space-y-6">
-        {/* Variant picker */}
-        <div className="flex items-center gap-2">
+      {/* Orb Comparison — 3 columns */}
+      <div className="bg-[#111318] border border-zinc-800 shadow-lg p-6">
+        <p className="text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest mb-4 text-center">
+          ORB VARIANT COMPARISON — click one to select it as your active orb
+        </p>
+        <div className="grid grid-cols-3 gap-4">
           {ORB_VARIANTS.map((v) => (
             <button
               key={v.id}
               onClick={() => setOrbVariant(v.id)}
-              title={v.desc}
-              className={`text-[10px] font-mono font-black px-3 py-1.5 border transition ${
+              className={`flex flex-col items-center gap-3 p-4 border transition-all focus:outline-none ${
                 orbVariant === v.id
-                  ? "bg-white text-black border-transparent"
-                  : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white"
+                  ? "border-white bg-white/5 shadow-[0_0_20px_rgba(255,255,255,0.08)]"
+                  : "border-zinc-800 hover:border-zinc-600 bg-transparent"
               }`}
             >
-              {v.label}
+              <React.Suspense fallback={
+                <div className="w-[180px] h-[180px] flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full border border-cyan-500/30 animate-pulse" />
+                </div>
+              }>
+                <JarvisOrb3D voiceState={voiceState} size={180} variant={v.id} />
+              </React.Suspense>
+              <div className="text-center space-y-0.5">
+                <p className={`text-[11px] font-mono font-black tracking-widest ${orbVariant === v.id ? "text-white" : "text-zinc-400"}`}>
+                  {v.label}
+                  {orbVariant === v.id && <span className="ml-2 text-[9px] text-emerald-400">● ACTIVE</span>}
+                </p>
+                <p className="text-[10px] font-mono text-zinc-600">{v.desc}</p>
+              </div>
             </button>
           ))}
         </div>
+      </div>
 
+      {/* Orb Hub */}
+      <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-[#111318] border border-zinc-800 shadow-lg space-y-6">
         {/* 3D Orb — lazy-loaded so Three.js doesn't bloat the initial bundle */}
         <button
           onClick={handleOrbClick}
