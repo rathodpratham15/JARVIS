@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Aperture, Volume2, Radio, Play, RefreshCw } from "lucide-react";
 import { speakJarvisText, stopJarvisSpeech, playUiSound } from "../utils/audio";
 import { useWakeWord } from "../hooks/useWakeWord";
+const JarvisOrb3D = React.lazy(() =>
+  import("./JarvisOrb3D").then((m) => ({ default: m.JarvisOrb3D }))
+);
 
 interface VoiceViewProps {
   onProcessVoiceCommand: (transcript: string) => Promise<string>;
@@ -53,9 +56,8 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
     playUiSound("scan");
 
     commandInProgressRef.current = false;
-    if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
-      startWakeListenerRef.current?.();
-    }
+    // Do NOT restart wake listener here — it must only resume after speech ends
+    // to prevent the mic from picking up JARVIS's own speaker output.
 
     const ensureWake = () => {
       if (wakeActiveRef.current && !wakeRecognitionRef.current && !import.meta.env.VITE_PICOVOICE_ACCESS_KEY) {
@@ -152,17 +154,13 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
     rec.onresult = (e: any) => {
       const state = voiceStateRef.current;
-      if (state === "listening") return;
+      // Ignore mic input while JARVIS is listening, thinking, or speaking
+      // to prevent the speaker output from re-triggering the wake word.
+      if (state !== "idle") return;
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.toLowerCase().replace(/[^\w\s]/g, "");
         if (t.includes(wakeWordLower)) {
-          if (state === "thinking" || state === "speaking") {
-            queryIdRef.current++;
-            stopJarvisSpeech();
-            playUiSound("alert");
-          } else {
-            playUiSound("beep");
-          }
+          playUiSound("beep");
           commandInProgressRef.current = true;
           wakeRecognitionRef.current = null;
           rec.stop();
@@ -344,26 +342,21 @@ export const VoiceView: React.FC<VoiceViewProps> = ({
 
       {/* Orb Hub */}
       <div className="relative flex flex-col items-center justify-center p-8 sm:p-12 bg-[#111318] border border-zinc-800 shadow-lg space-y-6">
-        {/* Arc Orb */}
-        <div className="relative flex items-center justify-center w-48 h-48">
-          {voiceState !== "idle" && (
-            <>
-              <span className="absolute inline-flex w-full h-full rounded-full opacity-30 animate-ping"
-                style={{ backgroundColor: ringColor }} />
-              <span className="absolute inline-flex w-3/4 h-3/4 rounded-full opacity-20 animate-ping [animation-delay:150ms]"
-                style={{ backgroundColor: ringColor }} />
-            </>
-          )}
-          <button
-            onClick={handleOrbClick}
-            className={`group relative z-10 w-36 h-36 rounded-full border-2 border-zinc-700 flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-300 ${stateColor}`}
-          >
-            {voiceState === "idle"      && <Aperture  className="w-12 h-12 text-zinc-300 group-hover:text-black group-hover:scale-110 transition" />}
-            {voiceState === "listening" && <Radio     className="w-12 h-12 text-black animate-pulse" />}
-            {voiceState === "thinking"  && <RefreshCw className="w-12 h-12 text-black animate-spin" />}
-            {voiceState === "speaking"  && <Volume2   className="w-12 h-12 text-black animate-bounce" />}
-          </button>
-        </div>
+        {/* 3D Orb — lazy-loaded so Three.js doesn't bloat the initial bundle */}
+        <button
+          onClick={handleOrbClick}
+          className="relative focus:outline-none group"
+          title={voiceState === "idle" ? "Click to speak" : "Click to stop"}
+        >
+          <React.Suspense fallback={
+            <div className="w-[260px] h-[260px] flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full border-2 border-cyan-500 animate-pulse" />
+            </div>
+          }>
+            <JarvisOrb3D voiceState={voiceState} size={260} />
+          </React.Suspense>
+          <span className="absolute inset-0 rounded-full group-hover:bg-white/5 transition-colors duration-300 pointer-events-none" />
+        </button>
 
         {/* Waveform */}
         <div className="flex items-center gap-1.5 h-12">

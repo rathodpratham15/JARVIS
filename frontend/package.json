@@ -13,6 +13,7 @@
     "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "@codetrix-studio/capacitor-google-auth": "3.4.0-rc.4",
     "@picovoice/porcupine-web": "^3.0.3",
     "@picovoice/web-voice-processor": "^4.0.10",
@@ -26,6 +27,8 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@react-oauth/google": "^0.13.5",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.8.1",
     "@tailwindcss/typography": "^0.5.20",
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.1",
@@ -39,7 +42,8 @@
     "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
@@ -48,6 +52,7 @@
     "@types/node": "^26.1.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^4.6.0",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
