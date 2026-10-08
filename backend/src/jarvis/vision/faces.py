@@ -20,6 +20,7 @@ import glob
 import logging
 import os
 import pickle
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,6 +29,23 @@ from typing import Any, Optional
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Embedding encode cache: avoids re-running ONNX inference on the same image.
+# Key: (absolute_path, mtime_ns)  →  Value: 512-dim float32 embedding
+# Bounded to 512 entries; oldest entry dropped when full.
+# ---------------------------------------------------------------------------
+_ENCODE_CACHE: dict[tuple[str, int], np.ndarray] = {}
+_ENCODE_CACHE_MAX = 512
+
+# ---------------------------------------------------------------------------
+# Recognition cache: skips the linear cosine-sim scan when the same face
+# appears in back-to-back frames (e.g. live camera feed).
+# Key: rounded embedding fingerprint  →  (RecognitionResult, expiry_monotonic)
+# TTL defaults to 4 s; tune with JARVIS_RECOG_CACHE_TTL env var.
+# ---------------------------------------------------------------------------
+_RECOG_CACHE: dict[tuple, tuple] = {}
+_RECOG_CACHE_TTL = float(os.getenv("JARVIS_RECOG_CACHE_TTL", "4"))
 
 _IMAGE_GLOBS = ("*.jpg", "*.jpeg", "*.png", "*.bmp")
 _INSIGHTFACE_EMBEDDING_DIM = 512
@@ -120,22 +138,42 @@ class FaceRecognitionEngine:
     # ── encoding ───────────────────────────────────────────────────────────
 
     def encode(self, image_path: str | Path) -> Optional[np.ndarray]:
-        """Return the first face embedding in `image_path`, or None."""
+        """Return the first face embedding in `image_path`, or None.
+
+        Results are cached by (absolute_path, mtime_ns) so repeated calls on
+        the same unchanged file skip ONNX inference entirely.
+        """
         if self._app is None:
             return None
+
+        abs_path = str(Path(image_path).resolve())
+        try:
+            mtime_ns = Path(abs_path).stat().st_mtime_ns
+        except OSError:
+            mtime_ns = 0
+
+        cache_key = (abs_path, mtime_ns)
+        if cache_key in _ENCODE_CACHE:
+            return _ENCODE_CACHE[cache_key]
+
         try:
             import cv2
-            img = cv2.imread(str(image_path))
+            img = cv2.imread(abs_path)
             if img is None:
-                logger.warning("cv2 could not read image: %s", image_path)
+                logger.warning("cv2 could not read image: %s", abs_path)
                 return None
             faces = self._app.get(img)
             if not faces:
                 return None
-            return faces[0].normed_embedding.astype(np.float32)
+            embedding = faces[0].normed_embedding.astype(np.float32)
         except Exception as exc:
-            logger.warning("Failed to encode %s: %s", image_path, exc)
+            logger.warning("Failed to encode %s: %s", abs_path, exc)
             return None
+
+        if len(_ENCODE_CACHE) >= _ENCODE_CACHE_MAX:
+            _ENCODE_CACHE.pop(next(iter(_ENCODE_CACHE)))
+        _ENCODE_CACHE[cache_key] = embedding
+        return embedding
 
     # ── recognition ────────────────────────────────────────────────────────
 
@@ -147,6 +185,15 @@ class FaceRecognitionEngine:
         unknown_emb = self.encode(image_path)
         if unknown_emb is None:
             return RecognitionResult(None, 0.0, False, time.monotonic() - start, "No face found in image")
+
+        # Recognition cache: consecutive frames of the same person skip the
+        # O(n) cosine-sim scan. Fingerprint = top-8 dims rounded to 1 dp.
+        recog_key = tuple(np.round(unknown_emb[:8], 1).tolist())
+        now = time.monotonic()
+        if recog_key in _RECOG_CACHE:
+            cached_result, expiry = _RECOG_CACHE[recog_key]
+            if now < expiry:
+                return cached_result
 
         best_match: Optional[PersonData] = None
         best_confidence = 0.0
@@ -165,9 +212,13 @@ class FaceRecognitionEngine:
         self.stats["processing_times"].append(elapsed)
         if best_match:
             self.stats["successful_matches"] += 1
-            return RecognitionResult(best_match, best_confidence, True, elapsed)
-        self.stats["failed_matches"] += 1
-        return RecognitionResult(None, best_confidence, False, elapsed, "No matching face found")
+            result = RecognitionResult(best_match, best_confidence, True, elapsed)
+        else:
+            self.stats["failed_matches"] += 1
+            result = RecognitionResult(None, best_confidence, False, elapsed, "No matching face found")
+
+        _RECOG_CACHE[recog_key] = (result, now + _RECOG_CACHE_TTL)
+        return result
 
     # ── management ─────────────────────────────────────────────────────────
 
@@ -284,6 +335,62 @@ class _LegacyCompatUnpickler(pickle.Unpickler):
 
 # ── InsightFace init ───────────────────────────────────────────────────────
 
+def _build_ort_providers() -> list:
+    """Return the best available ONNX Runtime execution providers.
+
+    Priority (highest-performance first):
+      1. TensorrtExecutionProvider  — NVIDIA GPU + TensorRT installed
+         Engines are cached to disk so the first run compiles once;
+         subsequent runs load the cached engine in milliseconds.
+      2. CUDAExecutionProvider      — NVIDIA GPU, no TensorRT required
+      3. CoreMLExecutionProvider    — Apple Silicon (Neural Engine / GPU)
+      4. CPUExecutionProvider       — universal fallback
+
+    The list is built by checking what ORT actually has available, so it
+    degrades gracefully on any hardware without raising errors.
+    """
+    try:
+        import onnxruntime as ort
+        available = set(ort.get_available_providers())
+    except Exception:
+        return ["CPUExecutionProvider"]
+
+    providers: list = []
+
+    if "TensorrtExecutionProvider" in available:
+        engine_cache = os.getenv("TRT_ENGINE_CACHE_PATH", "data/.trt_engines")
+        os.makedirs(engine_cache, exist_ok=True)
+        providers.append((
+            "TensorrtExecutionProvider",
+            {
+                "trt_fp16_enable": True,
+                "trt_engine_cache_enable": True,
+                "trt_engine_cache_path": engine_cache,
+                # Reduce TRT build time by limiting workspace (256 MB)
+                "trt_max_workspace_size": 256 * 1024 * 1024,
+            },
+        ))
+        logger.info("ORT provider: TensorRT (FP16, engine cache=%s)", engine_cache)
+
+    if "CUDAExecutionProvider" in available:
+        providers.append((
+            "CUDAExecutionProvider",
+            {"device_id": int(os.getenv("CUDA_DEVICE_ID", "0"))},
+        ))
+        logger.info("ORT provider: CUDA (device %s)", os.getenv("CUDA_DEVICE_ID", "0"))
+
+    if "CoreMLExecutionProvider" in available and sys.platform == "darwin":
+        providers.append("CoreMLExecutionProvider")
+        logger.info("ORT provider: CoreML (Apple Neural Engine)")
+
+    providers.append("CPUExecutionProvider")
+
+    if len(providers) == 1:
+        logger.info("ORT provider: CPU only (no GPU acceleration available)")
+
+    return providers
+
+
 def _init_insightface():
     """Initialise InsightFace FaceAnalysis app. Returns None if unavailable."""
     try:
@@ -296,9 +403,10 @@ def _init_insightface():
         os.environ.setdefault("INSIGHTFACE_HOME", model_root)
 
         model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_sc")
-        app = FaceAnalysis(name=model_name, providers=["CPUExecutionProvider"])
+        providers = _build_ort_providers()
+        app = FaceAnalysis(name=model_name, providers=providers)
         app.prepare(ctx_id=0, det_size=(640, 640))
-        logger.info("InsightFace initialised (model=%s)", model_name)
+        logger.info("InsightFace initialised (model=%s, providers=%s)", model_name, providers)
         return app
     except ImportError:
         logger.warning("insightface not installed — face matching disabled")
