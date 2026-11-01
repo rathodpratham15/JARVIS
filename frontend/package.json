@@ -13,6 +13,7 @@
     "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/android": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.2",
     "@codetrix-studio/capacitor-google-auth": "3.4.0-rc.4",
     "@picovoice/porcupine-web": "^3.0.3",
     "@picovoice/web-voice-processor": "^4.0.10",

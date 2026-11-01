@@ -14,6 +14,9 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    optimizeDeps: {
+      exclude: ['@capacitor/push-notifications'],
+    },
     build: {
       rollupOptions: {
         external: ['@capacitor/push-notifications'],

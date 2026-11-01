@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { VoiceDemo, VisionDemo, AgentDemo, ResearchDemo, ComputerDemo } from "./DemoSimulations";
 
+const JarvisOrb3D = React.lazy(() =>
+  import("./JarvisOrb3D").then((m) => ({ default: m.JarvisOrb3D }))
+);
+
 interface LandingPageProps {
   onEnter: () => void;
 }
@@ -229,6 +233,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
             <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 border border-[#00E5FF]/40 bg-[#00E5FF]/5 text-xs tracking-widest text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.15)]">
               <span className="w-2 h-2 bg-[#00E5FF] shadow-[0_0_6px_#00E5FF] animate-ping" />
               <span>SYSTEM ONLINE // v3.0</span>
+            </div>
+
+            {/* 3D Core Orb */}
+            <div className="flex justify-center -my-4">
+              <React.Suspense fallback={
+                <div className="w-[340px] h-[340px] flex items-center justify-center">
+                  <div className="w-32 h-32 rounded-full border border-[#00E5FF]/30 animate-pulse" />
+                </div>
+              }>
+                <JarvisOrb3D voiceState="idle" size={340} />
+              </React.Suspense>
             </div>
 
             <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold tracking-[0.2em] sm:tracking-[0.25em] text-white uppercase select-none drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">

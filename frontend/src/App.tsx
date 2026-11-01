@@ -357,7 +357,7 @@ export default function App() {
   }, []);
 
   // Request browser notification permission once on first load
-  useEffect(() => { requestNotificationPermission(); }, []);
+  useEffect(() => { if (authedUser) requestNotificationPermission(); }, [authedUser]);
 
   useEffect(() => {
     const fetchSchedules = () => {
