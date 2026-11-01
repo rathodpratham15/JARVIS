@@ -4,12 +4,27 @@ The OpenAI Python client supports any OpenAI-compatible endpoint via the
 `base_url` parameter, so providers like Groq slot in with no extra
 dependency. Pick a provider with `JARVIS_LLM_PROVIDER` (or
 `JARVIS_STT_PROVIDER`) and an optional `JARVIS_LLM_MODEL` override.
+
+vLLM support
+------------
+vLLM serves an OpenAI-compatible REST API, so it slots in as a provider
+with zero extra dependencies. Point `VLLM_BASE_URL` at your vLLM server
+(e.g. http://gpu-host:8000/v1) and set JARVIS_LLM_PROVIDER=vllm.
+
+  # Start vLLM (on a CUDA GPU host):
+  #   pip install vllm
+  #   vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8000
+  #
+  # Then in JARVIS .env:
+  #   JARVIS_LLM_PROVIDER=vllm
+  #   VLLM_BASE_URL=http://<gpu-host>:8000/v1
+  #   VLLM_MODEL=meta-llama/Llama-3.1-8B-Instruct   # optional override
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -20,6 +35,9 @@ class ProviderConfig:
     base_url: Optional[str]
     default_chat_model: str
     default_stt_model: str
+    # If set, this env var overrides base_url at runtime (used by vLLM so the
+    # server address can be changed without touching code).
+    base_url_env: Optional[str] = None
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
@@ -51,6 +69,21 @@ PROVIDERS: dict[str, ProviderConfig] = {
         default_chat_model="Llama-3.3-70B-Instruct",
         default_stt_model="",
     ),
+    # ── Self-hosted vLLM ──────────────────────────────────────────────────
+    # vLLM exposes an OpenAI-compatible API so the existing OpenAI client
+    # works unchanged. Set VLLM_BASE_URL to your server address and
+    # optionally VLLM_MODEL to override the default model name.
+    # Hardware: requires NVIDIA GPU (Ampere+ recommended for FP16/Flash-Attn).
+    # Throughput advantage over HF generate(): PagedAttention + continuous
+    # batching → typically 10-20× higher req/s at the same latency budget.
+    "vllm": ProviderConfig(
+        name="vllm",
+        api_key_env=("VLLM_API_KEY",),          # vLLM can run with no auth; set "EMPTY" if needed
+        base_url="http://localhost:8000/v1",     # overridden by VLLM_BASE_URL at runtime
+        base_url_env="VLLM_BASE_URL",
+        default_chat_model="meta-llama/Llama-3.1-8B-Instruct",
+        default_stt_model="",
+    ),
 }
 
 
@@ -60,6 +93,15 @@ def resolve_api_key(provider: ProviderConfig) -> Optional[str]:
         if value:
             return value
     return None
+
+
+def resolve_base_url(provider: ProviderConfig) -> Optional[str]:
+    """Return the effective base URL, respecting runtime env-var overrides."""
+    if provider.base_url_env:
+        override = os.getenv(provider.base_url_env)
+        if override:
+            return override.rstrip("/")
+    return provider.base_url
 
 
 def select_provider(env_var: str = "JARVIS_LLM_PROVIDER") -> ProviderConfig:
@@ -86,4 +128,6 @@ def select_provider(env_var: str = "JARVIS_LLM_PROVIDER") -> ProviderConfig:
         return PROVIDERS["groq"]
     if os.getenv("META_LLAMA_API_KEY"):
         return PROVIDERS["meta"]
+    if os.getenv("VLLM_BASE_URL"):
+        return PROVIDERS["vllm"]
     return PROVIDERS["openai"]
