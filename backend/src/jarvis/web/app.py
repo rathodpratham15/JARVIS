@@ -1417,7 +1417,7 @@ class MyPlugin(BasePlugin):
             "matched": result.matched,
             "confidence": result.confidence,
             "processing_time": result.processing_time,
-            "person": _person_to_dict(result.person) if result.person else None,
+            "person": _person_to_dict(result.person, _current_namespace()) if result.person else None,
             "formatted_result": format_recognition_result(result),
             "error": result.error_message,
             "face_id": face_id,
@@ -1563,12 +1563,23 @@ class MyPlugin(BasePlugin):
 
     @app.get("/api/face/image")
     def face_image():
-        """Serve a person's primary face photo by name."""
+        """Serve a person's primary face photo by name.
+
+        Accepts an optional ?ns=<namespace> param so <img> tags (which
+        cannot send auth headers) can still target the right face DB.
+        Falls back to the current authenticated namespace when ns is absent.
+        """
         name = request.args.get("name", "").strip()
         if not name:
             return {"error": "name is required"}, 400
+
+        ns = request.args.get("ns", "").strip() or _current_namespace()
+        engine = _get_face_engine(ns)
+        if engine is None:
+            return {"error": "person or image not found"}, 404
+
         person = next(
-            (p for p in _face_engine().known_faces if p.name.lower() == name.lower()),
+            (p for p in engine.known_faces if p.name.lower() == name.lower()),
             None,
         )
         if not person or not person.primary_image_path:
@@ -1577,16 +1588,14 @@ class MyPlugin(BasePlugin):
         stored = person.primary_image_path
         p = Path(stored)
 
-        # Resolve relative paths: stored as "data/faces/images/..." relative
-        # to the backend root (two levels above _face_engine().data_dir).
-        # Try multiple bases so the endpoint works regardless of CWD.
+        # Resolve relative paths against multiple candidate bases.
         candidates = [p]
         if not p.is_absolute():
             candidates = [
                 Path.cwd() / stored,
-                _face_engine().data_dir.parent.parent / stored,
-                _face_engine().data_dir.parent / stored,
-                _face_engine().data_dir / stored,
+                engine.data_dir.parent.parent / stored,
+                engine.data_dir.parent / stored,
+                engine.data_dir / stored,
             ]
 
         img_path = next((c for c in candidates if c.exists()), None)
@@ -1703,7 +1712,8 @@ class MyPlugin(BasePlugin):
         """Return all enrolled people with their metadata and avatar URLs."""
         if _face_engine() is None:
             return {"people": []}, 200
-        return {"people": [_person_to_dict(p) for p in _face_engine().known_faces]}, 200
+        ns = _current_namespace()
+        return {"people": [_person_to_dict(p, ns) for p in _face_engine().known_faces]}, 200
 
     @app.delete("/api/face/person/<name>")
     def face_delete_person(name: str) -> tuple[dict, int]:
@@ -2810,12 +2820,12 @@ def _start_reminder_poller(reminders_store: RemindersStore, interval: int = 30, 
     threading.Thread(target=_poll, daemon=True, name="reminder-poller").start()
 
 
-def _person_to_dict(person) -> dict:
-    image_url = (
-        f"/api/face/image?name={urllib.parse.quote(person.name)}"
-        if person.primary_image_path
-        else None
-    )
+def _person_to_dict(person, namespace: str = "") -> dict:
+    if person.primary_image_path:
+        ns_param = f"&ns={urllib.parse.quote(namespace)}" if namespace else ""
+        image_url = f"/api/face/image?name={urllib.parse.quote(person.name)}{ns_param}"
+    else:
+        image_url = None
     return {
         "name": person.name,
         "age": person.age,
