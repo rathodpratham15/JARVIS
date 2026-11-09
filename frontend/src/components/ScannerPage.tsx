@@ -14,7 +14,7 @@ interface ScanResult {
   error?: string;
 }
 
-export const ScannerPage: React.FC = () => {
+const ScannerPage: React.FC = () => {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token") ?? "";
   const eventName = params.get("event") ?? "";
@@ -260,3 +260,5 @@ export const ScannerPage: React.FC = () => {
     </div>
   );
 };
+
+export default ScannerPage;
