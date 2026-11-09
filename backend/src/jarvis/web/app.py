@@ -94,6 +94,10 @@ def _build_context(memory: Memory, n: int = 5, query: str = "",
 
 
 def create_app() -> Flask:
+    # Ensure the local data/ directory exists so relative-path SQLite stores
+    # can open their files on a fresh container (ephemeral FS starts empty).
+    os.makedirs("data", exist_ok=True)
+
     app = Flask(__name__)
     _default_origins = (
         "http://localhost:5173,http://localhost:3000,"
