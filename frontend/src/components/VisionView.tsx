@@ -83,6 +83,15 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [reverseLoading, setReverseLoading] = useState(false);
   const [confirmedName, setConfirmedName] = useState<string | null>(null);
   const [savedToDb, setSavedToDb] = useState(false);
+  // Save-to-contacts state
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveEventName, setSaveEventName] = useState("");
+  const [existingEvents, setExistingEvents] = useState<string[]>([]);
+  const [savingContact, setSavingContact] = useState(false);
+  const [savedContactOk, setSavedContactOk] = useState(false);
+  // Track scan result for saving (profession + photo from matched person)
+  const [lastScanProfession, setLastScanProfession] = useState<string | null>(null);
+  const [lastScanImageUrl, setLastScanImageUrl] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -180,6 +189,31 @@ export const VisionView: React.FC<VisionViewProps> = ({
       }
     } catch {
       // silently ignore DB save failure — research still shows
+    }
+  };
+
+  const handleSaveToContacts = async () => {
+    const name = confirmedName || faces[0]?.name;
+    if (!name) return;
+    setSavingContact(true);
+    try {
+      const res = await apiFetch("/api/discoveries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          profession: lastScanProfession,
+          photo_url: lastScanImageUrl,
+          event_name: saveEventName.trim() || "General",
+        }),
+      });
+      if (res.ok) {
+        setSavedContactOk(true);
+        setShowSaveForm(false);
+        playUiSound("success");
+      }
+    } finally {
+      setSavingContact(false);
     }
   };
 
@@ -315,10 +349,18 @@ export const VisionView: React.FC<VisionViewProps> = ({
       setReverseResults([]);
       setConfirmedName(null);
       setSavedToDb(false);
+      setShowSaveForm(false);
+      setSavedContactOk(false);
       setCapturedFrame(imageBase64 ?? null);
       if (res.faceMatch) {
         const org = res.facePerson?.additional_data?.organization || res.facePerson?.profession || undefined;
         const cachedDossier = res.facePerson?.additional_data?.dossier ?? null;
+        setLastScanProfession(org ?? null);
+        setLastScanImageUrl(res.facePerson?.image_url ?? null);
+        // Pre-load existing events for the save form
+        apiFetch("/api/discoveries/events").then(r => r.ok ? r.json() : null).then(d => {
+          if (d?.events) setExistingEvents(d.events.map((e: any) => e.event_name));
+        }).catch(() => {});
         runOsint(res.faceMatch, org, cachedDossier);
       } else if (imageBase64) {
         runReverseSearch(imageBase64);
@@ -486,6 +528,14 @@ export const VisionView: React.FC<VisionViewProps> = ({
           onConfirmCandidate={handleConfirmCandidate}
           onGoogleLens={handleGoogleLens}
           onRunOsint={runOsint}
+          showSaveForm={showSaveForm}
+          setShowSaveForm={setShowSaveForm}
+          saveEventName={saveEventName}
+          setSaveEventName={setSaveEventName}
+          existingEvents={existingEvents}
+          savingContact={savingContact}
+          savedContactOk={savedContactOk}
+          onSaveToContacts={handleSaveToContacts}
         />
       </div>
 
@@ -806,6 +856,15 @@ interface IntelPanelProps {
   onConfirmCandidate: (name: string, frame: string | null) => void;
   onGoogleLens: () => void;
   onRunOsint: (name: string, org?: string) => void;
+  // save-to-contacts
+  showSaveForm: boolean;
+  setShowSaveForm: (v: boolean) => void;
+  saveEventName: string;
+  setSaveEventName: (v: string) => void;
+  existingEvents: string[];
+  savingContact: boolean;
+  savedContactOk: boolean;
+  onSaveToContacts: () => void;
 }
 
 const IntelPanel: React.FC<IntelPanelProps> = ({
@@ -814,6 +873,8 @@ const IntelPanel: React.FC<IntelPanelProps> = ({
   unknownName, unknownCompany, lensToast, capturedFrame,
   setUnknownName, setUnknownCompany, setReverseResults, setShowUnknownForm,
   onConfirmCandidate, onGoogleLens, onRunOsint,
+  showSaveForm, setShowSaveForm, saveEventName, setSaveEventName,
+  existingEvents, savingContact, savedContactOk, onSaveToContacts,
 }) => {
   const subject = osintDossier?.subject || confirmedName || faces[0]?.name;
   const linkedIn = osintDossier
@@ -878,6 +939,55 @@ const IntelPanel: React.FC<IntelPanelProps> = ({
                   ? "bg-emerald-500/20 text-emerald-400 border-emerald-800"
                   : "bg-amber-500/20 text-amber-400 border-amber-800"
               }`}>{faces[0].status}</span>
+            )}
+          </div>
+        )}
+
+        {/* ── Save to My Contacts ── */}
+        {subject && (
+          <div className="space-y-2">
+            {savedContactOk ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-900/20 border border-emerald-800 text-emerald-400 text-[11px] font-black">
+                <Check className="w-3.5 h-3.5" />
+                SAVED TO MY CONTACTS
+              </div>
+            ) : showSaveForm ? (
+              <div className="p-3 border border-cyan-800 bg-[#0d0f12] space-y-2">
+                <p className="text-[10px] text-cyan-400 font-black uppercase tracking-wider">SAVE TO EVENT</p>
+                <input
+                  list="existing-events"
+                  value={saveEventName}
+                  onChange={e => setSaveEventName(e.target.value)}
+                  placeholder="Event name (e.g. TechCrunch 2026)"
+                  className="w-full bg-zinc-900 border border-zinc-700 text-xs text-white px-3 py-2 focus:outline-none focus:border-cyan-500 placeholder-zinc-600"
+                />
+                <datalist id="existing-events">
+                  {existingEvents.map(ev => <option key={ev} value={ev} />)}
+                </datalist>
+                <div className="flex gap-2">
+                  <button
+                    onClick={onSaveToContacts}
+                    disabled={savingContact}
+                    className="flex-1 py-2 bg-cyan-500 text-black font-black text-[10px] hover:bg-cyan-400 disabled:opacity-40 transition"
+                  >
+                    {savingContact ? "SAVING…" : "SAVE"}
+                  </button>
+                  <button
+                    onClick={() => setShowSaveForm(false)}
+                    className="px-3 py-2 border border-zinc-700 text-zinc-400 text-[10px] hover:border-zinc-500 transition"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowSaveForm(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 border border-zinc-700 text-zinc-400 text-[11px] font-black hover:border-cyan-700 hover:text-cyan-400 transition"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                SAVE TO MY CONTACTS
+              </button>
             )}
           </div>
         )}

@@ -39,6 +39,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
 import { ContactsView } from "./components/ContactsView";
+import { DiscoveriesView } from "./components/DiscoveriesView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
@@ -1210,6 +1211,9 @@ export default function App() {
               onUpdate={handleUpdateContact}
               onDelete={handleDeleteContact}
             />
+          )}
+          {currentPage === "discoveries" && (
+            <DiscoveriesView />
           )}
         </main>
       </div>
