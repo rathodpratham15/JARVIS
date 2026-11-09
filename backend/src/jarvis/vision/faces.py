@@ -75,8 +75,30 @@ class RecognitionResult:
     error_message: Optional[str] = None
 
 
+# Module-level InsightFace singleton — models are loaded once and shared
+# across all per-user FaceRecognitionEngine instances.  Loading the ONNX
+# models is expensive (~1-2 s); running inference on them is cheap.
+_SHARED_INSIGHT_APP = None
+_SHARED_INSIGHT_LOCK = None
+
+def _get_shared_app():
+    """Return the module-level InsightFace app, initialising it on first call."""
+    global _SHARED_INSIGHT_APP, _SHARED_INSIGHT_LOCK
+    import threading
+    if _SHARED_INSIGHT_LOCK is None:
+        _SHARED_INSIGHT_LOCK = threading.Lock()
+    with _SHARED_INSIGHT_LOCK:
+        if _SHARED_INSIGHT_APP is None:
+            _SHARED_INSIGHT_APP = _init_insightface()
+    return _SHARED_INSIGHT_APP
+
+
 class FaceRecognitionEngine:
-    """Stateful face DB + matcher backed by InsightFace.
+    """Per-user face DB + matcher backed by a shared InsightFace model.
+
+    Each user/organizer gets their own isolated data_dir containing
+    known_faces.pkl.  The InsightFace ONNX models are loaded once globally
+    and shared — only the face embedding data is per-user.
 
     `tolerance` is the minimum cosine similarity (0–1) required to accept
     a match. 0.40 is a reasonable default — raise it to reduce false positives.
@@ -94,7 +116,7 @@ class FaceRecognitionEngine:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.known_faces: list[PersonData] = []
         self.stats = {"successful_matches": 0, "failed_matches": 0, "processing_times": []}
-        self._app = _init_insightface()
+        self._app = _get_shared_app()  # shared singleton — no model reload
         self.load()
 
     # ── persistence ────────────────────────────────────────────────────────
