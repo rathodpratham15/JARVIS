@@ -9,12 +9,4 @@ aptPkgs = [
     "libffi-dev",
     "libgl1",
     "libglib2.0-0",
-    "libxcb1",
-    "libxcb-shm0",
-    "libxcb-icccm4",
-    "libxcb-image0",
-    "libxcb-keysyms1",
-    "libxcb-render-util0",
-    "libxcb-xinerama0",
-    "libxcb-xfixes0",
 ]
