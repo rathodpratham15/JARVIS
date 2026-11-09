@@ -1455,7 +1455,10 @@ class MyPlugin(BasePlugin):
                         os.unlink(p)
                     except OSError:
                         pass
-                return {"success": False, "error": "No valid face images processed"}, 422
+                return {
+                    "success": False,
+                    "error": "No face detected in the uploaded image. Make sure the face is clearly visible, well-lit, and looking roughly toward the camera.",
+                }, 422
 
             return {
                 "success": True,

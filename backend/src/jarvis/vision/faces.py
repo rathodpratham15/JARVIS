@@ -182,10 +182,17 @@ class FaceRecognitionEngine:
             import cv2
             img = cv2.imread(abs_path)
             if img is None:
-                logger.warning("cv2 could not read image: %s", abs_path)
-                return None
+                # Fallback: PIL → numpy (handles HEIC-converted JPEG, WebP, etc.)
+                try:
+                    from PIL import Image as _PILImage
+                    pil_img = _PILImage.open(abs_path).convert("RGB")
+                    img = np.array(pil_img)[:, :, ::-1]  # RGB→BGR for cv2/insightface
+                except Exception:
+                    logger.warning("Could not read image (cv2 + PIL both failed): %s", abs_path)
+                    return None
             faces = self._app.get(img)
             if not faces:
+                logger.debug("No face detected in %s (det_thresh=%.2f)", abs_path, self._app.det_model.det_thresh if hasattr(self._app, 'det_model') else -1)
                 return None
             embedding = faces[0].normed_embedding.astype(np.float32)
         except Exception as exc:
@@ -427,7 +434,8 @@ def _init_insightface():
         model_name = os.getenv("INSIGHTFACE_MODEL", "buffalo_sc")
         providers = _build_ort_providers()
         app = FaceAnalysis(name=model_name, providers=providers)
-        app.prepare(ctx_id=0, det_size=(640, 640))
+        det_thresh = float(os.getenv("INSIGHTFACE_DET_THRESH", "0.35"))
+        app.prepare(ctx_id=0, det_size=(640, 640), det_thresh=det_thresh)
         logger.info("InsightFace initialised (model=%s, providers=%s)", model_name, providers)
         return app
     except ImportError:
