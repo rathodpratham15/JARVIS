@@ -14,7 +14,8 @@ export type PageId =
   | "plugins"
   | "research"
   | "contacts"
-  | "discoveries";
+  | "discoveries"
+  | "events";
 
 export interface Contact {
   id: string;

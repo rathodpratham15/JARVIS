@@ -40,6 +40,7 @@ import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
 import { ContactsView } from "./components/ContactsView";
 import { DiscoveriesView } from "./components/DiscoveriesView";
+import { EventManagerView } from "./components/EventManagerView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
@@ -129,6 +130,7 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
   "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
   "/research": "research", "/contacts": "contacts", "/discoveries": "discoveries",
+  "/events": "events",
 };
 const PAGE_TO_PATH: Record<PageId, string> = {
   dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
@@ -136,6 +138,7 @@ const PAGE_TO_PATH: Record<PageId, string> = {
   computer: "/computer", notes: "/notes", reminders: "/reminders",
   settings: "/settings", memory: "/memory", plugins: "/plugins",
   research: "/research", contacts: "/contacts", discoveries: "/discoveries",
+  events: "/events",
 };
 
 export default function App() {
@@ -1114,7 +1117,7 @@ export default function App() {
             <VisionView
               faces={faces}
               snapshots={snapshots}
-              onAnalyzeOpticalFeed={async (imageBase64?: string, onSceneUpdate?: (r: any) => void) => {
+              onAnalyzeOpticalFeed={async (imageBase64?: string, onSceneUpdate?: (r: any) => void, eventNamespace?: string) => {
                 if (!imageBase64) return { sceneDescription: "No image captured.", threatLevel: "Unknown", environmentDetails: "" };
 
                 // Convert base64 data URL to Blob
@@ -1127,6 +1130,7 @@ export default function App() {
                 // ① Face recognition — await it (fast, ~200ms)
                 const faceForm = new FormData();
                 faceForm.append("image", blob, "frame.jpg");
+                if (eventNamespace) faceForm.append("event_namespace", eventNamespace);
                 const faceRes = await apiFetch(`/api/face/identify`, { method: "POST", body: faceForm })
                   .then(async r => ({ ok: r.ok, status: r.status, data: await r.json() }))
                   .catch(() => ({ ok: false, status: 0, data: {} }));
@@ -1214,6 +1218,12 @@ export default function App() {
           )}
           {currentPage === "discoveries" && (
             <DiscoveriesView />
+          )}
+          {currentPage === "events" && (
+            <EventManagerView
+              userRole={authedUser?.role}
+              userId={authedUser?.id}
+            />
           )}
         </main>
       </div>

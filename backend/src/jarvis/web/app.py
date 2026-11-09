@@ -370,6 +370,12 @@ def create_app() -> Flask:
     from jarvis.core.vision_osint_store import VisionOsintStore
     vision_osint_store = VisionOsintStore(db_path=os.getenv("JARVIS_VISION_OSINT_DB", "data/vision_osint.db"))
 
+    # ── Event store (shared, single DB) ───────────────────────────────────
+    from jarvis.core.event_store import EventStore
+    _event_store = EventStore(
+        db_path=os.getenv("JARVIS_EVENTS_DB", "data/events.db")
+    )
+
     # ── Per-user discovery store pool ─────────────────────────────────────
     from jarvis.core.discovery_store import DiscoveryStore
     _discovery_stores: dict[str, DiscoveryStore] = {}
@@ -516,6 +522,34 @@ def create_app() -> Flask:
                 "db_path": str(_auth_mgr.db_path),
             }, 404
         return {"success": True, "user_id": user_id, "role": "admin", "db_path": str(_auth_mgr.db_path)}, 200
+
+    @app.post("/api/auth/make-organizer")
+    def auth_make_organizer() -> tuple[dict, int]:
+        """Admin promotes another user to organizer role.
+
+        Body: { "user_id": str }  OR  { "email": str }
+        """
+        caller = getattr(request, "current_user", None)
+        if not caller or caller.get("role") != "admin":
+            return {"error": "admin role required"}, 403
+        body = request.get_json(silent=True) or {}
+        target_id = body.get("user_id", "").strip()
+        email = body.get("email", "").strip()
+        if not target_id and not email:
+            return {"error": "user_id or email required"}, 400
+        with _auth_mgr._connect() as conn:
+            if target_id:
+                cur = conn.execute("UPDATE users SET role='organizer' WHERE id=?", (target_id,))
+            else:
+                cur = conn.execute("UPDATE users SET role='organizer' WHERE email=?", (email,))
+            if cur.rowcount == 0:
+                return {"error": "user not found"}, 404
+            # Return updated user
+            row = conn.execute(
+                "SELECT id, username, email, role FROM users WHERE id=? OR email=?",
+                (target_id or "", email or ""),
+            ).fetchone()
+        return {"success": True, "user": dict(row) if row else None}, 200
 
     @app.get("/api/auth/me")
     def auth_me() -> tuple[dict, int]:
@@ -1368,14 +1402,22 @@ class MyPlugin(BasePlugin):
 
     @app.post("/api/face/identify")
     def identify_face() -> tuple[dict, int]:
-        """Match an uploaded image against the known-faces DB."""
-        if _face_engine() is None:
+        """Match an uploaded image against the known-faces DB.
+
+        Optional form field:
+          event_namespace — if provided, scan against this event's face DB
+                            instead of the caller's personal DB.
+        """
+        # Allow scanning against a specific event's face DB
+        event_ns = (request.form.get("event_namespace") or "").strip()
+        engine = _get_face_engine(event_ns) if event_ns else _face_engine()
+        if engine is None:
             return {"success": False, "matched": False, "error": "Face recognition unavailable on this server"}, 503
         image = request.files.get("image")
         if image is None or not image.filename:
             return {"success": False, "error": "image file is required"}, 400
         with _saved_upload(image) as path:
-            result = _face_engine().recognize_face(path)
+            result = engine.recognize_face(path)
 
         face_id: str | None = None
         if result.matched and result.person and result.confidence >= 0.6:
@@ -1417,7 +1459,7 @@ class MyPlugin(BasePlugin):
             "matched": result.matched,
             "confidence": result.confidence,
             "processing_time": result.processing_time,
-            "person": _person_to_dict(result.person, _current_namespace()) if result.person else None,
+            "person": _person_to_dict(result.person, event_ns or _current_namespace()) if result.person else None,
             "formatted_result": format_recognition_result(result),
             "error": result.error_message,
             "face_id": face_id,
@@ -1470,13 +1512,24 @@ class MyPlugin(BasePlugin):
         """Upload one or more face images for a named person.
 
         Form fields:
-          name  — person's display name (required)
-          image — one or more image files (required)
+          name      — person's display name (required)
+          image     — one or more image files (required)
+          event_id  — optional; if provided, enroll into this event's face DB
+                      instead of the organizer's personal DB
         """
         err = _require_organizer()
         if err:
             return err
-        if _face_engine() is None:
+        # Determine target face engine: event namespace or personal
+        event_id = (request.form.get("event_id") or "").strip()
+        if event_id:
+            event = _event_store.get(event_id)
+            if not event:
+                return {"success": False, "error": "event not found"}, 404
+            engine = _get_face_engine(event["face_namespace"])
+        else:
+            engine = _face_engine()
+        if engine is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
         name = (request.form.get("name") or "").strip()
         if not name:
@@ -1488,7 +1541,7 @@ class MyPlugin(BasePlugin):
             return {"success": False, "error": "at least one image file is required"}, 400
 
         # Save images permanently under data/faces/<name>/
-        person_dir = _face_engine().data_dir / secure_filename(name)
+        person_dir = engine.data_dir / secure_filename(name)
         person_dir.mkdir(parents=True, exist_ok=True)
         saved_paths: list[str] = []
         tmp_paths: list[str] = []
@@ -1506,7 +1559,7 @@ class MyPlugin(BasePlugin):
                 saved_paths.append(dest)
 
             metadata = {"organization": organization} if organization else {}
-            person = _face_engine().add_person(name=name, image_paths=saved_paths, metadata=metadata)
+            person = engine.add_person(name=name, image_paths=saved_paths, metadata=metadata)
             if person is None:
                 # Clean up saved images if encoding failed
                 for p in saved_paths:
@@ -1523,7 +1576,7 @@ class MyPlugin(BasePlugin):
                 "success": True,
                 "name": person.name,
                 "images_added": len(saved_paths),
-                "statistics": _face_engine().get_statistics(),
+                "statistics": engine.get_statistics(),
             }, 200
         finally:
             # Only clean up any remaining temp files (already replaced above)
@@ -1788,6 +1841,125 @@ class MyPlugin(BasePlugin):
         }
         export_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
         return {"success": True, "path": str(export_path), "people": len(payload["people"])}, 200
+
+    # ── events ────────────────────────────────────────────────────────────
+
+    @app.post("/api/events")
+    def event_create() -> tuple[dict, int]:
+        """Create a new event (organizer or admin only).
+
+        Body: { "name": str }
+        Returns the event with its access_code and face_namespace.
+        """
+        user = getattr(request, "current_user", {})
+        if user.get("role") not in ("admin", "organizer"):
+            return {"error": "organizer or admin role required"}, 403
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        event = _event_store.create_event(
+            name=name,
+            organizer_id=user.get("sub", ""),
+            organizer_name=user.get("username") or user.get("name") or user.get("email") or "",
+        )
+        return event, 201
+
+    @app.get("/api/events")
+    def event_list() -> tuple[dict, int]:
+        """List events.
+
+        - admin: all events
+        - organizer: their own events
+        - user: events they have joined
+        """
+        user = getattr(request, "current_user", {})
+        role = user.get("role", "user")
+        uid = user.get("sub", "")
+        if role == "admin":
+            events = _event_store.list_all()
+        elif role == "organizer":
+            events = _event_store.list_by_organizer(uid)
+        else:
+            events = _event_store.get_member_events(uid)
+        # Augment with member counts
+        for ev in events:
+            ev["member_count"] = _event_store.member_count(ev["id"])
+        return {"events": events}, 200
+
+    @app.get("/api/events/<event_id>")
+    def event_get(event_id: str) -> tuple[dict, int]:
+        """Get a single event's details (including member list for organizer/admin)."""
+        user = getattr(request, "current_user", {})
+        event = _event_store.get(event_id)
+        if not event:
+            return {"error": "event not found"}, 404
+        role = user.get("role", "user")
+        uid = user.get("sub", "")
+        # Restrict access: only organizer who owns it, admin, or members can view
+        is_owner = event["organizer_id"] == uid or role == "admin"
+        members = _event_store.get_members(event_id)
+        is_member = any(m["user_id"] == uid for m in members)
+        if not (is_owner or is_member):
+            return {"error": "not authorised"}, 403
+        event["member_count"] = len(members)
+        if is_owner:
+            event["members"] = members
+        # Count enrolled faces in this event's namespace
+        face_eng = _get_face_engine(event["face_namespace"])
+        event["panelist_count"] = len(face_eng.known_faces) if face_eng else 0
+        return event, 200
+
+    @app.delete("/api/events/<event_id>")
+    def event_delete(event_id: str) -> tuple[dict, int]:
+        """Delete an event (owner or admin only)."""
+        user = getattr(request, "current_user", {})
+        event = _event_store.get(event_id)
+        if not event:
+            return {"error": "event not found"}, 404
+        if user.get("role") != "admin" and event["organizer_id"] != user.get("sub"):
+            return {"error": "not authorised"}, 403
+        _event_store.delete(event_id)
+        return {"success": True}, 200
+
+    @app.post("/api/events/join")
+    def event_join() -> tuple[dict, int]:
+        """Join an event using its access code.
+
+        Body: { "access_code": str }
+        Returns event details including face_namespace for the scanner.
+        """
+        user = getattr(request, "current_user", {})
+        uid = user.get("sub", "")
+        body = request.get_json(silent=True) or {}
+        code = (body.get("access_code") or "").strip().upper()
+        if not code:
+            return {"error": "access_code is required"}, 400
+        event = _event_store.get_by_code(code)
+        if not event:
+            return {"error": "invalid access code"}, 404
+        _event_store.join_event(
+            event_id=event["id"],
+            user_id=uid,
+            user_email=user.get("email") or "",
+        )
+        return {
+            "event_id": event["id"],
+            "event_name": event["name"],
+            "face_namespace": event["face_namespace"],
+            "organizer_name": event.get("organizer_name") or "",
+        }, 200
+
+    @app.get("/api/events/my")
+    def event_my() -> tuple[dict, int]:
+        """Events the current user has joined."""
+        user = getattr(request, "current_user", {})
+        uid = user.get("sub", "")
+        events = _event_store.get_member_events(uid)
+        for ev in events:
+            face_eng = _get_face_engine(ev["face_namespace"])
+            ev["panelist_count"] = len(face_eng.known_faces) if face_eng else 0
+        return {"events": events}, 200
 
     # ── discoveries (event-grouped saved contacts) ────────────────────────
 
