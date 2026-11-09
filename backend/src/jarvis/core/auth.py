@@ -391,6 +391,28 @@ class AuthManager:
             "expires_in": _ACCESS_EXPIRE_MINUTES * 60,
         }
 
+    def create_scanner_token(
+        self,
+        organizer_id: str,
+        event_name: str = "",
+        duration_hours: int = 8,
+    ) -> str:
+        """Issue a short-lived JWT that only permits face identify calls.
+
+        The token carries type="scanner" so _check_auth can restrict it to
+        /api/face/identify and /api/camera/recognize — no other endpoints.
+        """
+        now = datetime.now(timezone.utc)
+        payload = {
+            "sub": organizer_id,
+            "type": "scanner",
+            "scope": "identify",
+            "event": event_name,
+            "exp": now + timedelta(hours=duration_hours),
+            "iat": now,
+        }
+        return jwt.encode(payload, self._secret, algorithm="HS256")
+
     def decode_access_token(self, token: str) -> Optional[dict]:
         try:
             return jwt.decode(token, self._secret, algorithms=["HS256"])

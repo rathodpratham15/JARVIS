@@ -18,6 +18,9 @@ import {
   Linkedin,
   Fingerprint,
   FileText,
+  QrCode,
+  Copy,
+  Check,
 } from "lucide-react";
 import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -51,6 +54,12 @@ export const VisionView: React.FC<VisionViewProps> = ({
   const [snapshots, setSnapshots] = useState<VisionSnapshot[]>(initialSnapshots);
 
   const [enrolledPeople, setEnrolledPeople] = useState<EnrolledPerson[]>([]);
+  const [scannerPanel, setScannerPanel] = useState(false);
+  const [scannerEventName, setScannerEventName] = useState("");
+  const [scannerHours, setScannerHours] = useState(8);
+  const [scannerToken, setScannerToken] = useState<{ token: string; scan_url: string; expires_at: string } | null>(null);
+  const [scannerGenerating, setScannerGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [enrollName, setEnrollName] = useState("");
   const [enrollOrg, setEnrollOrg] = useState("");
   const [enrollFiles, setEnrollFiles] = useState<FileList | null>(null);
@@ -513,6 +522,106 @@ export const VisionView: React.FC<VisionViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Event Scanner Token Generator */}
+      <div className="bg-[#111318] border border-zinc-800 shadow-lg">
+        <button
+          onClick={() => setScannerPanel(v => !v)}
+          className="w-full flex items-center justify-between p-4 hover:bg-zinc-900 transition"
+        >
+          <span className="flex items-center gap-2 text-xs font-heading font-black uppercase tracking-widest text-white">
+            <QrCode className="w-4 h-4" />
+            EVENT SCANNER LINK
+          </span>
+          <span className="text-zinc-500 text-[10px] font-mono">
+            {scannerPanel ? "COLLAPSE ▲" : "GENERATE ▼"}
+          </span>
+        </button>
+
+        {scannerPanel && (
+          <div className="border-t border-zinc-800 p-5 space-y-4">
+            <p className="text-xs text-zinc-400 font-mono">
+              Generate a time-limited link for event staff. Recipients can scan faces without a JARVIS login — they can only identify, not enroll or delete.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-black text-zinc-500 uppercase">Event Name</label>
+                <input
+                  value={scannerEventName}
+                  onChange={e => setScannerEventName(e.target.value)}
+                  placeholder="Tech Summit 2026"
+                  className="w-full bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono px-3 py-2 focus:outline-none focus:border-cyan-800"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-black text-zinc-500 uppercase">Valid For (hours)</label>
+                <select
+                  value={scannerHours}
+                  onChange={e => setScannerHours(Number(e.target.value))}
+                  className="w-full bg-[#0d0f12] border border-zinc-800 text-white text-xs font-mono px-3 py-2 focus:outline-none focus:border-cyan-800"
+                >
+                  {[2, 4, 8, 12, 24, 48, 72].map(h => (
+                    <option key={h} value={h}>{h}h</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                setScannerGenerating(true);
+                setScannerToken(null);
+                try {
+                  const res = await apiFetch("/api/scanner-token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ event_name: scannerEventName, duration_hours: scannerHours }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setScannerToken(data);
+                  }
+                } finally {
+                  setScannerGenerating(false);
+                }
+              }}
+              disabled={scannerGenerating}
+              className="px-4 py-2 bg-white text-black font-black font-mono text-[10px] hover:bg-zinc-200 disabled:opacity-40 transition"
+            >
+              {scannerGenerating ? "GENERATING…" : "GENERATE SCANNER LINK"}
+            </button>
+
+            {scannerToken && (
+              <div className="space-y-3 p-4 bg-[#0d0f12] border border-zinc-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-black text-emerald-400">LINK GENERATED</span>
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    Expires {new Date(scannerToken.expires_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[10px] font-mono text-cyan-300 bg-black px-2 py-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                    {scannerToken.scan_url}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(scannerToken.scan_url);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="p-1.5 border border-zinc-700 hover:border-white transition text-zinc-400 hover:text-white"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+                <p className="text-[10px] font-mono text-zinc-500">
+                  Share this URL with event staff. It opens a minimal scanner — camera only, no JARVIS access.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Face Enrollment Panel */}
       <div className="p-5 bg-[#111318] border border-zinc-800 space-y-4 shadow-lg">

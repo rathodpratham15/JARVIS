@@ -172,6 +172,9 @@ def create_app() -> Flask:
         "/auth/microsoft/login", "/auth/microsoft/callback",
     }
 
+    # Endpoints a scanner token (type="scanner", scope="identify") may access.
+    _SCANNER_ALLOWED = {"/api/face/identify", "/api/camera/recognize"}
+
     # SCIM endpoints use their own Bearer-token auth, not the JARVIS JWT
     def _is_scim(path: str) -> bool:
         return path.startswith("/scim/")
@@ -194,6 +197,10 @@ def create_app() -> Flask:
         payload = _auth_mgr.decode_access_token(token)
         if payload is None:
             return {"error": "token expired or invalid"}, 401
+        # Scanner tokens may only hit identify endpoints — block everything else.
+        if payload.get("type") == "scanner":
+            if request.path not in _SCANNER_ALLOWED:
+                return {"error": "scanner token: insufficient scope"}, 403
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -1322,6 +1329,45 @@ class MyPlugin(BasePlugin):
     # Frontend dashboard expects this name; we keep the route as an alias.
     app.add_url_rule("/api/camera/recognize", view_func=identify_face, methods=["POST"])
 
+    def _require_organizer():
+        """Return a 403 response tuple if the caller lacks organizer/admin role."""
+        user = getattr(request, "current_user", {})
+        # Scanner tokens and plain 'user' role cannot modify the face DB.
+        if user.get("type") == "scanner" or user.get("role") not in ("admin", "organizer"):
+            return {"error": "organizer or admin role required"}, 403
+        return None
+
+    # ── Scanner token management ──────────────────────────────────────────
+
+    @app.post("/api/scanner-token")
+    def create_scanner_token() -> tuple[dict, int]:
+        """Generate a short-lived scanner token for an event.
+
+        Body (JSON):
+          event_name     — label shown on the scanner page (optional)
+          duration_hours — token lifetime, 1–72 (default: 8)
+
+        Returns the token and an expiry timestamp.
+        Only organizers and admins can call this.
+        """
+        err = _require_organizer()
+        if err:
+            return err
+        body = request.get_json(silent=True) or {}
+        event_name = str(body.get("event_name", "")).strip()[:120]
+        duration_hours = max(1, min(72, int(body.get("duration_hours", 8))))
+        organizer_id = getattr(request, "current_user", {}).get("sub", "unknown")
+        token = _auth_mgr.create_scanner_token(organizer_id, event_name, duration_hours)
+        from datetime import datetime, timedelta, timezone
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=duration_hours)).isoformat()
+        return {
+            "token": token,
+            "event_name": event_name,
+            "duration_hours": duration_hours,
+            "expires_at": expires_at,
+            "scan_url": f"{os.getenv('FRONTEND_URL', '')}/scan?token={token}",
+        }, 201
+
     @app.post("/api/face/add-person")
     def face_add_person() -> tuple[dict, int]:
         """Upload one or more face images for a named person.
@@ -1330,6 +1376,9 @@ class MyPlugin(BasePlugin):
           name  — person's display name (required)
           image — one or more image files (required)
         """
+        err = _require_organizer()
+        if err:
+            return err
         if face_engine is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
         name = (request.form.get("name") or "").strip()
@@ -1559,6 +1608,9 @@ class MyPlugin(BasePlugin):
     @app.delete("/api/face/person/<name>")
     def face_delete_person(name: str) -> tuple[dict, int]:
         """Remove an enrolled person by name."""
+        err = _require_organizer()
+        if err:
+            return err
         if face_engine is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
         removed = face_engine.remove_person(name)
