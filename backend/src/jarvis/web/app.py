@@ -476,6 +476,28 @@ def create_app() -> Flask:
             _auth_mgr.revoke_refresh_token(refresh_token)
         return {"ok": True}, 200
 
+    @app.post("/api/auth/make-admin")
+    def auth_make_admin() -> tuple[dict, int]:
+        """Promote the calling user to admin.
+
+        Requires JARVIS_ADMIN_SECRET env var to be set and the correct
+        secret in the request body.  Set the env var in Railway Variables,
+        call this endpoint once, then remove the env var.
+        """
+        admin_secret = os.getenv("JARVIS_ADMIN_SECRET", "")
+        if not admin_secret:
+            return {"error": "JARVIS_ADMIN_SECRET is not configured"}, 403
+        body = request.get_json(silent=True) or {}
+        if body.get("secret") != admin_secret:
+            return {"error": "invalid secret"}, 403
+        user = getattr(request, "current_user", None)
+        if not user:
+            return {"error": "not authenticated"}, 401
+        user_id = user.get("sub")
+        with _auth_mgr._connect() as conn:
+            conn.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))
+        return {"success": True, "user_id": user_id, "role": "admin"}, 200
+
     @app.get("/api/auth/me")
     def auth_me() -> tuple[dict, int]:
         user = getattr(request, "current_user", None)
