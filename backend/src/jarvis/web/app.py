@@ -201,6 +201,13 @@ def create_app() -> Flask:
         if payload.get("type") == "scanner":
             if request.path not in _SCANNER_ALLOWED:
                 return {"error": "scanner token: insufficient scope"}, 403
+            request.current_user = payload  # type: ignore[attr-defined]
+            return
+        # For regular JWTs re-read role from DB so role changes take effect
+        # immediately without requiring a new login.
+        live_user = _auth_mgr.get_user_by_id(payload.get("sub", ""))
+        if live_user:
+            payload = {**payload, "role": live_user["role"]}
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -495,8 +502,16 @@ def create_app() -> Flask:
             return {"error": "not authenticated"}, 401
         user_id = user.get("sub")
         with _auth_mgr._connect() as conn:
-            conn.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))
-        return {"success": True, "user_id": user_id, "role": "admin"}, 200
+            cur = conn.execute("UPDATE users SET role='admin' WHERE id=?", (user_id,))
+            rows_changed = cur.rowcount
+        if rows_changed == 0:
+            return {
+                "error": "user not found in DB",
+                "user_id": user_id,
+                "hint": "auth DB path mismatch — check JARVIS_AUTH_DB env var",
+                "db_path": str(_auth_mgr.db_path),
+            }, 404
+        return {"success": True, "user_id": user_id, "role": "admin", "db_path": str(_auth_mgr.db_path)}, 200
 
     @app.get("/api/auth/me")
     def auth_me() -> tuple[dict, int]:

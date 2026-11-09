@@ -92,6 +92,7 @@ class AuthManager:
         secret_file: str = "data/auth_secret.key",
     ) -> None:
         self._db_path = db_path
+        self.db_path = Path(db_path).resolve()  # absolute path, for diagnostics
         self._secret = self._load_or_create_secret(secret, secret_file)
         self._init_db()
 
@@ -352,6 +353,16 @@ class AuthManager:
         if external_id:
             resource["externalId"] = external_id
         return resource
+
+    def get_user_by_id(self, user_id: str) -> Optional[dict]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, username, email, role FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
 
     def verify_password(self, username: str, password: str) -> Optional[dict]:
         with self._connect() as conn:
