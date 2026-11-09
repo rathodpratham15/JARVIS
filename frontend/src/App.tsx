@@ -911,6 +911,16 @@ export default function App() {
     return <PrivacyPolicy />;
   }
 
+  // Event scanner — public page, auth via ?token= query param
+  if (location.pathname === "/scan") {
+    const ScannerPage = React.lazy(() => import("./components/ScannerPage"));
+    return (
+      <React.Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-cyan-400 font-mono text-sm">INITIALIZING SCANNER…</div>}>
+        <ScannerPage />
+      </React.Suspense>
+    );
+  }
+
   // Landing page — always public
   if (location.pathname === "/") {
     return <LandingPage onEnter={() => navigate("/login")} />;

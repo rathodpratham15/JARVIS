@@ -172,6 +172,9 @@ def create_app() -> Flask:
         "/auth/microsoft/login", "/auth/microsoft/callback",
     }
 
+    # Endpoints a scanner token (type="scanner", scope="identify") may access.
+    _SCANNER_ALLOWED = {"/api/face/identify", "/api/camera/recognize"}
+
     # SCIM endpoints use their own Bearer-token auth, not the JARVIS JWT
     def _is_scim(path: str) -> bool:
         return path.startswith("/scim/")
@@ -194,6 +197,10 @@ def create_app() -> Flask:
         payload = _auth_mgr.decode_access_token(token)
         if payload is None:
             return {"error": "token expired or invalid"}, 401
+        # Scanner tokens may only hit identify endpoints — block everything else.
+        if payload.get("type") == "scanner":
+            if request.path not in _SCANNER_ALLOWED:
+                return {"error": "scanner token: insufficient scope"}, 403
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -294,15 +301,53 @@ def create_app() -> Flask:
     plugins = PluginManager(plugins_dir=os.getenv("JARVIS_PLUGINS_DIR", "plugins"))
     plugins.discover()
 
-    face_engine = FaceRecognitionEngine(
-        data_dir=os.getenv("JARVIS_FACE_DIR", "data/faces"),
-        tolerance=float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5")),
-    ) if _face_available else None
+    # ── Per-user face engine pool ──────────────────────────────────────────
+    # Each authenticated user (and each organizer whose scanner token is used)
+    # gets their own isolated FaceRecognitionEngine backed by a private
+    # data/faces/<user_id>/ directory.  The InsightFace ONNX models are
+    # loaded once globally (see faces._get_shared_app) and shared — only
+    # the face embedding data is per-user.
+    import threading as _threading
+    _face_engines: dict[str, "FaceRecognitionEngine"] = {}
+    _face_engines_lock = _threading.Lock()
+    _face_base_dir = Path(os.getenv("JARVIS_FACE_DIR", "data/faces"))
+    _face_tolerance = float(os.getenv("JARVIS_FACE_TOLERANCE", "0.5"))
 
-    # InsightFace works on Railway (ONNX, no C++ compilation needed).
-    # If it failed to init (missing package), face_engine._app will be None.
-    if face_engine is not None and getattr(face_engine, "_app", None) is None:
-        logger.warning("InsightFace unavailable — face recognition disabled")
+    def _get_face_engine(namespace: str) -> "FaceRecognitionEngine | None":
+        """Return (creating if needed) the FaceRecognitionEngine for `namespace`.
+
+        `namespace` is the user_id of the authenticated user, or the
+        organizer_id embedded in a scanner token.  Returns None when
+        InsightFace is unavailable.
+        """
+        if not _face_available:
+            return None
+        with _face_engines_lock:
+            if namespace not in _face_engines:
+                user_dir = _face_base_dir / namespace
+                engine = FaceRecognitionEngine(
+                    data_dir=user_dir,
+                    tolerance=_face_tolerance,
+                )
+                if getattr(engine, "_app", None) is None:
+                    logger.warning("InsightFace unavailable for namespace %s", namespace)
+                    return None
+                _face_engines[namespace] = engine
+            return _face_engines[namespace]
+
+    def _current_namespace() -> str:
+        """Return the face DB namespace for the current request.
+
+        For regular JWTs: the user's own sub (user_id).
+        For scanner tokens: also sub, which is set to organizer_id at
+        token creation — so the scanner searches only that organizer's DB.
+        """
+        user = getattr(request, "current_user", {})
+        return user.get("sub", "anonymous")
+
+    # Convenience: face_engine for the current request (None when unavailable)
+    def _face_engine() -> "FaceRecognitionEngine | None":
+        return _get_face_engine(_current_namespace())
 
     scene_analyzer = SceneAnalyzer(vision_chain=_vision_chain) if _scene_available and _vision_chain else (SceneAnalyzer() if _scene_available else None)
     scene_history = SceneHistoryStore(
@@ -1265,13 +1310,13 @@ class MyPlugin(BasePlugin):
     @app.post("/api/face/identify")
     def identify_face() -> tuple[dict, int]:
         """Match an uploaded image against the known-faces DB."""
-        if face_engine is None:
+        if _face_engine() is None:
             return {"success": False, "matched": False, "error": "Face recognition unavailable on this server"}, 503
         image = request.files.get("image")
         if image is None or not image.filename:
             return {"success": False, "error": "image file is required"}, 400
         with _saved_upload(image) as path:
-            result = face_engine.recognize_face(path)
+            result = _face_engine().recognize_face(path)
 
         face_id: str | None = None
         if result.matched and result.person and result.confidence >= 0.6:
@@ -1298,11 +1343,11 @@ class MyPlugin(BasePlugin):
                                 "sources": [{"title": s, "url": s, "snippet": ""} for s in profile.sources],
                             }
                             vision_osint_store.set_done(fid, dossier)
-                            if face_engine:
-                                person = next((p for p in face_engine.known_faces if p.name == name), None)
+                            if _face_engine():
+                                person = next((p for p in _face_engine().known_faces if p.name == name), None)
                                 if person:
                                     person.additional_data["dossier"] = dossier
-                                    face_engine.save()
+                                    _face_engine().save()
                         except Exception as exc:
                             vision_osint_store.set_error(fid, str(exc))
                     import threading
@@ -1322,6 +1367,45 @@ class MyPlugin(BasePlugin):
     # Frontend dashboard expects this name; we keep the route as an alias.
     app.add_url_rule("/api/camera/recognize", view_func=identify_face, methods=["POST"])
 
+    def _require_organizer():
+        """Return a 403 response tuple if the caller lacks organizer/admin role."""
+        user = getattr(request, "current_user", {})
+        # Scanner tokens and plain 'user' role cannot modify the face DB.
+        if user.get("type") == "scanner" or user.get("role") not in ("admin", "organizer"):
+            return {"error": "organizer or admin role required"}, 403
+        return None
+
+    # ── Scanner token management ──────────────────────────────────────────
+
+    @app.post("/api/scanner-token")
+    def create_scanner_token() -> tuple[dict, int]:
+        """Generate a short-lived scanner token for an event.
+
+        Body (JSON):
+          event_name     — label shown on the scanner page (optional)
+          duration_hours — token lifetime, 1–72 (default: 8)
+
+        Returns the token and an expiry timestamp.
+        Only organizers and admins can call this.
+        """
+        err = _require_organizer()
+        if err:
+            return err
+        body = request.get_json(silent=True) or {}
+        event_name = str(body.get("event_name", "")).strip()[:120]
+        duration_hours = max(1, min(72, int(body.get("duration_hours", 8))))
+        organizer_id = getattr(request, "current_user", {}).get("sub", "unknown")
+        token = _auth_mgr.create_scanner_token(organizer_id, event_name, duration_hours)
+        from datetime import datetime, timedelta, timezone
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=duration_hours)).isoformat()
+        return {
+            "token": token,
+            "event_name": event_name,
+            "duration_hours": duration_hours,
+            "expires_at": expires_at,
+            "scan_url": f"{os.getenv('FRONTEND_URL', '')}/scan?token={token}",
+        }, 201
+
     @app.post("/api/face/add-person")
     def face_add_person() -> tuple[dict, int]:
         """Upload one or more face images for a named person.
@@ -1330,7 +1414,10 @@ class MyPlugin(BasePlugin):
           name  — person's display name (required)
           image — one or more image files (required)
         """
-        if face_engine is None:
+        err = _require_organizer()
+        if err:
+            return err
+        if _face_engine() is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
         name = (request.form.get("name") or "").strip()
         if not name:
@@ -1342,7 +1429,7 @@ class MyPlugin(BasePlugin):
             return {"success": False, "error": "at least one image file is required"}, 400
 
         # Save images permanently under data/faces/<name>/
-        person_dir = face_engine.data_dir / secure_filename(name)
+        person_dir = _face_engine().data_dir / secure_filename(name)
         person_dir.mkdir(parents=True, exist_ok=True)
         saved_paths: list[str] = []
         tmp_paths: list[str] = []
@@ -1360,7 +1447,7 @@ class MyPlugin(BasePlugin):
                 saved_paths.append(dest)
 
             metadata = {"organization": organization} if organization else {}
-            person = face_engine.add_person(name=name, image_paths=saved_paths, metadata=metadata)
+            person = _face_engine().add_person(name=name, image_paths=saved_paths, metadata=metadata)
             if person is None:
                 # Clean up saved images if encoding failed
                 for p in saved_paths:
@@ -1368,13 +1455,16 @@ class MyPlugin(BasePlugin):
                         os.unlink(p)
                     except OSError:
                         pass
-                return {"success": False, "error": "No valid face images processed"}, 422
+                return {
+                    "success": False,
+                    "error": "No face detected in the uploaded image. Make sure the face is clearly visible, well-lit, and looking roughly toward the camera.",
+                }, 422
 
             return {
                 "success": True,
                 "name": person.name,
                 "images_added": len(saved_paths),
-                "statistics": face_engine.get_statistics(),
+                "statistics": _face_engine().get_statistics(),
             }, 200
         finally:
             # Only clean up any remaining temp files (already replaced above)
@@ -1394,23 +1484,23 @@ class MyPlugin(BasePlugin):
         tolerance = request.form.get("tolerance")
         if tolerance:
             try:
-                face_engine.tolerance = float(tolerance)
+                _face_engine().tolerance = float(tolerance)
             except ValueError:
                 return {"success": False, "error": "tolerance must be a number"}, 400
         with _saved_upload(excel, suffix=".xlsx") as path:
             try:
-                added = face_engine.load_from_excel(path, images_folder=images_folder)
+                added = _face_engine().load_from_excel(path, images_folder=images_folder)
             except ValueError as exc:
                 return {"success": False, "error": str(exc)}, 400
         return {
             "success": True,
             "message": f"Imported {added} people.",
-            "statistics": face_engine.get_statistics(),
+            "statistics": _face_engine().get_statistics(),
         }, 200
 
     @app.get("/api/face/statistics")
     def face_statistics() -> tuple[dict, int]:
-        return {"statistics": face_engine.get_statistics()}, 200
+        return {"statistics": _face_engine().get_statistics()}, 200
 
     @app.get("/api/face/image")
     def face_image():
@@ -1419,7 +1509,7 @@ class MyPlugin(BasePlugin):
         if not name:
             return {"error": "name is required"}, 400
         person = next(
-            (p for p in face_engine.known_faces if p.name.lower() == name.lower()),
+            (p for p in _face_engine().known_faces if p.name.lower() == name.lower()),
             None,
         )
         if not person or not person.primary_image_path:
@@ -1429,15 +1519,15 @@ class MyPlugin(BasePlugin):
         p = Path(stored)
 
         # Resolve relative paths: stored as "data/faces/images/..." relative
-        # to the backend root (two levels above face_engine.data_dir).
+        # to the backend root (two levels above _face_engine().data_dir).
         # Try multiple bases so the endpoint works regardless of CWD.
         candidates = [p]
         if not p.is_absolute():
             candidates = [
                 Path.cwd() / stored,
-                face_engine.data_dir.parent.parent / stored,
-                face_engine.data_dir.parent / stored,
-                face_engine.data_dir / stored,
+                _face_engine().data_dir.parent.parent / stored,
+                _face_engine().data_dir.parent / stored,
+                _face_engine().data_dir / stored,
             ]
 
         img_path = next((c for c in candidates if c.exists()), None)
@@ -1552,36 +1642,39 @@ class MyPlugin(BasePlugin):
     @app.get("/api/face/list")
     def face_list() -> tuple[dict, int]:
         """Return all enrolled people with their metadata and avatar URLs."""
-        if face_engine is None:
+        if _face_engine() is None:
             return {"people": []}, 200
-        return {"people": [_person_to_dict(p) for p in face_engine.known_faces]}, 200
+        return {"people": [_person_to_dict(p) for p in _face_engine().known_faces]}, 200
 
     @app.delete("/api/face/person/<name>")
     def face_delete_person(name: str) -> tuple[dict, int]:
         """Remove an enrolled person by name."""
-        if face_engine is None:
+        err = _require_organizer()
+        if err:
+            return err
+        if _face_engine() is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
-        removed = face_engine.remove_person(name)
+        removed = _face_engine().remove_person(name)
         if not removed:
             return {"success": False, "error": f"Person '{name}' not found"}, 404
-        return {"success": True, "remaining": len(face_engine.known_faces)}, 200
+        return {"success": True, "remaining": len(_face_engine().known_faces)}, 200
 
     @app.post("/api/face/person/<name>/dossier")
     def face_save_dossier(name: str) -> tuple[dict, int]:
         """Cache a research dossier against a known person so repeat scans
         return it instantly without re-running the research pipeline."""
-        if face_engine is None:
+        if _face_engine() is None:
             return {"success": False, "error": "Face recognition unavailable"}, 503
         payload = request.get_json(silent=True) or {}
         dossier = payload.get("dossier")
         if not dossier:
             return {"success": False, "error": "dossier is required"}, 400
-        person = next((p for p in face_engine.known_faces if p.name == name), None)
+        person = next((p for p in _face_engine().known_faces if p.name == name), None)
         if person is None:
             return {"success": False, "error": f"Person '{name}' not found"}, 404
         person.additional_data["dossier"] = dossier
         person.additional_data["dossier_cached_at"] = datetime.now(timezone.utc).isoformat()
-        face_engine.save()
+        _face_engine().save()
         return {"success": True}, 200
 
     @app.post("/api/face/reencode-all")
@@ -1591,15 +1684,15 @@ class MyPlugin(BasePlugin):
         Called after upgrading from dlib to InsightFace — all existing
         128-dim encodings are empty; this rebuilds them from the saved images.
         """
-        if face_engine is None:
+        if _face_engine() is None:
             return {"error": "Face recognition unavailable"}, 503
         results = []
-        for person in face_engine.known_faces:
+        for person in _face_engine().known_faces:
             valid_paths = [p for p in person.image_paths if os.path.exists(p)]
-            new_encs = [enc for p in valid_paths if (enc := face_engine.encode(p)) is not None]
+            new_encs = [enc for p in valid_paths if (enc := _face_engine().encode(p)) is not None]
             person.face_encodings = new_encs
             results.append({"name": person.name, "encodings": len(new_encs), "paths_found": len(valid_paths)})
-        face_engine.save()
+        _face_engine().save()
         ok = [r for r in results if r["encodings"] > 0]
         failed = [r for r in results if r["encodings"] == 0]
         return {"reencoded": len(ok), "failed": len(failed), "details": results}, 200
@@ -1610,7 +1703,7 @@ class MyPlugin(BasePlugin):
         export_path = captures_dir.parent / "faces_export.json"
         payload = {
             "exported_at": datetime.now(timezone.utc).isoformat(),
-            "tolerance": face_engine.tolerance,
+            "tolerance": _face_engine().tolerance,
             "people": [
                 {
                     "name": p.name,
@@ -1621,7 +1714,7 @@ class MyPlugin(BasePlugin):
                     "encoding_count": len(p.face_encodings),
                     "additional_data": p.additional_data,
                 }
-                for p in face_engine.known_faces
+                for p in _face_engine().known_faces
             ],
         }
         export_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
@@ -1779,7 +1872,7 @@ class MyPlugin(BasePlugin):
             "interactions": memory.count(user_id=uid),
             "notes": notes.count(user_id=uid),
             "plugins": len(plugins.list()),
-            "people": face_engine.get_statistics()["total_people"] if face_engine else 0,
+            "people": _face_engine().get_statistics()["total_people"] if _face_engine() else 0,
         }, 200
 
     @app.route("/api/dashboard/notes", methods=["GET", "POST", "DELETE"])
