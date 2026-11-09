@@ -10,3 +10,13 @@ aptPkgs = [
     "libgl1",
     "libglib2.0-0",
 ]
+
+# insightface pulls in opencv-python (full) as a transitive dep which requires
+# libxcb (not available headless). Force-remove it after install so only
+# opencv-python-headless remains.
+[phases.install]
+cmds = [
+    "pip install -r backend/requirements.txt",
+    "pip uninstall -y opencv-python || true",
+    "pip install opencv-python-headless>=4.8.0",
+]
