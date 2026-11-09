@@ -128,14 +128,14 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   "/schedules": "schedules", "/permissions": "permissions",
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
   "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
-  "/research": "research", "/contacts": "contacts",
+  "/research": "research", "/contacts": "contacts", "/discoveries": "discoveries",
 };
 const PAGE_TO_PATH: Record<PageId, string> = {
   dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
   tasks: "/tasks", schedules: "/schedules", permissions: "/permissions",
   computer: "/computer", notes: "/notes", reminders: "/reminders",
   settings: "/settings", memory: "/memory", plugins: "/plugins",
-  research: "/research", contacts: "/contacts",
+  research: "/research", contacts: "/contacts", discoveries: "/discoveries",
 };
 
 export default function App() {

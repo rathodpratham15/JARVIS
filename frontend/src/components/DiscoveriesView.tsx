@@ -91,10 +91,10 @@ export const DiscoveriesView: React.FC = () => {
 
   const searchLower = search.toLowerCase();
 
-  const filteredGrouped = search
+  const filteredGrouped: Record<string, Discovery[]> = search
     ? Object.fromEntries(
-        Object.entries(grouped)
-          .map(([ev, people]) => [
+        (Object.entries(grouped) as [string, Discovery[]][])
+          .map(([ev, people]): [string, Discovery[]] => [
             ev,
             people.filter(
               p =>
@@ -103,7 +103,7 @@ export const DiscoveriesView: React.FC = () => {
                 ev.toLowerCase().includes(searchLower)
             ),
           ])
-          .filter(([, people]) => (people as Discovery[]).length > 0)
+          .filter(([, people]) => people.length > 0)
       )
     : grouped;
 
