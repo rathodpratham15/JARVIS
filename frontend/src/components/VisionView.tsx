@@ -21,6 +21,9 @@ import {
   QrCode,
   Copy,
   Check,
+  CalendarCheck,
+  LogIn,
+  X,
 } from "lucide-react";
 import { DetectedFace, VisionSnapshot, ResearchDossier } from "../types";
 import { playUiSound } from "../utils/audio";
@@ -32,10 +35,23 @@ interface EnrolledPerson {
   image_url?: string;
 }
 
+interface ActiveEvent {
+  event_id: string;
+  event_name: string;
+  face_namespace: string;
+}
+
+interface JoinedEvent {
+  id: string;
+  name: string;
+  face_namespace: string;
+  panelist_count?: number;
+}
+
 interface VisionViewProps {
   faces: DetectedFace[];
   snapshots: VisionSnapshot[];
-  onAnalyzeOpticalFeed: (imageBase64?: string, onSceneUpdate?: (r: any) => void) => Promise<any>;
+  onAnalyzeOpticalFeed: (imageBase64?: string, onSceneUpdate?: (r: any) => void, eventNamespace?: string) => Promise<any>;
   accentColor?: string;
 }
 
@@ -92,6 +108,14 @@ export const VisionView: React.FC<VisionViewProps> = ({
   // Track scan result for saving (profession + photo from matched person)
   const [lastScanProfession, setLastScanProfession] = useState<string | null>(null);
   const [lastScanImageUrl, setLastScanImageUrl] = useState<string | null>(null);
+
+  // Event mode: user joins an event and scans against that event's face DB
+  const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
+  const [joinedEvents, setJoinedEvents] = useState<JoinedEvent[]>([]);
+  const [eventPanel, setEventPanel] = useState(false);
+  const [eventCodeInput, setEventCodeInput] = useState("");
+  const [joiningEvent, setJoiningEvent] = useState(false);
+  const [joinEventError, setJoinEventError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -192,6 +216,43 @@ export const VisionView: React.FC<VisionViewProps> = ({
     }
   };
 
+  const loadJoinedEvents = async () => {
+    try {
+      const res = await apiFetch("/api/events/my");
+      if (res.ok) {
+        const data = await res.json();
+        setJoinedEvents(data.events ?? []);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleJoinEvent = async () => {
+    if (!eventCodeInput.trim()) return;
+    setJoiningEvent(true);
+    setJoinEventError(null);
+    try {
+      const res = await apiFetch("/api/events/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_code: eventCodeInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setJoinEventError(data.error ?? "Invalid code"); return; }
+      const ev: ActiveEvent = {
+        event_id: data.event_id,
+        event_name: data.event_name,
+        face_namespace: data.face_namespace,
+      };
+      setActiveEvent(ev);
+      setSaveEventName(data.event_name);
+      setEventCodeInput("");
+      setEventPanel(false);
+      await loadJoinedEvents();
+    } finally {
+      setJoiningEvent(false);
+    }
+  };
+
   const handleSaveToContacts = async () => {
     const name = confirmedName || faces[0]?.name;
     if (!name) return;
@@ -204,7 +265,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
           name,
           profession: lastScanProfession,
           photo_url: lastScanImageUrl,
-          event_name: saveEventName.trim() || "General",
+          event_name: saveEventName.trim() || activeEvent?.event_name || "General",
         }),
       });
       if (res.ok) {
@@ -308,6 +369,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
   useEffect(() => {
     startCamera();
     fetchEnrolled();
+    loadJoinedEvents();
     return () => { stopCurrentStream(); };
   }, []);
 
@@ -335,7 +397,7 @@ export const VisionView: React.FC<VisionViewProps> = ({
       const res = await onAnalyzeOpticalFeed(imageBase64, (sceneResult: any) => {
         setAnalysisResult((prev: any) => ({ ...prev, ...sceneResult }));
         setIsAnalyzingScene(false);
-      });
+      }, activeEvent?.face_namespace);
 
       // Unlock UI immediately after face ID
       setAnalysisResult(res);
@@ -357,10 +419,14 @@ export const VisionView: React.FC<VisionViewProps> = ({
         const cachedDossier = res.facePerson?.additional_data?.dossier ?? null;
         setLastScanProfession(org ?? null);
         setLastScanImageUrl(res.facePerson?.image_url ?? null);
-        // Pre-load existing events for the save form
-        apiFetch("/api/discoveries/events").then(r => r.ok ? r.json() : null).then(d => {
-          if (d?.events) setExistingEvents(d.events.map((e: any) => e.event_name));
-        }).catch(() => {});
+        // Auto-fill save form: active event takes priority, else user's past events
+        if (activeEvent) {
+          setSaveEventName(activeEvent.event_name);
+        } else {
+          apiFetch("/api/discoveries/events").then(r => r.ok ? r.json() : null).then(d => {
+            if (d?.events) setExistingEvents(d.events.map((e: any) => e.event_name));
+          }).catch(() => {});
+        }
         runOsint(res.faceMatch, org, cachedDossier);
       } else if (imageBase64) {
         runReverseSearch(imageBase64);
@@ -572,6 +638,94 @@ export const VisionView: React.FC<VisionViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Active Event Banner */}
+      {activeEvent && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-cyan-950/40 border border-cyan-800">
+          <div className="flex items-center gap-2">
+            <CalendarCheck className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <div>
+              <p className="text-[10px] text-cyan-500 font-black uppercase tracking-widest">EVENT MODE ACTIVE</p>
+              <p className="text-cyan-200 font-black text-sm">{activeEvent.event_name}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setActiveEvent(null); setSaveEventName(""); }}
+            className="text-zinc-500 hover:text-zinc-300 p-1"
+            title="Leave event mode"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Join Event Panel */}
+      <div className="bg-[#111318] border border-zinc-800 shadow-lg">
+        <button
+          onClick={() => setEventPanel(v => !v)}
+          className="w-full flex items-center justify-between p-4 hover:bg-zinc-900 transition"
+        >
+          <span className="flex items-center gap-2 text-xs font-heading font-black uppercase tracking-widest text-white">
+            <LogIn className="w-4 h-4" />
+            JOIN EVENT
+          </span>
+          <span className="text-zinc-500 text-[10px] font-mono">
+            {eventPanel ? "COLLAPSE ▲" : "ENTER CODE ▼"}
+          </span>
+        </button>
+
+        {eventPanel && (
+          <div className="border-t border-zinc-800 p-4 space-y-3">
+            <p className="text-xs text-zinc-400 font-mono">
+              Enter the access code given at the event. The scanner will then search the event's registered panelists and speakers.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={eventCodeInput}
+                onChange={e => setEventCodeInput(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === "Enter" && handleJoinEvent()}
+                placeholder="e.g. NEC2026XK"
+                maxLength={12}
+                className="flex-1 bg-[#0d0f12] border border-zinc-800 text-white font-mono font-black text-sm px-3 py-2 tracking-widest focus:outline-none focus:border-cyan-800 uppercase placeholder-zinc-600"
+              />
+              <button
+                onClick={handleJoinEvent}
+                disabled={joiningEvent || !eventCodeInput.trim()}
+                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs disabled:opacity-40"
+              >
+                {joiningEvent ? "JOINING…" : "JOIN"}
+              </button>
+            </div>
+            {joinEventError && <p className="text-red-400 text-xs">{joinEventError}</p>}
+
+            {/* Previously joined events quick-select */}
+            {joinedEvents.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">YOUR EVENTS</p>
+                {joinedEvents.map(ev => (
+                  <button
+                    key={ev.id}
+                    onClick={() => {
+                      setActiveEvent({ event_id: ev.id, event_name: ev.name, face_namespace: ev.face_namespace });
+                      setSaveEventName(ev.name);
+                      setEventPanel(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition border ${
+                      activeEvent?.event_id === ev.id
+                        ? "border-cyan-700 bg-cyan-950/30 text-cyan-300"
+                        : "border-zinc-800 hover:border-zinc-600 text-zinc-300"
+                    }`}
+                  >
+                    <span className="font-black">{ev.name}</span>
+                    <span className="text-zinc-500">{ev.panelist_count ?? 0} panelists</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Event Scanner Token Generator */}
       <div className="bg-[#111318] border border-zinc-800 shadow-lg">
