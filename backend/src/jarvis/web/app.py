@@ -358,6 +358,24 @@ def create_app() -> Flask:
 
     from jarvis.core.vision_osint_store import VisionOsintStore
     vision_osint_store = VisionOsintStore(db_path=os.getenv("JARVIS_VISION_OSINT_DB", "data/vision_osint.db"))
+
+    # ── Per-user discovery store pool ─────────────────────────────────────
+    from jarvis.core.discovery_store import DiscoveryStore
+    _discovery_stores: dict[str, DiscoveryStore] = {}
+    _discovery_stores_lock = _threading.Lock()
+    _discovery_base_dir = Path(os.getenv("JARVIS_DISCOVERY_DIR", "data/discoveries"))
+
+    def _get_discovery_store(user_id: str) -> DiscoveryStore:
+        with _discovery_stores_lock:
+            if user_id not in _discovery_stores:
+                _discovery_stores[user_id] = DiscoveryStore(
+                    _discovery_base_dir / f"{user_id}.db"
+                )
+            return _discovery_stores[user_id]
+
+    def _discovery_store() -> DiscoveryStore:
+        user = getattr(request, "current_user", {})
+        return _get_discovery_store(user.get("sub", "anonymous"))
     system_controller = ActionController(
         log_path=os.getenv("JARVIS_SYSTEM_LOG", "logs/system_actions.jsonl"),
     ) if _system_available else None
@@ -1719,6 +1737,75 @@ class MyPlugin(BasePlugin):
         }
         export_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
         return {"success": True, "path": str(export_path), "people": len(payload["people"])}, 200
+
+    # ── discoveries (event-grouped saved contacts) ────────────────────────
+
+    @app.post("/api/discoveries")
+    def discovery_save() -> tuple[dict, int]:
+        """Save a scanned person into the caller's personal discovery log.
+
+        Body (JSON):
+          name             — person's display name (required)
+          event_name       — event context, e.g. "TechCrunch 2026" (default "General")
+          profession       — optional job title / role
+          photo_url        — optional face image URL
+          source_namespace — optional organizer user_id this came from
+          notes            — optional free-text notes
+        """
+        body = request.get_json(silent=True) or {}
+        name = (body.get("name") or "").strip()
+        if not name:
+            return {"error": "name is required"}, 400
+        store = _discovery_store()
+        discovery = store.save(
+            name=name,
+            profession=body.get("profession"),
+            photo_url=body.get("photo_url"),
+            event_name=(body.get("event_name") or "General").strip(),
+            notes=body.get("notes"),
+            source_namespace=body.get("source_namespace"),
+        )
+        return discovery, 201
+
+    @app.get("/api/discoveries")
+    def discovery_list() -> tuple[dict, int]:
+        """List the caller's saved discoveries, optionally filtered by event.
+
+        Query params:
+          event — filter to a single event name (optional)
+        """
+        event = request.args.get("event")
+        store = _discovery_store()
+        if event:
+            items = store.list_all(event_name=event)
+            return {"discoveries": items, "total": len(items)}, 200
+        grouped = store.grouped_by_event()
+        events_meta = store.list_events()
+        total = sum(e["count"] for e in events_meta)
+        return {"grouped": grouped, "events": events_meta, "total": total}, 200
+
+    @app.get("/api/discoveries/events")
+    def discovery_events() -> tuple[dict, int]:
+        """List all event names with counts."""
+        return {"events": _discovery_store().list_events()}, 200
+
+    @app.patch("/api/discoveries/<discovery_id>")
+    def discovery_update(discovery_id: str) -> tuple[dict, int]:
+        """Update the notes on a saved discovery."""
+        body = request.get_json(silent=True) or {}
+        notes = body.get("notes", "")
+        ok = _discovery_store().update_notes(discovery_id, notes)
+        if not ok:
+            return {"error": "discovery not found"}, 404
+        return {"success": True}, 200
+
+    @app.delete("/api/discoveries/<discovery_id>")
+    def discovery_delete(discovery_id: str) -> tuple[dict, int]:
+        """Remove a saved discovery."""
+        ok = _discovery_store().delete(discovery_id)
+        if not ok:
+            return {"error": "discovery not found"}, 404
+        return {"success": True}, 200
 
     # ── system control ────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@ import {
   Eye,
   Search,
   Users,
+  BookUser,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -76,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: "research", label: "Research", code: "11", icon: <Search className="w-4 h-4" /> },
     { id: "contacts", label: "Contacts", code: "13", icon: <Users className="w-4 h-4" /> },
+    { id: "discoveries", label: "My Contacts", code: "15", icon: <BookUser className="w-4 h-4" /> },
     { id: "settings", label: "Settings", code: "14", icon: <Settings className="w-4 h-4" /> },
   ];
 

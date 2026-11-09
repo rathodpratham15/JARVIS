@@ -39,6 +39,7 @@ import { PluginsView } from "./components/PluginsView";
 import { ResearchModal } from "./components/ResearchModal";
 import { ResearchView } from "./components/ResearchView";
 import { ContactsView } from "./components/ContactsView";
+import { DiscoveriesView } from "./components/DiscoveriesView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
@@ -127,14 +128,14 @@ const PATH_TO_PAGE: Record<string, PageId> = {
   "/schedules": "schedules", "/permissions": "permissions",
   "/computer": "computer", "/notes": "notes", "/reminders": "reminders",
   "/settings": "settings", "/memory": "memory", "/plugins": "plugins",
-  "/research": "research", "/contacts": "contacts",
+  "/research": "research", "/contacts": "contacts", "/discoveries": "discoveries",
 };
 const PAGE_TO_PATH: Record<PageId, string> = {
   dashboard: "/dashboard", chat: "/chat", voice: "/voice", vision: "/vision",
   tasks: "/tasks", schedules: "/schedules", permissions: "/permissions",
   computer: "/computer", notes: "/notes", reminders: "/reminders",
   settings: "/settings", memory: "/memory", plugins: "/plugins",
-  research: "/research", contacts: "/contacts",
+  research: "/research", contacts: "/contacts", discoveries: "/discoveries",
 };
 
 export default function App() {
@@ -1210,6 +1211,9 @@ export default function App() {
               onUpdate={handleUpdateContact}
               onDelete={handleDeleteContact}
             />
+          )}
+          {currentPage === "discoveries" && (
+            <DiscoveriesView />
           )}
         </main>
       </div>

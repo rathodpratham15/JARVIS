@@ -13,7 +13,8 @@ export type PageId =
   | "memory"
   | "plugins"
   | "research"
-  | "contacts";
+  | "contacts"
+  | "discoveries";
 
 export interface Contact {
   id: string;
