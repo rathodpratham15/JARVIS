@@ -2156,6 +2156,22 @@ class MyPlugin(BasePlugin):
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
 
+    @app.get("/api/memories")
+    def list_memories() -> tuple[dict, int]:
+        """Map notes → MemoryItem shape expected by the frontend."""
+        uid = _uid()
+        raw = notes.list(user_id=uid)
+        def _to_memory(n: dict) -> dict:
+            return {
+                "id": n.get("id", ""),
+                "title": n.get("title") or n.get("content", "")[:40],
+                "content": n.get("content", ""),
+                "category": "Personal",
+                "importance": "Medium",
+                "createdAt": n.get("created_at", ""),
+            }
+        return [_to_memory(n) for n in raw], 200
+
     @app.patch("/api/notes/<note_id>")
     def update_note(note_id: str) -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
