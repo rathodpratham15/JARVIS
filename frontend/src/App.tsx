@@ -21,26 +21,10 @@ import {
   Contact,
 } from "./types";
 import { Sidebar } from "./components/Sidebar";
-import { Header } from "./components/Header";
-import { StatusBar } from "./components/StatusBar";
 import { ChatView } from "./components/ChatView";
-import { TasksView } from "./components/TasksView";
-import { SchedulesView } from "./components/SchedulesView";
-import { PermissionsView } from "./components/PermissionsView";
-import { ComputerUseView } from "./components/ComputerUseView";
-import { NotesView } from "./components/NotesView";
-import { RemindersView } from "./components/RemindersView";
 import { SettingsView } from "./components/SettingsView";
-import { DashboardView } from "./components/DashboardView";
-import { VoiceView } from "./components/VoiceView";
-import { VisionView } from "./components/VisionView";
-import { MemoryView } from "./components/MemoryView";
-import { PluginsView } from "./components/PluginsView";
-import { ResearchModal } from "./components/ResearchModal";
-import { ResearchView } from "./components/ResearchView";
 import { ContactsView } from "./components/ContactsView";
 import { DiscoveriesView } from "./components/DiscoveriesView";
-import { AgentTaskModal } from "./components/AgentTaskModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
@@ -955,271 +939,64 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0f12] text-white flex flex-row font-sans selection:bg-[#00E5FF] selection:text-black">
+    <div className="min-h-screen bg-[#0f0f10] text-white flex font-sans">
       <Sidebar
         currentPage={currentPage}
         onSelectPage={setCurrentPage}
-        accentColor={accentColor}
-        runningTasksCount={tasks.filter(t => t.status === "running").length}
-        activeSchedulesCount={schedules.filter(s => s.enabled).length}
-        permissionsCount={permissions.length}
-        dueRemindersCount={reminders.filter(r => !r.isDismissed).length}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleSidebarCollapse}
+        chatMessages={chatMessages}
+        onNewChat={() => setChatMessages([])}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        currentUser={authedUser}
+        onLogout={async () => {
+          await authLogout();
+          setAuthedUser(null);
+          setAuthRequired(true);
+        }}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header
-          currentPage={currentPage}
-          onSelectPage={setCurrentPage}
-          services={services}
-          personalityMode={personalityMode}
-          onSelectPersonality={handleSetPersonality}
-          onOpenResearch={() => setIsResearchOpen(true)}
-          speechEnabled={speechEnabled}
-          onToggleSpeech={handleToggleSpeech}
-          accentColor={accentColor}
-          onChangeAccentColor={handleSetAccentColor}
-          onToggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)}
-          notifications={notifications}
-          onMarkAllRead={handleMarkAllRead}
-          onNotificationClick={handleNotificationClick}
-          currentUser={authedUser}
-          onLogout={async () => {
-            await authLogout();
-            setAuthedUser(null);
-            setAuthRequired(true);
-          }}
-        />
+      <div className="flex-1 min-w-0">
+        {(currentPage === "chat" || currentPage === "dashboard" || currentPage === "voice" || currentPage === "vision") && (
+          <ChatView
+            messages={chatMessages}
+            onSendMessage={handleSendMessage}
+            onClearHistory={() => setChatMessages([])}
+            onSaveToMemory={(title, content) => handleAddMemory({ title, content, category: "Project", importance: "High", tags: ["ChatRecall"] })}
+            onSaveToNote={(title, content) => handleAddNote({ title, content, priority: "High", isReminder: false, completed: false, tags: ["ChatDirective"] })}
+            personalityMode={personalityMode}
+            memoriesCount={memories.length}
+            onSelectPersonality={handleSetPersonality}
+          />
+        )}
 
-        <StatusBar
-          services={services}
-          activeTasksCount={tasks.filter(t => t.status === "running").length}
-          activeJobsCount={schedules.filter(s => s.enabled).length}
-          permissionsGranted={permissions.filter(p => p.enabled).length}
-          permissionsTotal={permissions.length}
-        />
+        {currentPage === "settings" && (
+          <SettingsView
+            personalityMode={personalityMode}
+            onSelectPersonality={handleSetPersonality}
+            speechEnabled={speechEnabled}
+            onToggleSpeech={handleToggleSpeech}
+            accentColor={accentColor}
+            onChangeAccentColor={handleSetAccentColor}
+            wakeWord={wakeWord}
+            onChangeWakeWord={() => {}}
+            wearableMode={wearableMode}
+            onToggleWearableMode={handleToggleWearableMode}
+            hideVoiceTranscript={hideVoiceTranscript}
+            onToggleHideVoiceTranscript={handleToggleHideVoiceTranscript}
+          />
+        )}
 
-        <main className="flex-1 overflow-y-auto">
-          {currentPage === "dashboard" && (
-            <DashboardView
-              services={services}
-              logs={logs}
-              activeAgentTask={activeAgentTask}
-              onSelectPage={setCurrentPage}
-              onOpenResearch={() => setIsResearchOpen(true)}
-              onOpenAgentTask={() => setIsAgentTaskOpen(true)}
-              personalityMode={personalityMode}
-              onSelectPersonality={handleSetPersonality}
-              speechEnabled={speechEnabled}
-              onToggleSpeech={handleToggleSpeech}
-              accentColor={accentColor}
-              onChangeAccentColor={handleSetAccentColor}
-              messagesCount={chatMessages.length}
-              notesCount={notes.length}
-              schedulesCount={schedules.length}
-              tasksCompletedCount={tasks.filter(t => t.status === "completed").length}
-              tasksRunningCount={tasks.filter(t => t.status === "running").length}
-              remindersCount={reminders.filter(r => !r.isDismissed).length}
-            />
-          )}
+        {currentPage === "contacts" && (
+          <ContactsView
+            contacts={contacts}
+            onAdd={handleAddContact}
+            onUpdate={handleUpdateContact}
+            onDelete={handleDeleteContact}
+          />
+        )}
 
-          {currentPage === "chat" && (
-            <ChatView
-              messages={chatMessages}
-              onSendMessage={handleSendMessage}
-              onClearHistory={() => setChatMessages([])}
-              onSaveToMemory={(title, content) => handleAddMemory({ title, content, category: "Project", importance: "High", tags: ["ChatRecall"] })}
-              onSaveToNote={(title, content) => handleAddNote({ title, content, priority: "High", isReminder: false, completed: false, tags: ["ChatDirective"] })}
-              personalityMode={personalityMode}
-              memoriesCount={memories.length}
-              onSelectPersonality={handleSetPersonality}
-            />
-          )}
-
-          {currentPage === "tasks" && (
-            <TasksView
-              tasks={tasks}
-              onExecuteAgentTask={handleExecuteAgentTask}
-              onDeleteTask={handleDeleteTask}
-              onRenameTask={handleRenameTask}
-            />
-          )}
-
-          {currentPage === "schedules" && (
-            <SchedulesView
-              schedules={schedules}
-              onToggleSchedule={handleToggleSchedule}
-              onRunScheduleNow={handleRunScheduleNow}
-              onDeleteSchedule={handleDeleteSchedule}
-              onCreateSchedule={handleCreateSchedule}
-            />
-          )}
-
-          {currentPage === "permissions" && (
-            <PermissionsView permissions={permissions} onTogglePermission={handleTogglePermission} />
-          )}
-
-          {currentPage === "computer" && <ComputerUseView />}
-
-          {currentPage === "notes" && (
-            <NotesView
-              notes={notes}
-              onAddNote={handleAddNote}
-              onEditNote={handleEditNote}
-              onToggleCompleteNote={handleToggleCompleteNote}
-              onDeleteNote={handleDeleteNote}
-            />
-          )}
-
-          {currentPage === "reminders" && (
-            <RemindersView
-              reminders={reminders}
-              onAddReminder={handleAddReminder}
-              onDismissReminder={handleDismissReminder}
-              onSnoozeReminder={handleSnoozeReminder}
-              onDeleteReminder={handleDeleteReminder}
-            />
-          )}
-
-          {currentPage === "settings" && (
-            <SettingsView
-              personalityMode={personalityMode}
-              onSelectPersonality={handleSetPersonality}
-              speechEnabled={speechEnabled}
-              onToggleSpeech={handleToggleSpeech}
-              accentColor={accentColor}
-              onChangeAccentColor={handleSetAccentColor}
-              wakeWord={wakeWord}
-              onChangeWakeWord={() => {}}
-              wearableMode={wearableMode}
-              onToggleWearableMode={handleToggleWearableMode}
-              hideVoiceTranscript={hideVoiceTranscript}
-              onToggleHideVoiceTranscript={handleToggleHideVoiceTranscript}
-            />
-          )}
-
-          {currentPage === "voice" && (
-            <VoiceView
-              onProcessVoiceCommand={async t => await handleSendMessage(t, undefined, true)}
-              wakeWord={wakeWord}
-              accentColor={accentColor}
-              hideTranscript={hideVoiceTranscript}
-            />
-          )}
-
-          {currentPage === "vision" && (
-            <VisionView
-              faces={faces}
-              snapshots={snapshots}
-              onAnalyzeOpticalFeed={async (imageBase64?: string, onSceneUpdate?: (r: any) => void) => {
-                if (!imageBase64) return { sceneDescription: "No image captured.", threatLevel: "Unknown", environmentDetails: "" };
-
-                // Convert base64 data URL to Blob
-                const [, b64] = imageBase64.split(",");
-                const bytes = atob(b64);
-                const arr = new Uint8Array(bytes.length);
-                for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-                const blob = new Blob([arr], { type: "image/jpeg" });
-
-                // ① Face recognition — await it (fast, ~200ms)
-                const faceForm = new FormData();
-                faceForm.append("image", blob, "frame.jpg");
-                const faceRes = await apiFetch(`/api/face/identify`, { method: "POST", body: faceForm })
-                  .then(async r => ({ ok: r.ok, status: r.status, data: await r.json() }))
-                  .catch(() => ({ ok: false, status: 0, data: {} }));
-                const face = faceRes.data;
-
-                if (faceRes.status === 503) {
-                  // Face recognition not available on this server (e.g. dlib not installed)
-                  setFaces([]);
-                } else if (face.matched && face.person) {
-                  const p = face.person;
-                  setFaces([{
-                    id: p.id ?? "match-1",
-                    name: p.name ?? "Unknown",
-                    role: p.role ?? p.profession ?? "",
-                    clearanceLevel: 1,
-                    status: "Authorized",
-                    confidence: Math.round((face.confidence ?? 0) * 100),
-                    lastSeen: new Date().toLocaleTimeString(),
-                    avatarUrl: p.image_url ?? undefined,
-                  }]);
-                } else {
-                  setFaces([]);
-                }
-
-                // ② Scene analysis — fire in background, don't block (slow, ~10-25s)
-                const sceneForm = new FormData();
-                sceneForm.append("image", blob, "frame.jpg");
-                apiFetch(`/api/vision/analyze`, { method: "POST", body: sceneForm })
-                  .then(async r => {
-                    if (r.status === 503) throw new Error("Scene analysis not available on this server");
-                    if (!r.ok) throw new Error(`Server error ${r.status}`);
-                    return r.json();
-                  })
-                  .then(scene => {
-                    onSceneUpdate?.({
-                      sceneDescription: scene.results?.description ?? scene.results?.scene_description ?? scene.description ?? "Scene analyzed.",
-                      threatLevel: "Nominal (0%)",
-                      environmentDetails: scene.results?.scene_type ?? scene.scene_type ?? "general",
-                    });
-                  })
-                  .catch(err => {
-                    onSceneUpdate?.({ sceneDescription: err.message });
-                  });
-
-                // Return immediately with face result; scene arrives via callback
-                return {
-                  sceneDescription: "",
-                  threatLevel: "Nominal (0%)",
-                  environmentDetails: "",
-                  faceMatch: face.matched ? face.person?.name : null,
-                  facePerson: face.matched ? face.person : null,
-                };
-              }}
-              accentColor={accentColor}
-            />
-          )}
-
-          {currentPage === "memory" && (
-            <MemoryView
-              memories={memories}
-              onAddMemory={handleAddMemory}
-              onDeleteMemory={handleDeleteMemory}
-              onSearchSemanticMemory={handleSearchSemanticMemory}
-            />
-          )}
-
-          {currentPage === "plugins" && (
-            <PluginsView
-              plugins={plugins}
-              onTogglePlugin={handleTogglePlugin}
-              onInstallPlugin={handleInstallPlugin}
-              onDeletePlugin={handleDeletePlugin}
-            />
-          )}
-
-          {currentPage === "research" && <ResearchView />}
-
-          {currentPage === "contacts" && (
-            <ContactsView
-              contacts={contacts}
-              onAdd={handleAddContact}
-              onUpdate={handleUpdateContact}
-              onDelete={handleDeleteContact}
-            />
-          )}
-          {currentPage === "discoveries" && (
-            <DiscoveriesView />
-          )}
-        </main>
+        {currentPage === "discoveries" && <DiscoveriesView />}
       </div>
-
-      <ResearchModal isOpen={isResearchOpen} onClose={() => setIsResearchOpen(false)} onRunResearch={handleRunResearch} />
-      <AgentTaskModal isOpen={isAgentTaskOpen} onClose={() => setIsAgentTaskOpen(false)} onExecuteAgentTask={handleExecuteAgentTask} />
     </div>
   );
 }

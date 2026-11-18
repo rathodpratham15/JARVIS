@@ -2,24 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Send,
-  Sparkles,
-  Volume2,
-  BookmarkPlus,
-  Copy,
-  Check,
-  Paperclip,
-  Database,
-  Trash2,
-  Mic,
-  Image as ImageIcon,
-  Brain,
-  X,
-  Radio,
-  Sliders,
+  ArrowUp, Mic, MicOff, Paperclip, X, Copy, Check, Volume2, MessageSquare,
 } from "lucide-react";
 import { ChatMessage, PersonalityMode } from "../types";
-import { speakJarvisText, playUiSound } from "../utils/audio";
+import { speakJarvisText } from "../utils/audio";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -32,56 +19,64 @@ interface ChatViewProps {
   onSelectPersonality?: (mode: PersonalityMode) => void;
 }
 
+const SUGGESTED_PROMPTS = [
+  "What's on my calendar today?",
+  "Summarize my recent notes and reminders.",
+  "Search the web for top AI news today.",
+  "Set a reminder for tomorrow morning.",
+];
+
 export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   onSendMessage,
   onClearHistory,
-  onSaveToMemory,
-  onSaveToNote,
-  personalityMode,
-  memoriesCount,
-  onSelectPersonality,
 }) => {
   const [inputText, setInputText] = useState("");
-  const [useMemoryContext, setUseMemoryContext] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [savedMemId, setSavedMemId] = useState<string | null>(null);
-  const [savedNoteId, setSavedNoteId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const suggestedPrompts = [
-    "Summarize today's priority directives, alarms, and schedule.",
-    "What's the latest news in AI today?",
-    "Summarize my recent notes and reminders.",
-    "Search the web for top productivity tools in 2026.",
-  ];
+  const { isListening, isSupported: voiceSupported, toggleListening } = useVoiceInput({
+    onResult: (text) => {
+      setInputText((prev) => (prev ? prev + " " + text : text));
+      textareaRef.current?.focus();
+    },
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
+    }
+  }, [inputText]);
+
   const handleSend = async (customText?: string) => {
-    const textToSend = (customText || inputText).trim();
-    if ((!textToSend && !selectedImage) || isSending) return;
-
-    playUiSound("beep");
-    const imgToSend = selectedImage || undefined;
-
+    const text = (customText ?? inputText).trim();
+    if ((!text && !selectedImage) || isSending) return;
+    const img = selectedImage ?? undefined;
     setInputText("");
     setSelectedImage(null);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setIsSending(true);
-
     try {
-      await onSendMessage(textToSend, imgToSend);
-      playUiSound("success");
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSending(false);
+      await onSendMessage(text, img);
+    } catch {}
+    finally { setIsSending(false); }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
@@ -89,10 +84,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
-      setSelectedImage(event.target?.result as string);
-    };
+    reader.onload = (ev) => setSelectedImage(ev.target?.result as string);
     reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const handleCopy = (id: string, text: string) => {
@@ -101,350 +95,218 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleSaveMem = (msg: ChatMessage) => {
-    onSaveToMemory(`Chat Recall: ${msg.text.slice(0, 32)}...`, msg.text);
-    setSavedMemId(msg.id);
-    setTimeout(() => setSavedMemId(null), 2000);
-  };
-
-  const handleSaveNoteDirective = (msg: ChatMessage) => {
-    onSaveToNote(`Directive: ${msg.text.slice(0, 28)}...`, msg.text);
-    setSavedNoteId(msg.id);
-    setTimeout(() => setSavedNoteId(null), 2000);
-  };
+  const isEmpty = messages.length === 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800 pb-6">
-        <div>
-          <div className="overline-cyan">// J.A.R.V.I.S. INTERFACE 01</div>
-          <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white mt-1">
-            Conversational Core
-          </h1>
-          <p className="label-secondary mt-1">
-            REAL-TIME NEURAL DIALOGUE STREAM & SEMANTIC KNOWLEDGE RECALL
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-screen bg-[#0f0f10]">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 h-12 border-b border-white/5 shrink-0">
+        <span className="text-sm font-medium text-zinc-400">J.A.R.V.I.S.</span>
+        {messages.length > 0 && (
           <button
             onClick={onClearHistory}
-            className="editorial-btn-outline"
-            title="Clear Chat Logs"
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded hover:bg-white/5"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>CLEAR HISTORY</span>
+            Clear chat
           </button>
-          <button
-            onClick={() => handleSend("Jarvis, perform full system diagnostic scan and report status.")}
-            className="editorial-btn-primary"
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>QUICK STATUS SCAN</span>
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* 2-Column Editorial Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Primary Column: Chat Stream Panel (8 cols) */}
-        <div className="lg:col-span-8 flex flex-col space-y-6">
-          <div className="editorial-panel flex flex-col h-[50vh] min-h-[340px] sm:h-[640px]">
-            {/* Panel Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="overline-cyan">PANEL 01</div>
-                <h2 className="font-serif text-2xl font-bold text-white">
-                  Dialogue Stream
-                </h2>
-                <p className="text-xs text-zinc-500 font-sans mt-0.5">
-                  Real-time LLM dialogue with semantic memory and context recall
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-mono text-[10px] font-bold text-zinc-300 uppercase">
-                  STREAM ACTIVE
-                </span>
-              </div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto">
+        {isEmpty ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center h-full px-4 pb-32">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center mb-4">
+              <MessageSquare className="w-6 h-6 text-white" />
             </div>
-
-            <div className="border-b border-zinc-800 my-4" />
-
-            {/* Messages Scroll Area */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6 border border-dashed border-zinc-800 bg-[#0d0f12]">
-                  <div className="w-10 h-10 border border-zinc-800 bg-zinc-700 flex items-center justify-center mb-3">
-                    <Sparkles className="w-5 h-5 text-black" />
-                  </div>
-                  <h3 className="font-serif text-lg font-bold text-white">
-                    Dialogue Stream Standing By
-                  </h3>
-                  <p className="font-mono text-xs text-zinc-500 max-w-sm mt-1">
-                    Enter an operational command below or select one of the suggested directives in Panel 02.
-                  </p>
-                </div>
-              ) : (
-                messages.map((msg) => {
-                  const isUser = msg.sender === "user";
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
-                    >
-                      {/* Message Meta Header */}
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-[10px] uppercase font-bold text-zinc-500">
-                          {isUser ? "YOU" : "J.A.R.V.I.S."}
-                        </span>
-                        <span className="text-zinc-600 text-[10px]">•</span>
-                        <span className="font-mono text-[10px] text-zinc-600">
-                          {msg.timestamp}
-                        </span>
-                        {msg.memoryUsed && (
-                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 bg-zinc-700 text-white font-bold">
-                            MEMORY RECALLED
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Message Card */}
-                      <div
-                        className={`max-w-[90%] sm:max-w-[80%] p-4 text-xs font-mono border ${
-                          isUser
-                            ? "bg-zinc-700 text-white font-semibold border-transparent"
-                            : "bg-[#111318] text-zinc-100 border-zinc-800"
-                        }`}
-                      >
-                        {msg.imageAttachment && (
-                          <img
-                            src={msg.imageAttachment}
-                            alt="Attachment"
-                            className="max-h-48 border border-zinc-800 mb-2 object-cover"
-                          />
-                        )}
-                        {isUser ? (
-                          <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
-                        ) : (
-                          <div className="prose prose-xs max-w-none font-mono text-xs leading-relaxed
-                            prose-headings:font-black prose-headings:font-heading prose-headings:text-white prose-headings:mt-3 prose-headings:mb-1
-                            prose-p:my-1 prose-p:text-zinc-100
-                            prose-strong:text-white prose-strong:font-black
-                            prose-code:bg-white/10 prose-code:px-1 prose-code:rounded prose-code:text-[11px]
-                            prose-pre:bg-black/40 prose-pre:p-2 prose-pre:rounded prose-pre:text-[11px] prose-pre:overflow-x-auto
-                            prose-ul:my-1 prose-ul:pl-4 prose-li:my-0
-                            prose-ol:my-1 prose-ol:pl-4
-                            prose-blockquote:border-l-2 prose-blockquote:border-zinc-700 prose-blockquote:pl-2 prose-blockquote:italic prose-blockquote:text-zinc-400
-                            prose-table:text-[11px] prose-th:border prose-th:border-zinc-700 prose-th:px-2 prose-th:py-1 prose-th:bg-white/5
-                            prose-td:border prose-td:border-zinc-700 prose-td:px-2 prose-td:py-1
-                            prose-hr:border-zinc-800">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                          </div>
-                        )}
-
-                        {/* Jarvis Message Actions */}
-                        {!isUser && (
-                          <div className="flex items-center gap-3 pt-3 mt-3 border-t border-zinc-800/50">
-                            <button
-                              onClick={() => speakJarvisText(msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
-                              title="Synthesize Voice"
-                            >
-                              <Volume2 className="w-3 h-3" />
-                              <span>SPEAK</span>
-                            </button>
-                            <button
-                              onClick={() => handleCopy(msg.id, msg.text)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
-                              title="Copy to Clipboard"
-                            >
-                              {copiedId === msg.id ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                              <span>{copiedId === msg.id ? "COPIED" : "COPY"}</span>
-                            </button>
-                            <button
-                              onClick={() => handleSaveMem(msg)}
-                              className="text-[10px] font-mono uppercase flex items-center gap-1 text-zinc-500 hover:text-white transition font-bold"
-                              title="Save into Semantic Memory"
-                            >
-                              <BookmarkPlus className="w-3 h-3" />
-                              <span>{savedMemId === msg.id ? "SAVED TO MEM" : "SAVE MEM"}</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-
-              {isSending && (
-                <div className="flex flex-col items-start space-y-1">
-                  <span className="overline-cyan">J.A.R.V.I.S. COGNITIVE ENGINE</span>
-                  <div className="p-3 bg-[#111318] border border-zinc-800 flex items-center gap-2 font-mono text-xs text-zinc-300">
-                    <span className="w-2 h-2 bg-white animate-ping" />
-                    <span>Processing neural token stream...</span>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Image Preview Banner */}
-            {selectedImage && (
-              <div className="mt-2 p-2 bg-[#111318] border border-zinc-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={selectedImage}
-                    alt="Upload Preview"
-                    className="h-10 w-10 object-cover border border-zinc-800"
-                  />
-                  <span className="font-mono text-xs text-zinc-400">
-                    Optical Image Attachment Attached
-                  </span>
-                </div>
+            <h2 className="text-2xl font-semibold text-white mb-1">How can I help?</h2>
+            <p className="text-sm text-zinc-500 mb-8">Ask me anything, or try one of these</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
+              {SUGGESTED_PROMPTS.map((prompt) => (
                 <button
-                  onClick={() => setSelectedImage(null)}
-                  className="p-1 text-zinc-500 hover:text-white transition"
+                  key={prompt}
+                  onClick={() => handleSend(prompt)}
+                  className="text-left px-4 py-3 rounded-xl border border-white/8 bg-white/3 hover:bg-white/8 text-sm text-zinc-300 hover:text-white transition-all"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  {prompt}
                 </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+            {messages.map((msg) => {
+              const isUser = msg.sender === "user";
+              return (
+                <div key={msg.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                  {/* Assistant avatar */}
+                  {!isUser && (
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5 mr-3">
+                      <MessageSquare className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  )}
+
+                  <div className={`flex flex-col gap-1 ${isUser ? "items-end max-w-[75%]" : "items-start flex-1 min-w-0"}`}>
+                    {/* Image attachment */}
+                    {msg.imageAttachment && (
+                      <img
+                        src={msg.imageAttachment}
+                        alt="Attachment"
+                        className="max-h-48 rounded-xl object-cover border border-white/10"
+                      />
+                    )}
+
+                    {/* Message bubble */}
+                    <div
+                      className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        isUser
+                          ? "bg-indigo-600 text-white rounded-br-sm"
+                          : "text-zinc-100"
+                      } ${msg.isStreaming ? "opacity-80" : ""}`}
+                    >
+                      {isUser ? (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      ) : msg.text ? (
+                        <div className="prose prose-sm prose-invert max-w-none
+                          prose-p:my-1 prose-p:leading-relaxed
+                          prose-headings:text-white prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1
+                          prose-strong:text-white prose-strong:font-semibold
+                          prose-code:bg-white/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono
+                          prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10 prose-pre:rounded-xl
+                          prose-ul:my-1 prose-li:my-0.5
+                          prose-ol:my-1
+                          prose-blockquote:border-l-2 prose-blockquote:border-indigo-500 prose-blockquote:pl-3 prose-blockquote:text-zinc-400
+                          prose-hr:border-white/10
+                          prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-500 italic text-xs">…</span>
+                      )}
+
+                      {/* Streaming indicator */}
+                      {msg.isStreaming && (
+                        <div className="flex gap-1 mt-2 items-center">
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                          <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assistant actions */}
+                    {!isUser && !msg.isStreaming && msg.text && (
+                      <div className="flex items-center gap-1 px-1">
+                        <button
+                          onClick={() => speakJarvisText(msg.text)}
+                          title="Speak"
+                          className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleCopy(msg.id, msg.text)}
+                          title="Copy"
+                          className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                        >
+                          {copiedId === msg.id
+                            ? <Check className="w-3.5 h-3.5 text-green-400" />
+                            : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Typing indicator */}
+            {isSending && (
+              <div className="flex justify-start">
+                <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0 mt-0.5 mr-3">
+                  <MessageSquare className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div className="bg-transparent px-1 py-3 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
               </div>
             )}
 
-            {/* Input Bar */}
-            <div className="pt-4 border-t border-zinc-800 flex items-center gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="h-10 px-3 border border-zinc-800 bg-[#111318] hover:bg-zinc-800 flex items-center justify-center transition text-zinc-400 hover:text-white"
-                title="Attach Optical Frame"
-              >
-                <ImageIcon className="w-4 h-4" />
-              </button>
-
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="INPUT COMMAND OR QUESTION..."
-                className="editorial-input h-10"
-              />
-
-              <button
-                onClick={() => handleSend()}
-                disabled={(!inputText.trim() && !selectedImage) || isSending}
-                className="editorial-btn-primary h-10 px-5"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">SEND</span>
-              </button>
-            </div>
+            <div ref={messagesEndRef} />
           </div>
+        )}
+      </div>
+
+      {/* Input area */}
+      <div className="shrink-0 px-4 pb-5 pt-2 max-w-2xl mx-auto w-full">
+        {/* Image preview */}
+        {selectedImage && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl border border-white/8">
+            <img src={selectedImage} alt="Preview" className="h-10 w-10 rounded-lg object-cover" />
+            <span className="text-xs text-zinc-400 flex-1">Image attached</span>
+            <button onClick={() => setSelectedImage(null)} className="text-zinc-500 hover:text-zinc-200">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Input pill */}
+        <div className={`flex items-end gap-2 bg-[#1c1c1e] border rounded-2xl px-3 py-2.5 shadow-lg transition-colors ${
+          isListening ? "border-red-500/50" : "border-white/10 hover:border-white/20 focus-within:border-indigo-500/50"
+        }`}>
+          {/* Attach */}
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/8 transition-colors shrink-0 self-end mb-0.5"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isListening ? "Listening…" : "Message J.A.R.V.I.S."}
+            rows={1}
+            className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none leading-relaxed py-0.5 max-h-40"
+          />
+
+          {/* Voice */}
+          {voiceSupported && (
+            <button
+              onClick={toggleListening}
+              title={isListening ? "Stop listening" : "Voice input"}
+              className={`p-1.5 rounded-lg transition-colors shrink-0 self-end mb-0.5 ${
+                isListening
+                  ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                  : "text-zinc-500 hover:text-zinc-200 hover:bg-white/8"
+              }`}
+            >
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
+
+          {/* Send */}
+          <button
+            onClick={() => handleSend()}
+            disabled={(!inputText.trim() && !selectedImage) || isSending}
+            title="Send"
+            className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-white transition-colors shrink-0 self-end mb-0.5"
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Right Secondary Column: Cognitive & Memory Panel (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col space-y-6">
-          <div className="editorial-panel space-y-6">
-            <div>
-              <div className="overline-cyan">PANEL 02</div>
-              <h2 className="font-serif text-2xl font-bold text-white">
-                Cognitive Context
-              </h2>
-              <p className="text-xs text-zinc-500 font-sans mt-0.5">
-                Dynamic grounding and memory state parameters
-              </p>
-            </div>
-
-            <div className="border-b border-zinc-800" />
-
-            {/* Memory Link Toggle */}
-            <div className="p-4 bg-[#0d0f12] border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-zinc-400" />
-                  <span className="font-mono text-xs font-bold text-zinc-300">
-                    SEMANTIC VECTOR LINK
-                  </span>
-                </div>
-                <button
-                  onClick={() => setUseMemoryContext(!useMemoryContext)}
-                  className={`w-9 h-5 border border-zinc-700 transition p-0.5 flex items-center ${
-                    useMemoryContext ? "bg-white justify-end" : "bg-zinc-800 justify-start"
-                  }`}
-                >
-                  <div className={`w-3.5 h-3.5 ${useMemoryContext ? "bg-black" : "bg-zinc-500"}`} />
-                </button>
-              </div>
-              <p className="font-mono text-[11px] text-zinc-500">
-                {useMemoryContext
-                  ? `Active: ${memoriesCount} memory nodes automatically injected into context buffer.`
-                  : "Disabled: Conversation operates with transient stateless buffer."}
-              </p>
-            </div>
-
-            {/* Active Directive Protocol */}
-            <div className="space-y-2">
-              <span className="label-secondary">ACTIVE PERSONALITY PROTOCOL</span>
-              <div className="p-3 bg-[#0d0f12] border border-zinc-800 flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-zinc-300">
-                  {personalityMode}
-                </span>
-                <span className="font-mono text-[10px] px-2 py-0.5 bg-zinc-600 text-white font-bold">
-                  ACTIVE
-                </span>
-              </div>
-            </div>
-
-            <div className="border-b border-dashed border-zinc-800 my-4" />
-
-            {/* Suggested Macro Directives */}
-            <div className="space-y-2.5">
-              <span className="label-secondary">SUGGESTED OPERATIONAL MACROS</span>
-              <div className="space-y-2">
-                {suggestedPrompts.map((prompt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend(prompt)}
-                    className="w-full text-left p-2.5 bg-[#0d0f12] hover:bg-zinc-700 hover:text-white border border-zinc-800 font-mono text-[11px] text-zinc-400 transition font-medium"
-                  >
-                    "{prompt}"
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-b border-dashed border-zinc-800 my-4" />
-
-            {/* Session Readout */}
-            <div className="space-y-2 font-mono text-[11px]">
-              <div className="flex justify-between text-zinc-500">
-                <span>SESSION MESSAGES</span>
-                <span className="font-bold text-zinc-300">{messages.length}</span>
-              </div>
-              <div className="flex justify-between text-zinc-500">
-                <span>AVG LATENCY</span>
-                <span className="font-bold text-zinc-300">24ms</span>
-              </div>
-              <div className="flex justify-between text-zinc-500">
-                <span>GROUNDING ENGINE</span>
-                <span className="font-bold text-zinc-300">GEMINI 3.6 FLASH</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <p className="text-center text-[11px] text-zinc-600 mt-2">
+          Press Enter to send · Shift+Enter for new line
+        </p>
       </div>
     </div>
   );
