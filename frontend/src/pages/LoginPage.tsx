@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (authState === "in") return <Navigate to="/" replace />;
+  if (authState === "in") return <Navigate to="/chat" replace />;
 
   const resetForm = () => { setUsername(""); setEmail(""); setPassword(""); setError(null); };
 
@@ -39,12 +39,12 @@ export default function LoginPage() {
   const isLogin = mode === "login";
 
   return (
-    <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2.5">
-            <div className="w-3 h-3 bg-[#00E5FF] animate-pulse rounded-full shadow-[0_0_8px_#00E5FF]" />
+            <div className="w-3 h-3 bg-emerald-400 animate-pulse rounded-full" />
             <span className="font-mono font-bold text-xl tracking-widest text-white uppercase">
               J.A.R.V.I.S.
             </span>
@@ -58,10 +58,10 @@ export default function LoginPage() {
         <div className="editorial-panel space-y-6">
           <div>
             <div className="overline-cyan">// ACCESS CONTROL</div>
-            <h1 className="font-mono text-2xl font-bold text-white mt-1">
+            <h1 className="font-serif text-2xl font-bold text-white mt-1">
               {isLogin ? "Sign In" : "Create Account"}
             </h1>
-            <p className="text-xs text-zinc-500 font-mono mt-0.5">
+            <p className="text-xs text-zinc-500 font-sans mt-0.5">
               {isLogin ? "Authenticate to access your JARVIS instance" : "Register a new account"}
             </p>
           </div>
