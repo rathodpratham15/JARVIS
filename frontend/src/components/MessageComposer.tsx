@@ -316,7 +316,7 @@ export function MessageComposer({ onSend, centered = false }: MessageComposerPro
             {actionMenuOpen && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => { setActionMenuOpen(false); setShowProjectSubmenu(false); }} />
-                <div className="absolute left-0 bottom-11 z-30 w-64 rounded-xl border border-[#E5E5E5] dark:border-white/10 bg-[#FFFFFF] dark:bg-[#2A2A2A] shadow-xl p-1.5">
+                <div className="absolute left-0 top-11 z-30 w-64 rounded-xl border border-[#E5E5E5] dark:border-white/10 bg-[#FFFFFF] dark:bg-[#2A2A2A] shadow-xl p-1.5">
                   {/* Top section — file/camera */}
                   {topActions.map((item) => (
                     <button
@@ -352,7 +352,7 @@ export function MessageComposer({ onSend, centered = false }: MessageComposerPro
 
                       {/* Project submenu */}
                       {item.label === 'Work in a project' && showProjectSubmenu && (
-                        <div className="absolute left-full bottom-0 ml-1 w-48 rounded-xl border border-[#E5E5E5] dark:border-white/10 bg-[#FFFFFF] dark:bg-[#2A2A2A] shadow-xl p-1.5 z-40">
+                        <div className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[#E5E5E5] dark:border-white/10 bg-[#FFFFFF] dark:bg-[#2A2A2A] shadow-xl p-1.5 z-40">
                           {projects.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-[#717171] dark:text-[#A1A1AA]">
                               No projects yet. Create one in the sidebar.
