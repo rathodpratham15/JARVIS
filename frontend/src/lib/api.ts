@@ -352,7 +352,7 @@ export const api = {
   async transcribeAudio(blob: Blob): Promise<{ transcript: string }> {
     const fd = new FormData();
     fd.append('audio', blob, 'audio.webm');
-    const res = await apiFetch('/stt', { method: 'POST', body: fd });
+    const res = await apiFetch('/voice/transcribe', { method: 'POST', body: fd });
     const data = await res.json() as { text?: string; transcript?: string };
     return { transcript: data.text ?? data.transcript ?? '' };
   },
