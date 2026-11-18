@@ -1,190 +1,199 @@
-import React from "react";
+import { useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
-  SquarePen,
-  MessageSquare,
-  Search,
-  Eye,
-  Mic2,
-  Users,
-  BookUser,
-  Settings,
-  LogOut,
+  PanelLeft, SquarePen, Search, ScanFace, AudioLines, Users, BookUser, Settings, LogOut, MoreHorizontal,
+  Pencil, Archive, Trash2, MessageSquare,
 } from "lucide-react";
-import { PageId, ChatMessage } from "../types";
+import { toast } from "sonner";
+import { useApp } from "@/context/AppContext";
+import { api, errMsg } from "@/lib/api";
+import { groupConversations } from "@/lib/format";
+import { IconTip, Avatar } from "@/components/common";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type { Conversation } from "@/types/index";
+import type { LucideIcon } from "lucide-react";
 
-interface SidebarProps {
-  currentPage: PageId;
-  onSelectPage: (page: PageId) => void;
-  chatMessages: ChatMessage[];
-  onNewChat: () => void;
-  mobileOpen: boolean;
-  onCloseMobile: () => void;
-  currentUser?: { username?: string; email?: string; role?: string } | null;
-  onLogout?: () => void;
+function NavItem({ icon: Icon, label, onClick, to, collapsed, testId }: {
+  icon: LucideIcon;
+  label: string;
+  onClick?: () => void;
+  to?: string;
+  collapsed?: boolean;
+  testId?: string;
+}) {
+  const cls = ({ isActive }: { isActive?: boolean } = {}) =>
+    `flex items-center gap-3 h-9 rounded-lg text-sm transition-colors hover:bg-j-hover ${collapsed ? "justify-center w-9 mx-auto" : "px-2.5"} ${isActive ? "bg-j-hover font-medium" : ""}`;
+  const inner = (<><Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.8} />{!collapsed && <span className="truncate">{label}</span>}</>);
+  return (
+    <IconTip label={label} enabled={!!collapsed}>
+      {to ? (
+        <span className="block"><NavLink to={to} onClick={onClick} className={cls} data-testid={testId}>{inner}</NavLink></span>
+      ) : (
+        <button onClick={onClick} className={cls()} data-testid={testId}>{inner}</button>
+      )}
+    </IconTip>
+  );
 }
 
-function recentConversations(messages: ChatMessage[]): string[] {
-  const titles: string[] = [];
-  for (const msg of messages) {
-    if (msg.sender === "user" && msg.text.trim()) {
-      const title = msg.text.slice(0, 40) + (msg.text.length > 40 ? "…" : "");
-      if (!titles.includes(title)) titles.push(title);
-    }
-  }
-  return titles.reverse().slice(0, 15);
-}
+function ConversationItem({ conv, onDelete, onNavigate }: {
+  conv: Conversation;
+  onDelete: (c: Conversation) => void;
+  onNavigate: () => void;
+}) {
+  const { setConversations } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(conv.title);
 
-const TOP_NAV = [
-  { id: "chat" as PageId,   label: "New chat",    icon: <SquarePen className="w-[18px] h-[18px]" /> },
-  { id: "research" as PageId, label: "Search chats", icon: <Search className="w-[18px] h-[18px]" /> },
-  { id: "vision" as PageId, label: "Vision",       icon: <Eye className="w-[18px] h-[18px]" /> },
-  { id: "voice" as PageId,  label: "Voice mode",   icon: <Mic2 className="w-[18px] h-[18px]" /> },
-];
-
-const BOTTOM_NAV = [
-  { id: "contacts" as PageId,    label: "Contacts",    icon: <Users className="w-[18px] h-[18px]" /> },
-  { id: "discoveries" as PageId, label: "My Contacts", icon: <BookUser className="w-[18px] h-[18px]" /> },
-  { id: "settings" as PageId,    label: "Settings",    icon: <Settings className="w-[18px] h-[18px]" /> },
-];
-
-export const Sidebar: React.FC<SidebarProps> = ({
-  currentPage,
-  onSelectPage,
-  chatMessages,
-  onNewChat,
-  mobileOpen,
-  onCloseMobile,
-  currentUser,
-  onLogout,
-}) => {
-  const conversations = recentConversations(chatMessages);
-
-  const handleNav = (id: PageId) => {
-    if (id === "chat") onNewChat();
-    else onSelectPage(id);
-    onCloseMobile();
+  const rename = async () => {
+    setEditing(false);
+    if (!title.trim() || title === conv.title) return setTitle(conv.title);
+    try {
+      const { data } = await api.patch(`/conversations/${conv.id}`, { title });
+      setConversations((l) => l.map((c) => (c.id === conv.id ? data : c)));
+    } catch (e) { toast.error(errMsg(e)); setTitle(conv.title); }
+  };
+  const archive = async () => {
+    try {
+      await api.patch(`/conversations/${conv.id}`, { archived: true });
+      setConversations((l) => l.filter((c) => c.id !== conv.id));
+      toast.success("Chat archived");
+    } catch (e) { toast.error(errMsg(e)); }
   };
 
-  const NavItem = ({ id, label, icon }: { id: PageId; label: string; icon: React.ReactNode }) => (
-    <button
-      onClick={() => handleNav(id)}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-        currentPage === id && id !== "chat"
-          ? "bg-white/10 text-white"
-          : "text-[#b4b4b4] hover:bg-white/8 hover:text-white"
-      }`}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-
-  const Content = () => (
-    <div className="flex flex-col h-full select-none">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 shrink-0">
-        <button
-          onClick={() => { onSelectPage("chat"); onCloseMobile(); }}
-          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
-        >
-          <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shrink-0">
-            <MessageSquare className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-white font-semibold text-[15px] tracking-wide">J.A.R.V.I.S.</span>
-        </button>
-        {/* Panel toggle placeholder */}
-        <button className="p-1.5 hover:bg-white/8 rounded-lg text-[#b4b4b4] hover:text-white transition-colors">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>
-          </svg>
-        </button>
-      </div>
-
-      {/* Top nav */}
-      <div className="px-2 space-y-0.5 shrink-0">
-        {TOP_NAV.map((item) => (
-          <NavItem key={item.id} {...item} />
-        ))}
-      </div>
-
-      {/* Conversation history */}
-      <div className="flex-1 overflow-y-auto px-2 mt-4 min-h-0">
-        {conversations.length > 0 && (
-          <>
-            <p className="px-3 py-1 text-xs font-medium text-[#8e8ea0]">Today</p>
-            <div className="space-y-0.5">
-              {conversations.map((title, i) => (
-                <button
-                  key={i}
-                  onClick={() => { onSelectPage("chat"); onCloseMobile(); }}
-                  className="w-full text-left px-3 py-2 rounded-lg text-sm text-[#b4b4b4] hover:bg-white/8 hover:text-white transition-colors truncate"
-                >
-                  {title}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Bottom nav */}
-      <div className="px-2 pt-2 pb-1 border-t border-white/8 shrink-0 space-y-0.5">
-        {BOTTOM_NAV.map((item) => (
-          <NavItem key={item.id} {...item} />
-        ))}
-      </div>
-
-      {/* User row */}
-      {currentUser && (
-        <div className="px-3 py-3 border-t border-white/8 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
-              {(currentUser.username ?? "U")[0].toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white font-medium truncate">{currentUser.username ?? "User"}</p>
-              {currentUser.email && (
-                <p className="text-xs text-[#8e8ea0] truncate">{currentUser.email}</p>
-              )}
-            </div>
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                title="Sign out"
-                className="p-1.5 hover:bg-white/8 rounded-lg text-[#8e8ea0] hover:text-white transition-colors shrink-0"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+  if (editing) {
+    return (
+      <input
+        autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onBlur={rename}
+        onKeyDown={(e) => { if (e.key === "Enter") rename(); if (e.key === "Escape") { setTitle(conv.title); setEditing(false); } }}
+        className="w-full h-9 px-2.5 rounded-lg bg-j-main border border-j-accent text-sm outline-none"
+      />
+    );
+  }
+  return (
+    <div className="group relative">
+      <NavLink
+        to={`/c/${conv.id}`} onClick={onNavigate}
+        className={({ isActive }) => `flex items-center h-9 px-2.5 rounded-lg text-sm transition-colors ${isActive ? "bg-j-hover" : "hover:bg-j-hover"}`}
+      >
+        <span className="truncate flex-1 pr-6">{conv.title}</span>
+      </NavLink>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="absolute right-1.5 top-1.5 h-6 w-6 grid place-items-center rounded-md opacity-100 md:opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 hover:bg-j-hover">
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-40" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <DropdownMenuItem onSelect={() => setEditing(true)}><Pencil className="h-4 w-4 mr-2" />Rename</DropdownMenuItem>
+          <DropdownMenuItem onSelect={archive}><Archive className="h-4 w-4 mr-2" />Archive</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onDelete(conv)} className="text-red-500 focus:text-red-500"><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
+}
+
+function History({ onNavigate }: { onNavigate: () => void }) {
+  const { conversations, convState, refreshConversations, setConversations, currentConvId } = useApp();
+  const navigate = useNavigate();
+  const [toDelete, setToDelete] = useState<Conversation | null>(null);
+
+  const confirmDelete = async () => {
+    const conv = toDelete;
+    setToDelete(null);
+    if (!conv) return;
+    try {
+      await api.delete(`/conversations/${conv.id}`);
+      setConversations((l) => l.filter((c) => c.id !== conv.id));
+      if (currentConvId === conv.id) navigate("/");
+      toast.success("Chat deleted");
+    } catch (e) { toast.error(errMsg(e)); }
+  };
 
   return (
-    <>
-      {/* Desktop */}
-      <aside className="hidden lg:flex flex-col w-[260px] shrink-0 bg-[#171717] h-screen sticky top-0">
-        <Content />
-      </aside>
-
-      {/* Mobile overlay */}
-      <div
-        onClick={onCloseMobile}
-        className={`lg:hidden fixed inset-0 z-40 bg-black/60 transition-opacity ${
-          mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-      />
-
-      {/* Mobile drawer */}
-      <aside
-        className={`lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[260px] bg-[#171717] flex flex-col transform transition-transform ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <Content />
-      </aside>
-    </>
+    <div className="flex-1 overflow-y-auto scrollbar-thin px-2 mt-4" data-testid="conversation-history">
+      {convState === "loading" && [...Array(6)].map((_, i) => <div key={i} className="h-7 my-1.5 mx-2 rounded-md bg-j-hover animate-pulse" />)}
+      {convState === "error" && (
+        <button onClick={refreshConversations} className="text-xs text-j-muted px-2.5 hover:underline">Couldn't load chats. Retry</button>
+      )}
+      {convState === "ready" && !conversations.length && <p className="text-xs text-j-muted px-2.5">Your chats will appear here.</p>}
+      {groupConversations(conversations).map(([label, items]) => (
+        <div key={label} className="mb-4">
+          <p className="px-2.5 pb-1 text-xs font-medium text-j-muted">{label}</p>
+          {items.map((c) => <ConversationItem key={c.id} conv={c} onDelete={setToDelete} onNavigate={onNavigate} />)}
+        </div>
+      ))}
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+            <AlertDialogDescription>This will delete "{toDelete?.title}". This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-500 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
-};
+}
+
+export default function Sidebar({ collapsed, mobile }: { collapsed?: boolean; mobile?: boolean }) {
+  const { user, signOut, setSidebarOpen, setMobileOpen, openModal } = useApp();
+  const navigate = useNavigate();
+  const close = () => mobile && setMobileOpen(false);
+  const toggle = () => (mobile ? setMobileOpen(false) : setSidebarOpen((o) => !o));
+
+  return (
+    <div className={`flex flex-col h-full ${collapsed ? "w-[60px]" : "w-full min-w-[260px]"} py-2`}>
+      <div className={`flex items-center h-11 ${collapsed ? "justify-center" : "justify-between px-2"}`}>
+        {!collapsed && (
+          <button onClick={() => { navigate("/"); close(); }} className="flex items-center gap-2 px-1.5 h-9 rounded-lg hover:bg-j-hover" data-testid="sidebar-logo">
+            <div className="h-6 w-6 rounded-md bg-j-accent grid place-items-center"><MessageSquare className="h-3.5 w-3.5 text-black" /></div>
+            <span className="font-semibold text-[15px]">J.A.R.V.I.S.</span>
+          </button>
+        )}
+        <IconTip label={collapsed ? "Open sidebar" : "Close sidebar"}>
+          <button onClick={toggle} className="h-9 w-9 grid place-items-center rounded-lg hover:bg-j-hover text-j-muted" data-testid="sidebar-toggle">
+            <PanelLeft className="h-[18px] w-[18px]" />
+          </button>
+        </IconTip>
+      </div>
+
+      <nav className={`flex flex-col gap-0.5 mt-2 ${collapsed ? "" : "px-2"}`}>
+        <NavItem icon={SquarePen} label="New chat" collapsed={collapsed} testId="new-chat-button" onClick={() => { navigate("/"); close(); }} />
+        <NavItem icon={Search} label="Search chats" collapsed={collapsed} testId="search-button" onClick={() => { openModal("search"); close(); }} />
+        <NavItem icon={ScanFace} label="Vision" to="/vision" collapsed={collapsed} testId="nav-vision" onClick={close} />
+        <NavItem icon={AudioLines} label="Voice mode" collapsed={collapsed} testId="nav-voice" onClick={() => { openModal("voice"); close(); }} />
+      </nav>
+
+      {collapsed ? <div className="flex-1" /> : <History onNavigate={close} />}
+
+      <nav className={`flex flex-col gap-0.5 pt-2 border-t border-j-border ${collapsed ? "" : "px-2"}`}>
+        <NavItem icon={Users} label="Contacts" to="/contacts" collapsed={collapsed} testId="nav-contacts" onClick={close} />
+        <NavItem icon={BookUser} label="My Contacts" to="/my-contacts" collapsed={collapsed} testId="nav-my-contacts" onClick={close} />
+        <NavItem icon={Settings} label="Settings" collapsed={collapsed} testId="nav-settings" onClick={() => { openModal("settings", { tab: "general" }); close(); }} />
+      </nav>
+
+      <div className={`mt-2 flex items-center gap-2.5 ${collapsed ? "flex-col" : "px-2.5"}`} data-testid="sidebar-user">
+        <Avatar name={user?.name} src={user?.picture} size={30} />
+        {!collapsed && (
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate" data-testid="sidebar-username">{user?.name}</p>
+            <p className="text-xs text-j-muted truncate">{user?.email}</p>
+          </div>
+        )}
+        <IconTip label="Sign out" side={collapsed ? "right" : "top"}>
+          <button onClick={signOut} className="h-8 w-8 grid place-items-center rounded-lg hover:bg-j-hover text-j-muted" data-testid="sign-out-button">
+            <LogOut className="h-4 w-4" />
+          </button>
+        </IconTip>
+      </div>
+    </div>
+  );
+}
