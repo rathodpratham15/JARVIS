@@ -1,167 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Plus+Jakarta+Sans:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
-    --color-bg-base: #0d0f12;
-    --color-surface: #111318;
-    --color-border: #27272a;
-    --color-accent: #ffffff;
-    --color-text-primary: #ffffff;
-    --color-text-secondary: #71717a;
+    --bg-workspace: #FFFFFF;
+    --bg-sidebar: #F9F9F9;
+    --bg-surface: #F4F4F4;
+    --bg-composer: #F4F4F4;
+    --text-primary: #171717;
+    --text-secondary: #717171;
+    --border-subtle: #E5E5E5;
+    --accent: #6366f1;
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .dark {
+    --bg-workspace: #212121;
+    --bg-sidebar: #171717;
+    --bg-surface: #2A2A2A;
+    --bg-composer: #303030;
+    --text-primary: #F5F5F5;
+    --text-secondary: #A1A1AA;
+    --border-subtle: rgba(255, 255, 255, 0.10);
+    --accent: #6366f1;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: "Plus Jakarta Sans", "DM Sans", sans-serif;
+  }
+
+  code, pre, kbd, .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
   body {
-    background-color: #0d0f12;
-    color: #ffffff;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  h1, h2, h3, .font-serif {
-    font-family: "Instrument Serif", "Playfair Display", Georgia, serif;
-  }
-
-  .font-mono, code, pre {
-    font-family: "JetBrains Mono", "Space Mono", "SF Mono", Menlo, Consolas, monospace;
+    background-color: var(--bg-workspace);
+    color: var(--text-primary);
+    margin: 0;
+    overflow: hidden;
   }
 }
 
-/* Design System Utilities */
-.bg-base {
-  background-color: #0d0f12;
+/* Add dark class to html by default */
+:root {
+  color-scheme: dark light;
 }
 
-.bg-surface {
-  background-color: #111318;
+/* Custom sleek scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.45);
 }
 
-.border-border-custom {
-  border-color: #27272a;
+/* Markdown document styling */
+.jarvis-markdown {
+  line-height: 1.65;
+  font-size: 0.96875rem;
+  word-wrap: break-word;
 }
-
-.text-accent-cyan {
-  color: #a1a1aa;
+.jarvis-markdown p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
 }
-
-.bg-accent-cyan {
-  background-color: #ffffff;
+.jarvis-markdown p:first-child {
+  margin-top: 0;
 }
-
-/* Editorial Panel System */
-.editorial-panel {
-  background-color: #111318;
-  border: 1px solid #27272a;
-  border-radius: 2px;
-  padding: 24px;
+.jarvis-markdown p:last-child {
+  margin-bottom: 0;
 }
-
-@media (min-width: 640px) {
-  .editorial-panel {
-    padding: 32px;
-  }
-}
-
-/* Custom Input Field */
-.editorial-input {
-  border: 1px solid #27272a;
-  background-color: #0d0f12;
-  border-radius: 0px;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
-  font-size: 12px;
-  padding: 10px 14px;
-  color: #ffffff;
-  width: 100%;
-}
-
-.editorial-input:focus {
-  outline: none;
-  box-shadow: 0 0 0 1px #ffffff;
-  border-color: #27272a;
-}
-
-.editorial-input::placeholder {
-  color: #52525b;
-}
-
-/* Select dark styling */
-.editorial-input option {
-  background-color: #111318;
-  color: #ffffff;
-}
-
-/* Buttons */
-.editorial-btn-primary {
-  background-color: #ffffff;
-  color: #000000;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
-  font-weight: 700;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 10px 20px;
-  border-radius: 0px;
-  border: 1px solid #27272a;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: filter 0.15s ease, background-color 0.15s ease;
-  cursor: pointer;
-}
-
-.editorial-btn-primary:hover:not(:disabled) {
-  filter: brightness(0.94);
-}
-
-.editorial-btn-primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.editorial-btn-outline {
-  background-color: transparent;
-  color: #e4e4e7;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
-  font-weight: 700;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 10px 18px;
-  border-radius: 0px;
-  border: 1px solid #27272a;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: background-color 0.15s ease;
-  cursor: pointer;
-}
-
-.editorial-btn-outline:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.06);
-}
-
-.editorial-btn-outline:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Monospace Overlines */
-.overline-cyan {
-  font-family: "JetBrains Mono", "Space Mono", monospace;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  color: #71717a;
-  letter-spacing: 0.14em;
-  font-weight: 700;
-}
-
-.label-secondary {
-  font-family: "JetBrains Mono", "Space Mono", monospace;
-  font-size: 10.5px;
-  text-transform: uppercase;
-  color: #71717a;
-  letter-spacing: 0.08em;
+.jarvis-markdown h1,
+.jarvis-markdown h2,
+.jarvis-markdown h3,
+.jarvis-markdown h4 {
+  font-family: "Plus Jakarta Sans", "DM Sans", sans-serif;
   font-weight: 600;
+  margin-top: 1.35em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+.jarvis-markdown h1 { font-size: 1.35rem; }
+.jarvis-markdown h2 { font-size: 1.18rem; }
+.jarvis-markdown h3 { font-size: 1.05rem; }
+.jarvis-markdown ul,
+.jarvis-markdown ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.75em;
+  padding-left: 1.5em;
+}
+.jarvis-markdown ul {
+  list-style-type: disc;
+}
+.jarvis-markdown ol {
+  list-style-type: decimal;
+}
+.jarvis-markdown li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+.jarvis-markdown blockquote {
+  margin: 0.85em 0;
+  padding: 0.5em 1em;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+.jarvis-markdown a {
+  color: #6366f1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.jarvis-markdown a:hover {
+  opacity: 0.85;
+}
+.jarvis-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.jarvis-markdown th,
+.jarvis-markdown td {
+  border: 1px solid var(--border-subtle);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.jarvis-markdown th {
+  background: var(--bg-surface);
+  font-weight: 600;
+}
+.jarvis-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 1.25em 0;
+}
+.jarvis-markdown img {
+  max-width: 100%;
+  border-radius: 0.75rem;
+  margin: 0.75em 0;
+}
+
+/* Streaming cursor & loading dots */
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+.animate-dot-1 { animation: dotBounce 1.2s infinite ease-in-out 0s; }
+.animate-dot-2 { animation: dotBounce 1.2s infinite ease-in-out 0.18s; }
+.animate-dot-3 { animation: dotBounce 1.2s infinite ease-in-out 0.36s; }
+
+@keyframes streamPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.streaming-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 3px;
+  vertical-align: -2px;
+  border-radius: 2px;
+  background-color: #6366f1;
+  animation: streamPulse 0.9s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dot-1, .animate-dot-2, .animate-dot-3, .streaming-cursor {
+    animation: none;
+  }
 }

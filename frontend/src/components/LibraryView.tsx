@@ -1,0 +1,10 @@
+import { Library } from 'lucide-react';
+
+export function LibraryView() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#717171] dark:text-[#A1A1AA]">
+      <Library className="w-10 h-10 opacity-30" />
+      <p className="text-sm">Library — coming soon</p>
+    </div>
+  );
+}
