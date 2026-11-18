@@ -939,7 +939,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f10] text-white flex font-sans">
+    <div className="min-h-screen bg-[#212121] text-white flex font-sans">
       <Sidebar
         currentPage={currentPage}
         onSelectPage={setCurrentPage}
@@ -966,6 +966,9 @@ export default function App() {
             personalityMode={personalityMode}
             memoriesCount={memories.length}
             onSelectPersonality={handleSetPersonality}
+            onOpenVision={() => setCurrentPage("vision")}
+            onOpenVoice={() => setCurrentPage("voice")}
+            onToggleMobileSidebar={() => setMobileSidebarOpen((v) => !v)}
           />
         )}
 
