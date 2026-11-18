@@ -41,6 +41,7 @@ import { ResearchView } from "./components/ResearchView";
 import { ContactsView } from "./components/ContactsView";
 import { DiscoveriesView } from "./components/DiscoveriesView";
 import { AgentTaskModal } from "./components/AgentTaskModal";
+import { ConfirmActionModal, type PendingConfirm } from "./components/ConfirmActionModal";
 import { speakJarvisText, playUiSound, unlockAudioContext, setTtsBackendEnabled } from "./utils/audio";
 import { requestNotificationPermission, showBrowserNotification } from "./utils/notifications";
 import { isLoggedIn, getStoredUser, getAccessToken, clearTokens, logout as authLogout, fetchAuthConfig } from "./utils/auth";
@@ -310,6 +311,7 @@ export default function App() {
   const [activeAgentTask, setActiveAgentTask] = useState<AgentTask | undefined>();
   const [isResearchOpen, setIsResearchOpen] = useState(false);
   const [isAgentTaskOpen, setIsAgentTaskOpen] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
 
   // Track previous schedule statuses to detect done/failed transitions
   const prevScheduleStatusRef = useRef<Record<string, string>>({});
@@ -632,6 +634,10 @@ export default function App() {
           if (!raw) continue;
           let evt: { token?: string; done?: boolean };
           try { evt = JSON.parse(raw); } catch { continue; }
+          if ((evt as any).confirm) {
+            const c = evt as any;
+            setPendingConfirm({ action_id: c.action_id, tool: c.tool, description: c.description });
+          }
           if (evt.token) {
             finalText += evt.token;
             setChatMessages(prev => {
@@ -1220,6 +1226,23 @@ export default function App() {
 
       <ResearchModal isOpen={isResearchOpen} onClose={() => setIsResearchOpen(false)} onRunResearch={handleRunResearch} />
       <AgentTaskModal isOpen={isAgentTaskOpen} onClose={() => setIsAgentTaskOpen(false)} onExecuteAgentTask={handleExecuteAgentTask} />
+
+      {pendingConfirm && (
+        <ConfirmActionModal
+          pending={pendingConfirm}
+          onResolved={(response) => {
+            setPendingConfirm(null);
+            if (response) {
+              setChatMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                sender: "jarvis" as const,
+                text: response,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              }]);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

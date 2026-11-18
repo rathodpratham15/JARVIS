@@ -1107,10 +1107,37 @@ def create_app() -> Flask:
         task.label = label
         return task.to_dict(), 200
 
+    # Tools that require user confirmation before executing
+    _CONFIRM_TOOLS: set[str] = {"gmail_send", "os_control", "send_sms", "send_whatsapp"}
+
+    # Deferred tool actions waiting for user confirmation {action_id -> payload}
+    _pending_tool_actions: dict = {}
+
+    def _describe_tool_action(tool_name: str, args: dict) -> str:
+        if tool_name == "gmail_send":
+            return f"Send email to {args.get('to', '?')} — Subject: {args.get('subject', '(no subject)')}"
+        if tool_name == "send_sms":
+            return f"Send SMS to {args.get('to', '?')}: {str(args.get('body', ''))[:80]}"
+        if tool_name == "send_whatsapp":
+            return f"Send WhatsApp to {args.get('to', '?')}: {str(args.get('body', ''))[:80]}"
+        if tool_name == "os_control":
+            target = args.get("path") or args.get("target") or "?"
+            return f"OS action: {args.get('action', '?')} on {target}"
+        return f"Execute: {tool_name}"
+
+    def _fake_stream_text(text: str):
+        """Yield SSE token events word-by-word for a pre-computed text response."""
+        import json as _json
+        words = text.split(" ")
+        for i, word in enumerate(words):
+            token = word if i == len(words) - 1 else word + " "
+            yield f"data: {_json.dumps({'token': token})}\n\n"
+
     @app.post("/api/chat/stream")
     def chat_stream():
         from flask import Response, stream_with_context
         import json as _json
+        import uuid as _uuid
 
         payload = request.get_json(silent=True) or {}
         user_input = (payload.get("message") or "").strip()
@@ -1130,7 +1157,7 @@ def create_app() -> Flask:
             if plugin_response is not None:
                 response_text = plugin_response
             else:
-                response_text = None  # will stream below
+                response_text = None
 
         if response_text is not None:
             interaction_id = memory.store_interaction(
@@ -1139,6 +1166,7 @@ def create_app() -> Flask:
                 intent_type=intent.get("type"),
                 user_id=uid,
             )
+            sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
             def _single():
                 yield f"data: {_json.dumps({'token': response_text})}\n\n"
@@ -1150,10 +1178,76 @@ def create_app() -> Flask:
                 headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
             )
 
-        # LLM path: stream tokens
+        # LLM path: check for tool calls first, then stream response
         ctx = _build_context(memory, user_id=uid)
         stream_sys = (llm.system_prompt + _language_suffix()) or None
 
+        text, tool_name, tool_args = llm.query_with_tools(
+            user_input, tools=TOOLS, memory=ctx, system_prompt_override=stream_sys,
+        )
+
+        if tool_name:
+            tool_intent = tool_call_to_intent(tool_name, tool_args or {})
+            tool_intent["_user_id"] = uid
+
+            if tool_name in _CONFIRM_TOOLS:
+                # Needs confirmation — park the action and ask the user
+                action_id = str(_uuid.uuid4())
+                _pending_tool_actions[action_id] = {
+                    "user_input": user_input,
+                    "tool_name": tool_name,
+                    "tool_args": tool_args or {},
+                    "tool_intent": tool_intent,
+                    "uid": uid,
+                    "intent": intent,
+                    "ctx": ctx,
+                    "stream_sys": stream_sys,
+                }
+                placeholder = "I need your confirmation before proceeding."
+                description = _describe_tool_action(tool_name, tool_args or {})
+                interaction_id = memory.store_interaction(
+                    user_input=user_input,
+                    response=placeholder,
+                    intent_type=intent.get("type"),
+                    user_id=uid,
+                )
+                sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
+
+                def _confirm_stream():
+                    yield f"data: {_json.dumps({'confirm': True, 'action_id': action_id, 'tool': tool_name, 'description': description})}\n\n"
+                    yield f"data: {_json.dumps({'token': placeholder})}\n\n"
+                    yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type')})}\n\n"
+
+                return Response(
+                    stream_with_context(_confirm_stream()),
+                    mimetype="text/event-stream",
+                    headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+                )
+
+            # Non-sensitive tool: execute and stream the finish response
+            tool_result = actions.execute_action(tool_intent)
+            response_text = llm.finish_after_tool(
+                user_input, tool_name, tool_result, memory=ctx, system_prompt_override=stream_sys,
+            )
+            interaction_id = memory.store_interaction(
+                user_input=user_input,
+                response=response_text,
+                intent_type=intent.get("type"),
+                user_id=uid,
+            )
+            sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
+
+            def _tool_stream():
+                yield from _fake_stream_text(response_text)
+                yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'tool_used': tool_name})}\n\n"
+
+            return Response(
+                stream_with_context(_tool_stream()),
+                mimetype="text/event-stream",
+                headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+            )
+
+        # Direct LLM answer — stream it via stream_llm for real token-by-token output
         def _stream():
             full: list[str] = []
             for token in llm.stream_llm(user_input, memory=ctx, system_prompt_override=stream_sys):
@@ -1166,6 +1260,7 @@ def create_app() -> Flask:
                 intent_type=intent.get("type"),
                 user_id=uid,
             )
+            sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
             yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
 
         return Response(
@@ -1173,6 +1268,35 @@ def create_app() -> Flask:
             mimetype="text/event-stream",
             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
         )
+
+    @app.post("/api/chat/confirm-tool")
+    def confirm_tool():
+        """Execute or cancel a deferred tool action after user confirmation."""
+        payload = request.get_json(silent=True) or {}
+        action_id = (payload.get("action_id") or "").strip()
+        confirmed = bool(payload.get("confirmed"))
+        if not action_id:
+            return {"error": "action_id is required"}, 400
+        pending = _pending_tool_actions.pop(action_id, None)
+        if not pending:
+            return {"error": "Action not found or already resolved."}, 404
+        if not confirmed:
+            return {"response": "Action cancelled.", "tool_used": None}, 200
+        tool_result = actions.execute_action(pending["tool_intent"])
+        response_text = llm.finish_after_tool(
+            pending["user_input"],
+            pending["tool_name"],
+            tool_result,
+            memory=pending["ctx"],
+            system_prompt_override=pending["stream_sys"],
+        )
+        memory.store_interaction(
+            user_input=pending["user_input"],
+            response=response_text,
+            intent_type=pending["intent"].get("type"),
+            user_id=pending["uid"],
+        )
+        return {"response": response_text, "tool_used": pending["tool_name"]}, 200
 
     @app.get("/api/history")
     def history() -> tuple[dict, int]:
