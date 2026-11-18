@@ -29,6 +29,7 @@ client = AsyncIOMotorClient(os.environ['MONGO_URL'])
 db = client[os.environ['DB_NAME']]
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('EMERGENT_LLM_KEY')
 OPENAI_KEY = os.environ.get('OPENAI_API_KEY')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID') or os.environ.get('VITE_GOOGLE_CLIENT_ID')
 MODEL = "claude-sonnet-4-5"
 APP_NAME = "jarvis"
 UPLOADS_DIR = ROOT_DIR / "uploads"
@@ -181,10 +182,61 @@ async def auth_session(request: Request, response: Response):
 @api.get("/auth/config")
 async def auth_config():
     return {
-        "google_enabled": bool(os.environ.get("GOOGLE_CLIENT_ID")),
+        "google_enabled": bool(GOOGLE_CLIENT_ID),
+        "google_client_id": GOOGLE_CLIENT_ID or "",
         "microsoft_enabled": bool(os.environ.get("MICROSOFT_CLIENT_ID")),
         "saml_enabled": bool(os.environ.get("SAML_ENABLED")),
+        "password_enabled": True,
     }
+
+
+class GoogleTokenIn(BaseModel):
+    token: str
+
+
+@api.post("/auth/google")
+async def auth_google(body: GoogleTokenIn, response: Response):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(503, "Google sign-in is not configured")
+    # Verify the Google ID token via Google's tokeninfo endpoint
+    try:
+        r = requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": body.token},
+            timeout=10,
+        )
+        if not r.ok:
+            raise HTTPException(401, "Invalid Google token")
+        info = r.json()
+        if info.get("aud") != GOOGLE_CLIENT_ID:
+            raise HTTPException(401, "Token audience mismatch")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Google token verification failed: %s", exc)
+        raise HTTPException(401, "Google token verification failed")
+
+    email = info.get("email", "").lower().strip()
+    name = info.get("name") or info.get("given_name") or email.split("@")[0]
+    picture = info.get("picture")
+    if not email:
+        raise HTTPException(400, "No email in Google token")
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user = {"user_id": user_id, "username": email.split("@")[0], "name": name,
+                "email": email, "password_hash": None, "picture": picture, "created_at": now_iso()}
+        await db.users.insert_one({**user})
+    elif picture and not user.get("picture"):
+        await db.users.update_one({"email": email}, {"$set": {"picture": picture, "name": name}})
+        user = {**user, "picture": picture, "name": name}
+
+    token = uuid.uuid4().hex
+    await db.user_sessions.insert_one({"user_id": user["user_id"], "session_token": token,
+                                       "expires_at": datetime.now(timezone.utc) + timedelta(days=30), "created_at": now_iso()})
+    response.set_cookie("session_token", token, httponly=True, samesite="lax", path="/", max_age=30 * 86400)
+    return {k: v for k, v in user.items() if k != "password_hash"}
 
 @api.get("/auth/me")
 async def auth_me(user: dict = Depends(get_user)):

@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --font-serif: "Instrument Serif", "Playfair Display", Georgia, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
+}
+
 @layer base {
   :root {
     --j-main: #080808;
@@ -118,8 +124,6 @@
 }
 
 @layer utilities {
-  .font-serif { font-family: "Instrument Serif", "Playfair Display", Georgia, serif; }
-  .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   .bg-j-main { background-color: var(--j-main); }
   .bg-j-sidebar { background-color: var(--j-sidebar); }
   .bg-j-surface { background-color: var(--j-surface); }
