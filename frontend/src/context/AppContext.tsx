@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { api, errMsg } from "@/lib/api";
+import { api, errMsg, storeTokens, clearTokens, getToken } from "@/lib/api";
 import type { User, Settings, Conversation, Memory, ModalState } from "@/types/index";
 
 interface AppContextValue {
   user: User | null;
   authState: "checking" | "in" | "out";
-  signIn: (u: User) => void;
+  signIn: (data: unknown) => void;
   signOut: () => Promise<void>;
   settings: Settings | null;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
@@ -37,6 +37,39 @@ export const useApp = () => {
   return ctx;
 };
 
+// Convert flat interactions from GET /api/history to Conversation[] for the sidebar
+function interactionsToConversations(interactions: Array<{
+  id: string; user_input: string; timestamp?: string; created_at?: string;
+}>): Conversation[] {
+  if (!interactions.length) return [];
+  // Group into sessions: > 30 min gap = new conversation
+  const GAP_MS = 30 * 60 * 1000;
+  const sessions: typeof interactions[][] = [];
+  let current: typeof interactions[] = [interactions[0]];
+  for (let i = 1; i < interactions.length; i++) {
+    const prevTs = new Date(interactions[i - 1].timestamp || interactions[i - 1].created_at || 0).getTime();
+    const thisTs = new Date(interactions[i].timestamp || interactions[i].created_at || 0).getTime();
+    if (Math.abs(thisTs - prevTs) > GAP_MS) {
+      sessions.push(current);
+      current = [interactions[i]];
+    } else {
+      current.push(interactions[i]);
+    }
+  }
+  sessions.push(current);
+  return sessions.map((group) => {
+    const first = group[0];
+    const last = group[group.length - 1];
+    const ts = last.timestamp || last.created_at || new Date().toISOString();
+    return {
+      id: `hist-${first.id}`,
+      title: (first.user_input || "Chat").slice(0, 60),
+      created_at: first.timestamp || first.created_at || ts,
+      updated_at: ts,
+    } as Conversation;
+  }).reverse(); // newest first
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authState, setAuthState] = useState<"checking" | "in" | "out">("checking");
@@ -50,17 +83,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // On mount: check for stored JWT and verify it
   useEffect(() => {
-    if (window.location.hash?.includes("session_id=")) return;
+    if (!getToken()) { setAuthState("out"); return; }
     api.get("/auth/me")
       .then(({ data }) => { setUser(data); setAuthState("in"); })
-      .catch(() => setAuthState("out"));
+      .catch(() => { clearTokens(); setAuthState("out"); });
   }, []);
 
   const refreshConversations = useCallback(async () => {
     try {
-      const { data } = await api.get("/conversations");
-      setConversations(data);
+      // Original backend: GET /api/history returns {interactions: [...]}
+      const { data } = await api.get("/history?limit=100");
+      const convs = interactionsToConversations(data.interactions || []);
+      setConversations(convs);
       setConvState("ready");
     } catch {
       setConvState("error");
@@ -71,12 +107,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.get("/memories");
       setMemories(data);
-    } catch { /* surfaced in memory panel */ }
+    } catch { /* memories endpoint may not exist */ }
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    api.get("/settings").then(({ data }) => setSettings(data)).catch(() => toast.error("Couldn't load settings"));
+    api.get("/settings").then(({ data }) => setSettings(data)).catch(() => {});
     refreshConversations();
     refreshMemories();
   }, [user, refreshConversations, refreshMemories]);
@@ -91,9 +127,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signIn = (u: User) => { setUser(u); setAuthState("in"); };
+  // signIn accepts the full login response {access_token, refresh_token, user}
+  // OR just a user object (for backward compat)
+  const signIn = (data: unknown) => {
+    const d = data as Record<string, unknown>;
+    if (d.access_token && d.user) {
+      storeTokens(d.access_token as string, (d.refresh_token as string) || "");
+      setUser(d.user as User);
+    } else {
+      setUser(d as User);
+    }
+    setAuthState("in");
+  };
+
   const signOut = async () => {
     try { await api.post("/auth/logout"); } catch { /* ignore */ }
+    clearTokens();
     setUser(null);
     setConversations([]);
     setAuthState("out");

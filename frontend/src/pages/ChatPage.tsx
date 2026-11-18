@@ -53,13 +53,21 @@ export default function ChatPage() {
   const load = useCallback(async (cid: string, silent = false) => {
     if (!silent) setLoadState("loading");
     try {
-      const { data } = await api.get(`/conversations/${cid}`);
+      // Original backend: GET /api/history returns flat interactions, not per-conversation
+      // We show all recent history when a "conversation" is loaded
+      const { data } = await api.get("/history?limit=100");
       if (convIdRef.current !== cid) return;
-      setMessages(data.messages);
+      // Convert flat interactions to message pairs
+      const msgs: { id: string; role: "user" | "assistant"; content: string; conversation_id: string; created_at: string }[] = [];
+      for (const interaction of (data.interactions || [])) {
+        const ts = interaction.timestamp || interaction.created_at || new Date().toISOString();
+        msgs.push({ id: `u-${interaction.id}`, role: "user", content: interaction.user_input || "", conversation_id: cid, created_at: ts });
+        msgs.push({ id: `a-${interaction.id}`, role: "assistant", content: interaction.response || "", conversation_id: cid, created_at: ts });
+      }
+      setMessages(msgs);
       setLoadState("ready");
-    } catch (e: unknown) {
-      const status = (e as { response?: { status: number } })?.response?.status;
-      if (!silent) setLoadState(status === 404 ? "notfound" : "error");
+    } catch {
+      if (!silent) setLoadState("error");
     }
   }, []);
 

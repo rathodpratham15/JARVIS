@@ -67,8 +67,11 @@ export default function LoginPage() {
   };
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8001";
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
   const isLogin = mode === "login";
-  const hasSSO = isLogin && (config?.google_enabled || config?.saml_enabled);
+  // Show Google button if either backend reports it enabled OR the client ID env var is set
+  const showGoogle = isLogin && (config?.google_enabled || !!googleClientId);
+  const hasSSO = isLogin && (showGoogle || config?.saml_enabled);
 
   return (
     <div className="min-h-screen bg-[#0d0f12] flex flex-col items-center justify-center px-4">
@@ -103,7 +106,7 @@ export default function LoginPage() {
           {/* SSO buttons — login only, shown when backend reports them enabled */}
           {hasSSO && (
             <div className="space-y-2">
-              {config?.google_enabled && (
+              {showGoogle && (
                 <div className="flex justify-center">
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
