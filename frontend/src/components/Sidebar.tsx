@@ -104,11 +104,11 @@ export function Sidebar() {
 
   const handleNewChat = () => {
     startNewChat();
-    if (location.pathname !== '/') navigate('/');
+    if (location.pathname !== '/chat') navigate('/chat');
   };
 
   const handleSelectConversation = async (id: string) => {
-    if (location.pathname !== '/') navigate('/');
+    if (location.pathname !== '/chat') navigate('/chat');
     await loadConversation(id);
   };
 
@@ -426,7 +426,7 @@ export function Sidebar() {
                             onClick={() => {
                               setProjectMenuId(null);
                               deleteProject(proj.id);
-                              if (location.pathname === `/projects/${proj.id}`) navigate('/');
+                              if (location.pathname === `/projects/${proj.id}`) navigate('/chat');
                             }}
                             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-500 hover:bg-red-500/10 cursor-pointer"
                           >

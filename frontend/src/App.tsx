@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { AuthScreen } from './components/AuthScreen';
+import React, { useEffect } from 'react';
+import { Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { ContactsPage } from './components/ContactsPage';
 import { MyContactsPage } from './components/MyContactsPage';
@@ -14,12 +13,22 @@ import { ScheduledView } from './components/ScheduledView';
 import { LibraryView } from './components/LibraryView';
 import { ProjectView } from './components/ProjectView';
 import { ConfirmActionModal } from './components/ConfirmActionModal';
+import { LandingPage } from './components/LandingPage';
+import { LoginView } from './components/LoginView';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { useJarvisStore } from './store/useJarvisStore';
+import { isLoggedIn, getStoredUser } from './utils/auth';
+
+const ScannerPage = React.lazy(() =>
+  import('./components/ScannerPage').then((m) => ({ default: (m as any).ScannerPage ?? m.default }))
+);
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const {
     initialized,
-    user,
     settings,
     bootstrap,
     applyTheme,
@@ -39,16 +48,57 @@ export default function App() {
     return () => mq.removeEventListener('change', handler);
   }, [settings.theme, applyTheme]);
 
-  if (!initialized) {
+  // Scanner — always public, no auth check needed
+  if (location.pathname === '/scan') {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-[#FFFFFF] dark:bg-[#212121] text-[#717171] dark:text-[#A1A1AA] text-sm">
-        Loading JARVIS…
-      </div>
+      <React.Suspense fallback={
+        <div className="min-h-screen bg-black flex items-center justify-center text-cyan-400 font-mono text-sm">
+          INITIALIZING SCANNER…
+        </div>
+      }>
+        <ScannerPage />
+      </React.Suspense>
     );
   }
 
-  if (!user || !user.signedIn) {
-    return <AuthScreen />;
+  // Privacy policy — always public
+  if (location.pathname === '/privacy') {
+    return <PrivacyPolicy />;
+  }
+
+  // Landing page — always public
+  if (location.pathname === '/') {
+    return <LandingPage onEnter={() => navigate('/login')} />;
+  }
+
+  const handleLoginSuccess = () => {
+    navigate('/chat', { replace: true });
+  };
+
+  // SSO callback
+  if (location.pathname === '/auth/callback') {
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Login / signup routes
+  if (location.pathname === '/login') {
+    return <LoginView onLoginSuccess={handleLoginSuccess} initialMode="login" />;
+  }
+  if (location.pathname === '/signup') {
+    return <LoginView onLoginSuccess={handleLoginSuccess} initialMode="signup" />;
+  }
+
+  // Protected routes — if not logged in, redirect to login
+  if (!isLoggedIn() || !getStoredUser()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!initialized) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#212121] text-[#A1A1AA] text-sm">
+        Loading JARVIS…
+      </div>
+    );
   }
 
   return (
@@ -58,14 +108,14 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 h-screen">
         <TopBar />
         <Routes>
-          <Route path="/" element={<ChatWorkspace />} />
+          <Route path="/chat" element={<ChatWorkspace />} />
           <Route path="/c/:id" element={<ChatWorkspace />} />
           <Route path="/scheduled" element={<ScheduledView />} />
           <Route path="/library" element={<LibraryView />} />
           <Route path="/projects/:id" element={<ProjectView />} />
           <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/my-contacts" element={<MyContactsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
       </main>
 
