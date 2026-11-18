@@ -178,6 +178,14 @@ async def auth_session(request: Request, response: Response):
     raise HTTPException(501, "OAuth session not configured — use /auth/login instead")
 
 
+@api.get("/auth/config")
+async def auth_config():
+    return {
+        "google_enabled": bool(os.environ.get("GOOGLE_CLIENT_ID")),
+        "microsoft_enabled": bool(os.environ.get("MICROSOFT_CLIENT_ID")),
+        "saml_enabled": bool(os.environ.get("SAML_ENABLED")),
+    }
+
 @api.get("/auth/me")
 async def auth_me(user: dict = Depends(get_user)):
     return user

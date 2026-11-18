@@ -62,7 +62,8 @@
 @layer components {
   .editorial-panel {
     background: #111318;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid #27272a;
+    border-radius: 2px;
     padding: 2rem;
   }
   .editorial-input {
@@ -79,8 +80,8 @@
   .editorial-input:focus { border-color: #00E5FF; }
   .editorial-input::placeholder { color: rgba(255,255,255,0.25); }
   .editorial-btn-primary {
-    background: #00E5FF;
-    color: #000;
+    background: #27272a;
+    color: #fff;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     font-weight: 700;
@@ -94,7 +95,7 @@
     cursor: pointer;
     transition: background 0.15s, opacity 0.15s;
   }
-  .editorial-btn-primary:hover { background: #00c8e0; }
+  .editorial-btn-primary:hover { background: #3f3f46; }
   .editorial-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
   .label-secondary {
     display: block;
@@ -112,7 +113,7 @@
     font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: #00E5FF;
+    color: #71717a;
   }
 }
 
