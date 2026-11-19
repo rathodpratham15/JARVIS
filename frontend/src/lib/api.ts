@@ -399,6 +399,7 @@ export const api = {
         message: params.message,
         conversation_id: params.conversationId,
         personality_mode: params.personalityMode,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
       signal: handlers.signal,
     });

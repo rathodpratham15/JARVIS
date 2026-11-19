@@ -840,6 +840,22 @@ def create_app() -> Flask:
             return f" Always respond in {_LANGUAGE_NAMES[lang]}, regardless of the language the user writes in."
         return ""
 
+    def _datetime_context(tz_name: str) -> str:
+        """Return a system-prompt snippet with the user's current local time."""
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(tz_name)
+            now_local = datetime.now(tz)
+            return (
+                f"\n\nUser's current local time: {now_local.strftime('%A, %B %d %Y %H:%M')} "
+                f"({tz_name}). "
+                "When creating or updating calendar events, always express datetimes "
+                f"in the user's timezone ({tz_name}). Never shift times to UTC."
+            )
+        except Exception:
+            return ""
+
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -848,9 +864,10 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         wearable_mode = bool(payload.get("wearable_mode", False))
+        _tz_name = (payload.get("timezone") or "UTC").strip()
         lang_suffix = _language_suffix()
-        base = llm.system_prompt + lang_suffix
-        sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (lang_suffix and base or None)
+        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name)
+        sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (base or None)
 
         intent = parser.parse_intent(user_input)
         uid = _uid()
@@ -1195,7 +1212,8 @@ def create_app() -> Flask:
 
         # LLM path: check for tool calls first, then stream response
         ctx = _build_context(memory, user_id=uid)
-        stream_sys = (llm.system_prompt + _language_suffix()) or None
+        _tz_name = (payload.get("timezone") or "UTC").strip()
+        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name)) or None
 
         text, tool_name, tool_args = llm.query_with_tools(
             user_input, tools=TOOLS, memory=ctx, system_prompt_override=stream_sys,

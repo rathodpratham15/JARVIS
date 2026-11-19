@@ -154,16 +154,15 @@ class CalendarService:
             # Guard: refuse to reschedule to a time in the past.
             if start:
                 try:
-                    from datetime import datetime, timezone as _tz
-                    # Strip trailing Z / offset so we can parse the naive part
+                    from zoneinfo import ZoneInfo
+                    tz_obj = ZoneInfo(orig_tz)
                     naive_str = start.split("+")[0].rstrip("Z")
-                    candidate = datetime.fromisoformat(naive_str)
-                    # Compare against current wall-clock time (naive UTC baseline)
-                    now_naive = datetime.now(_tz.utc).replace(tzinfo=None)
-                    if candidate < now_naive:
+                    # Interpret the LLM's naive datetime in the event's local timezone
+                    candidate = datetime.fromisoformat(naive_str).replace(tzinfo=tz_obj)
+                    if candidate < datetime.now(timezone.utc):
                         return (
-                            f"Cannot reschedule to {start} because that time is in the past "
-                            f"(current UTC is {now_naive.strftime('%Y-%m-%dT%H:%M')})."
+                            f"Cannot reschedule to {start} ({orig_tz}) because that time is "
+                            f"already in the past."
                         )
                 except Exception:
                     pass  # If parsing fails, let Google reject it
