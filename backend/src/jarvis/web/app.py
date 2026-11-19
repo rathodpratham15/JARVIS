@@ -2556,14 +2556,14 @@ class MyPlugin(BasePlugin):
         error = request.args.get("error")
 
         if error:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={error}")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason={error}")
 
         if not code or not state or state not in _oauth_states:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=invalid_state")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason=invalid_state")
 
         uid, expiry = _oauth_states.pop(state)
         if _time_mod.time() > expiry:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=state_expired")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason=state_expired")
 
         try:
             from google_auth_oauthlib.flow import Flow
@@ -2589,10 +2589,10 @@ class MyPlugin(BasePlugin):
                 scopes=list(creds.scopes or _GOOGLE_SCOPES),
             )
             logger.info("Google OAuth tokens stored for user %s", uid)
-            return flask_redirect(f"{_frontend_url}/settings?google=connected")
+            return flask_redirect(f"{_frontend_url}/chat?google=connected")
         except Exception as exc:
             logger.error("Google callback error: %s", exc)
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={str(exc)[:100]}")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason={str(exc)[:100]}")
 
     @app.delete("/api/google/disconnect")
     def google_disconnect() -> tuple[dict, int]:

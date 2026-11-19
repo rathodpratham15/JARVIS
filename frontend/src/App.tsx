@@ -32,6 +32,7 @@ export default function App() {
     settings,
     bootstrap,
     applyTheme,
+    openSettings,
     pendingConfirm,
     setPendingConfirm,
   } = useJarvisStore();
@@ -39,6 +40,16 @@ export default function App() {
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  // After Google OAuth callback redirects to /chat?google=connected,
+  // open the Integrations tab so the status refresh useEffect fires.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('google') === 'connected') {
+      navigate('/chat', { replace: true });
+      openSettings('integrations');
+    }
+  }, [location.search, navigate, openSettings]);
 
   useEffect(() => {
     if (settings.theme !== 'system') return;
