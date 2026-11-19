@@ -708,7 +708,7 @@ class ActionEngine:
         lines = [f"Found {len(result)} upcoming event(s):"]
         for e in result:
             attendees = ", ".join(e["attendees"]) if e["attendees"] else "no attendees"
-            lines.append(f"• {e['start'][:16]} — {e['title']} ({attendees}){' @ ' + e['location'] if e['location'] else ''}")
+            lines.append(f"• [id:{e['id']}] {e['start'][:16]} — {e['title']} ({attendees}){' @ ' + e['location'] if e['location'] else ''}")
         return "\n".join(lines)
 
     def _calendar_create(self, intent: dict) -> str:

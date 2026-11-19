@@ -1229,11 +1229,22 @@ def create_app() -> Flask:
                     headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
                 )
 
-            # Non-sensitive tool: execute and stream the finish response
-            tool_result = actions.execute_action(tool_intent)
-            response_text = llm.finish_after_tool(
-                user_input, tool_name, tool_result, memory=ctx, system_prompt_override=stream_sys,
+            # Non-sensitive tool: run multi-step tool loop then stream the reply
+            def _execute_tool(t_name: str, t_args: dict) -> str:
+                t_intent = tool_call_to_intent(t_name, t_args)
+                t_intent["_user_id"] = uid
+                return actions.execute_action(t_intent)
+
+            response_text, last_tool = llm.run_tool_loop(
+                user_input,
+                tools=TOOLS,
+                execute_tool=_execute_tool,
+                memory=ctx,
+                system_prompt_override=stream_sys,
+                first_tool_name=tool_name,
+                first_tool_args=tool_args or {},
             )
+            tool_name = last_tool or tool_name
             interaction_id = memory.store_interaction(
                 user_input=user_input,
                 response=response_text,
