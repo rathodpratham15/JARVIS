@@ -2513,8 +2513,22 @@ class MyPlugin(BasePlugin):
         uid = _uid()
         if uid is None or _google_svc is None:
             return {"connected": False, "gmail": False, "calendar": False, "drive": False}, 200
-        connected = _google_svc.token_store.has_tokens(uid)
-        return {"connected": connected, "gmail": connected, "calendar": connected, "drive": connected}, 200
+        creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
+        if creds is None:
+            return {"connected": False, "gmail": False, "calendar": False, "drive": False}, 200
+        granted = set(creds.scopes or [])
+        gmail = any("gmail" in s for s in granted)
+        calendar = any("calendar" in s for s in granted)
+        drive = any("drive" in s for s in granted)
+        email = None
+        try:
+            from googleapiclient.discovery import build as _gbuild
+            svc = _gbuild("oauth2", "v2", credentials=creds)
+            info = svc.userinfo().get().execute()
+            email = info.get("email")
+        except Exception:
+            pass
+        return {"connected": True, "gmail": gmail, "calendar": calendar, "drive": drive, "email": email}, 200
 
     @app.get("/api/google/connect")
     def google_connect() -> tuple[dict, int]:
@@ -2577,6 +2591,9 @@ class MyPlugin(BasePlugin):
             return flask_redirect(f"{_frontend_url}/chat?google=error&reason=state_expired")
 
         try:
+            import os as _os
+            # Allow user to approve a subset of requested scopes (e.g. skip Drive)
+            _os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
             from google_auth_oauthlib.flow import Flow
             flow = Flow.from_client_config(
                 {"web": {
