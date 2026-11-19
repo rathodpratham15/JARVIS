@@ -508,7 +508,7 @@ export function SettingsModal() {
                             <div className="text-sm font-medium">{item.name}</div>
                             <div className="text-xs text-[#717171] dark:text-[#A1A1AA]">
                               {status.connected
-                                ? `Connected (${status.email || user?.email})`
+                                ? (status.email ? `Connected (${status.email})` : 'Connected')
                                 : item.desc}
                             </div>
                           </div>

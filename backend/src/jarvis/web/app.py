@@ -2524,10 +2524,14 @@ class MyPlugin(BasePlugin):
         contacts = any("contacts" in s for s in granted)
         email = None
         try:
-            from googleapiclient.discovery import build as _gbuild
-            svc = _gbuild("oauth2", "v2", credentials=creds)
-            info = svc.userinfo().get().execute()
-            email = info.get("email")
+            import requests as _req
+            r = _req.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {creds.token}"},
+                timeout=5,
+            )
+            if r.ok:
+                email = r.json().get("email")
         except Exception:
             pass
         return {"connected": True, "gmail": gmail, "calendar": calendar, "drive": drive, "contacts": contacts, "email": email}, 200
