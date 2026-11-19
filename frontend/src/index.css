@@ -180,4 +180,103 @@
   .animate-dot-1, .animate-dot-2, .animate-dot-3, .streaming-cursor {
     animation: none;
   }
+
+/* ── Legacy dark-UI classes used by LoginView + PrivacyPolicy ──────────────
+   These were defined in main's index.css. Kept here so those pages render
+   correctly without touching the components themselves.                    */
+.editorial-panel {
+  background-color: #111318;
+  border: 1px solid #27272a;
+  border-radius: 2px;
+  padding: 24px;
+}
+@media (min-width: 640px) {
+  .editorial-panel { padding: 32px; }
+}
+
+.editorial-input {
+  border: 1px solid #27272a;
+  background-color: #0d0f12;
+  border-radius: 0;
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-size: 12px;
+  padding: 10px 14px;
+  color: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
+}
+.editorial-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+.editorial-input::placeholder { color: #52525b; }
+
+.editorial-btn-primary {
+  background-color: #ffffff;
+  color: #000000;
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 10px 20px;
+  border-radius: 0;
+  border: 1px solid #27272a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.15s ease;
+  cursor: pointer;
+}
+.editorial-btn-primary:hover:not(:disabled) { filter: brightness(0.94); }
+.editorial-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.editorial-btn-outline {
+  background-color: transparent;
+  color: #e4e4e7;
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 10px 18px;
+  border-radius: 0;
+  border: 1px solid #27272a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+.editorial-btn-outline:hover:not(:disabled) { background-color: rgba(255,255,255,0.06); }
+.editorial-btn-outline:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.overline-cyan {
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: #71717a;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+.label-secondary {
+  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: #71717a;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.font-serif {
+  font-family: "Instrument Serif", "Playfair Display", Georgia, serif !important;
+}
+
+.bg-base { background-color: #0d0f12; }
+.bg-surface { background-color: #111318; }
 }
