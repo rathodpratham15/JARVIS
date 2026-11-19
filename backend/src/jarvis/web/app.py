@@ -1338,6 +1338,13 @@ def create_app() -> Flask:
             return {"error": "limit must be an integer"}, 400
         return {"interactions": memory.recent(limit=min(limit, 200), user_id=_uid())}, 200
 
+    @app.delete("/api/history/<interaction_id>")
+    def delete_history(interaction_id: str) -> tuple[dict, int]:
+        count = memory.delete_conversation(interaction_id, user_id=_uid())
+        if not count:
+            return {"error": "Not found"}, 404
+        return {"ok": True, "deleted": count}, 200
+
     @app.get("/api/search")
     def search() -> tuple[dict, int]:
         query = (request.args.get("q") or "").strip()

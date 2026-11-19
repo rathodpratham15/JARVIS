@@ -32,8 +32,9 @@ class CalendarService:
             return NOT_CONNECTED
         try:
             now = datetime.now(timezone.utc)
-            tmin = time_min or now.isoformat()
-            tmax = time_max or (now + timedelta(days=7)).isoformat()
+            start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            tmin = time_min or start_of_today.isoformat()
+            tmax = time_max or (start_of_today + timedelta(days=7)).isoformat()
             resp = svc.events().list(
                 calendarId="primary",
                 timeMin=tmin,

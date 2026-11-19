@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   ArrowDown,
   Check,
@@ -25,6 +26,7 @@ const SUGGESTIONS = [
 ];
 
 export function ChatWorkspace() {
+  const { id: urlConvId } = useParams<{ id: string }>();
   const {
     messages,
     settings,
@@ -32,13 +34,22 @@ export function ChatWorkspace() {
     streamError,
     speakingMessageId,
     ttsLoadingId,
+    activeConversationId,
     sendMessage,
     regenerateLastResponse,
     editUserMessage,
     setFeedback,
     speakMessage,
     stopSpeaking,
+    loadConversation,
   } = useJarvisStore();
+
+  // When navigating to /c/:id or refreshing, load that conversation.
+  useEffect(() => {
+    if (urlConvId && urlConvId !== activeConversationId) {
+      void loadConversation(urlConvId);
+    }
+  }, [urlConvId, activeConversationId, loadConversation]);
 
   const [isDark, setIsDark] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
