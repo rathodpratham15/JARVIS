@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowDown,
   Check,
@@ -27,6 +27,7 @@ const SUGGESTIONS = [
 
 export function ChatWorkspace() {
   const { id: urlConvId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const {
     messages,
     settings,
@@ -44,12 +45,20 @@ export function ChatWorkspace() {
     loadConversation,
   } = useJarvisStore();
 
-  // When navigating to /c/:id or refreshing, load that conversation.
+  // When navigating to /c/:id or refreshing on that URL, load that conversation.
   useEffect(() => {
     if (urlConvId && urlConvId !== activeConversationId) {
       void loadConversation(urlConvId);
     }
   }, [urlConvId, activeConversationId, loadConversation]);
+
+  // Once a conversation ID is assigned (e.g. after the first reply), push
+  // the URL from /chat → /c/:id so a refresh stays on the same chat.
+  useEffect(() => {
+    if (activeConversationId && !urlConvId) {
+      navigate(`/c/${activeConversationId}`, { replace: true });
+    }
+  }, [activeConversationId, urlConvId, navigate]);
 
   const [isDark, setIsDark] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);

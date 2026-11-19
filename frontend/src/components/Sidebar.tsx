@@ -107,9 +107,9 @@ export function Sidebar() {
     if (location.pathname !== '/chat') navigate('/chat');
   };
 
-  const handleSelectConversation = async (id: string) => {
-    if (location.pathname !== '/chat') navigate('/chat');
-    await loadConversation(id);
+  const handleSelectConversation = (id: string) => {
+    // Navigate to the conversation URL — ChatWorkspace's useEffect will load it.
+    navigate(`/c/${id}`);
   };
 
   const handleStartRename = (item: ConversationSummary) => {
