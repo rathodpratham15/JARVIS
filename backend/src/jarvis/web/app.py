@@ -165,6 +165,7 @@ def create_app() -> Flask:
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/contacts.readonly",
     ]
 
     _PUBLIC_ROUTES = {
@@ -2520,6 +2521,7 @@ class MyPlugin(BasePlugin):
         gmail = any("gmail" in s for s in granted)
         calendar = any("calendar" in s for s in granted)
         drive = any("drive" in s for s in granted)
+        contacts = any("contacts" in s for s in granted)
         email = None
         try:
             from googleapiclient.discovery import build as _gbuild
@@ -2528,7 +2530,7 @@ class MyPlugin(BasePlugin):
             email = info.get("email")
         except Exception:
             pass
-        return {"connected": True, "gmail": gmail, "calendar": calendar, "drive": drive, "email": email}, 200
+        return {"connected": True, "gmail": gmail, "calendar": calendar, "drive": drive, "contacts": contacts, "email": email}, 200
 
     @app.get("/api/google/connect")
     def google_connect() -> tuple[dict, int]:

@@ -26,6 +26,37 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_aqi",
+            "description": "Get the current air quality index (AQI) for a location.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "location": {"type": "string", "description": "City name or 'current location'"},
+                },
+                "required": ["location"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_google_contacts",
+            "description": "Search the user's Google Contacts by name to find email or phone number.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "query": {"type": "string", "description": "Name or partial name to search"},
+                    "max_results": {"type": "integer", "description": "Max results to return (default 5)"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_time_or_date",
             "description": "Get the current time or date.",
             "parameters": {
@@ -773,5 +804,11 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "list_ha_devices":
         return {**base, "type": "list_ha_devices", "domain": args.get("domain", "")}
+
+    if name == "get_aqi":
+        return {**base, "type": "get_aqi", "location": args.get("location", "current location")}
+
+    if name == "search_google_contacts":
+        return {**base, "type": "search_google_contacts", "query": args.get("query", ""), "max_results": int(args.get("max_results") or 5)}
 
     return {**base, "type": "conversation"}
