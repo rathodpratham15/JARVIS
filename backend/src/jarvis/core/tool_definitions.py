@@ -425,8 +425,8 @@ TOOLS: list[dict] = [
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "time_min": {"type": "string", "description": "Start of time range in ISO 8601 format (default: now)"},
-                    "time_max": {"type": "string", "description": "End of time range in ISO 8601 format (default: 7 days from now)"},
+                    "time_min": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "Start of time range in ISO 8601 format (default: now). Pass null to use default."},
+                    "time_max": {"anyOf": [{"type": "string"}, {"type": "null"}], "description": "End of time range in ISO 8601 format (default: 7 days from now). Pass null to use default."},
                     "max_results": {"type": "integer", "description": "Max events (default 10)"},
                 },
                 "required": [],

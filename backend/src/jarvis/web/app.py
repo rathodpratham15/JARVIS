@@ -2537,11 +2537,20 @@ class MyPlugin(BasePlugin):
             )
             flow.redirect_uri = f"{_backend_url}/api/google/callback"
             state = _secrets_mod.token_urlsafe(24)
-            _oauth_states[state] = (uid, _time_mod.time() + 600)
+            # Generate PKCE pair so the callback's token exchange succeeds
+            import hashlib as _hl, base64 as _b64
+            _raw = _secrets_mod.token_bytes(32)
+            code_verifier = _b64.urlsafe_b64encode(_raw).rstrip(b"=").decode()
+            code_challenge = _b64.urlsafe_b64encode(
+                _hl.sha256(code_verifier.encode()).digest()
+            ).rstrip(b"=").decode()
+            _oauth_states[state] = (uid, _time_mod.time() + 600, code_verifier)
             auth_url, _ = flow.authorization_url(
                 access_type="offline",
                 prompt="consent",
                 state=state,
+                code_challenge=code_challenge,
+                code_challenge_method="S256",
             )
             return {"url": auth_url}, 200
         except Exception as exc:
@@ -2561,7 +2570,9 @@ class MyPlugin(BasePlugin):
         if not code or not state or state not in _oauth_states:
             return flask_redirect(f"{_frontend_url}/chat?google=error&reason=invalid_state")
 
-        uid, expiry = _oauth_states.pop(state)
+        state_entry = _oauth_states.pop(state)
+        uid, expiry = state_entry[0], state_entry[1]
+        code_verifier = state_entry[2] if len(state_entry) > 2 else None
         if _time_mod.time() > expiry:
             return flask_redirect(f"{_frontend_url}/chat?google=error&reason=state_expired")
 
@@ -2578,7 +2589,10 @@ class MyPlugin(BasePlugin):
                 scopes=_GOOGLE_SCOPES,
             )
             flow.redirect_uri = f"{_backend_url}/api/google/callback"
-            flow.fetch_token(code=code)
+            fetch_kwargs: dict = {"code": code}
+            if code_verifier:
+                fetch_kwargs["code_verifier"] = code_verifier
+            flow.fetch_token(**fetch_kwargs)
             creds = flow.credentials
             expiry_iso = creds.expiry.isoformat() if creds.expiry else None
             _google_svc.token_store.save(
