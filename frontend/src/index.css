@@ -180,6 +180,7 @@
   .animate-dot-1, .animate-dot-2, .animate-dot-3, .streaming-cursor {
     animation: none;
   }
+}
 
 /* ── Legacy dark-UI classes used by LoginView + PrivacyPolicy ──────────────
    These were defined in main's index.css. Kept here so those pages render
@@ -279,4 +280,3 @@
 
 .bg-base { background-color: #0d0f12; }
 .bg-surface { background-color: #111318; }
-}
