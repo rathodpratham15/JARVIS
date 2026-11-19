@@ -25,6 +25,13 @@ class CalendarService:
             return None
         return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
+    def _get_primary_timezone(self, svc) -> str:
+        """Return the IANA timezone of the user's primary calendar."""
+        try:
+            return svc.calendars().get(calendarId="primary").execute().get("timeZone", "UTC")
+        except Exception:
+            return "UTC"
+
     def _get_calendar_ids(self, svc) -> list[str]:
         """Return all calendar IDs the user has access to."""
         try:
@@ -93,10 +100,11 @@ class CalendarService:
         if svc is None:
             return NOT_CONNECTED
         try:
+            cal_tz = self._get_primary_timezone(svc)
             body: dict = {
                 "summary": title,
-                "start": {"dateTime": start, "timeZone": "UTC"},
-                "end": {"dateTime": end, "timeZone": "UTC"},
+                "start": {"dateTime": start, "timeZone": cal_tz},
+                "end": {"dateTime": end, "timeZone": cal_tz},
             }
             if description:
                 body["description"] = description
@@ -133,12 +141,39 @@ class CalendarService:
         try:
             cal_id = self._find_calendar_for_event(svc, event_id)
             event = svc.events().get(calendarId=cal_id, eventId=event_id).execute()
+
+            # Preserve original event timezone so the LLM's naive datetime
+            # (e.g. "2026-11-20T19:00:00") is kept in the user's local tz
+            # rather than being misread as UTC.
+            orig_tz = (
+                event.get("start", {}).get("timeZone")
+                or event.get("end", {}).get("timeZone")
+                or self._get_primary_timezone(svc)
+            )
+
+            # Guard: refuse to reschedule to a time in the past.
+            if start:
+                try:
+                    from datetime import datetime, timezone as _tz
+                    # Strip trailing Z / offset so we can parse the naive part
+                    naive_str = start.split("+")[0].rstrip("Z")
+                    candidate = datetime.fromisoformat(naive_str)
+                    # Compare against current wall-clock time (naive UTC baseline)
+                    now_naive = datetime.now(_tz.utc).replace(tzinfo=None)
+                    if candidate < now_naive:
+                        return (
+                            f"Cannot reschedule to {start} because that time is in the past "
+                            f"(current UTC is {now_naive.strftime('%Y-%m-%dT%H:%M')})."
+                        )
+                except Exception:
+                    pass  # If parsing fails, let Google reject it
+
             if title:
                 event["summary"] = title
             if start:
-                event["start"] = {"dateTime": start, "timeZone": "UTC"}
+                event["start"] = {"dateTime": start, "timeZone": orig_tz}
             if end:
-                event["end"] = {"dateTime": end, "timeZone": "UTC"}
+                event["end"] = {"dateTime": end, "timeZone": orig_tz}
             if description is not None:
                 event["description"] = description
             if location is not None:
