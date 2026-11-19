@@ -571,8 +571,8 @@ def create_app() -> Flask:
         except RuntimeError as exc:
             return {"error": str(exc)}, 501
         except Exception as exc:
-            logger.exception("saml_login error: %s", exc)
-            return {"error": str(exc)}, 500
+            logger.warning("saml_login unavailable: %s", exc)
+            return {"error": "SAML SSO temporarily unavailable — check server logs"}, 503
 
     @app.post("/auth/saml/acs")
     def saml_acs():
