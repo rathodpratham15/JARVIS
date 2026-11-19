@@ -185,10 +185,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
     <div className="min-h-screen bg-[#080808] text-white font-mono antialiased overflow-x-hidden" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
       <style>{`
         .lp-no-radius * { border-radius: 0 !important; }
-        /* Override app-level heading font so LandingPage stays monospace */
+        /* Restore serif headings — main branch used Instrument Serif for h1-h3 */
         .lp-no-radius h1,
         .lp-no-radius h2,
-        .lp-no-radius h3,
+        .lp-no-radius h3 {
+          font-family: 'Instrument Serif', 'Playfair Display', Georgia, serif !important;
+        }
         .lp-no-radius h4,
         .lp-no-radius h5,
         .lp-no-radius h6 {
