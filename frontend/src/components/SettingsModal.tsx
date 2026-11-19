@@ -123,6 +123,7 @@ export function SettingsModal() {
   };
 
   const handleGoogleDisconnect = async () => {
+    if (!window.confirm('This will disconnect all Google services (Calendar, Gmail, Drive). Continue?')) return;
     setGoogleLoading(true);
     try {
       const token = localStorage.getItem('jarvis_access_token');

@@ -162,6 +162,8 @@ def create_app() -> Flask:
     _spotify_oauth_states: dict[str, float] = {}  # state → expiry
 
     _GOOGLE_SCOPES = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/drive",
