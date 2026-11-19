@@ -25,6 +25,15 @@ class CalendarService:
             return None
         return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
+    def _get_calendar_ids(self, svc) -> list[str]:
+        """Return all calendar IDs the user has access to."""
+        try:
+            items = svc.calendarList().list().execute().get("items", [])
+            ids = [c["id"] for c in items if not c.get("deleted")]
+            return ids or ["primary"]
+        except Exception:
+            return ["primary"]
+
     def list_events(self, user_id: str, time_min: Optional[str] = None,
                     time_max: Optional[str] = None, max_results: int = 10) -> "list[dict] | str":
         svc = self._build(user_id)
@@ -32,30 +41,46 @@ class CalendarService:
             return NOT_CONNECTED
         try:
             now = datetime.now(timezone.utc)
-            start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            tmin = time_min or start_of_today.isoformat()
-            tmax = time_max or (start_of_today + timedelta(days=7)).isoformat()
-            resp = svc.events().list(
-                calendarId="primary",
-                timeMin=tmin,
-                timeMax=tmax,
-                maxResults=max_results,
-                singleEvents=True,
-                orderBy="startTime",
-            ).execute()
-            events = []
-            for e in resp.get("items", []):
-                start = e.get("start", {})
-                end = e.get("end", {})
-                events.append({
-                    "id": e["id"],
-                    "title": e.get("summary", "(no title)"),
-                    "start": start.get("dateTime") or start.get("date", ""),
-                    "end": end.get("dateTime") or end.get("date", ""),
-                    "location": e.get("location", ""),
-                    "description": e.get("description", ""),
-                    "attendees": [a.get("email", "") for a in e.get("attendees", [])],
-                })
+            # Use the user's local date string so Google applies the calendar's
+            # own timezone when interpreting "today", avoiding UTC-offset issues.
+            today_date = now.strftime("%Y-%m-%d")
+            tmin = time_min or f"{today_date}T00:00:00Z"
+            tmax = time_max or (now + timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z")
+
+            seen_ids: set[str] = set()
+            events: list[dict] = []
+
+            for cal_id in self._get_calendar_ids(svc):
+                try:
+                    resp = svc.events().list(
+                        calendarId=cal_id,
+                        timeMin=tmin,
+                        timeMax=tmax,
+                        maxResults=max_results,
+                        singleEvents=True,
+                        orderBy="startTime",
+                    ).execute()
+                except Exception as exc:
+                    logger.warning("Calendar list_events(%s) error: %s", cal_id, exc)
+                    continue
+                for e in resp.get("items", []):
+                    if e["id"] in seen_ids:
+                        continue
+                    seen_ids.add(e["id"])
+                    start = e.get("start", {})
+                    end = e.get("end", {})
+                    events.append({
+                        "id": e["id"],
+                        "title": e.get("summary", "(no title)"),
+                        "start": start.get("dateTime") or start.get("date", ""),
+                        "end": end.get("dateTime") or end.get("date", ""),
+                        "location": e.get("location", ""),
+                        "description": e.get("description", ""),
+                        "attendees": [a.get("email", "") for a in e.get("attendees", [])],
+                    })
+
+            # Sort merged results by start time
+            events.sort(key=lambda e: e["start"])
             return events
         except Exception as exc:
             logger.error("Calendar list_events error: %s", exc)
@@ -88,6 +113,16 @@ class CalendarService:
             logger.error("Calendar create_event error: %s", exc)
             return f"Calendar error: {exc}"
 
+    def _find_calendar_for_event(self, svc, event_id: str) -> str:
+        """Return the calendarId that owns event_id, falling back to 'primary'."""
+        for cal_id in self._get_calendar_ids(svc):
+            try:
+                svc.events().get(calendarId=cal_id, eventId=event_id).execute()
+                return cal_id
+            except Exception:
+                continue
+        return "primary"
+
     def update_event(self, user_id: str, event_id: str, title: Optional[str] = None,
                      start: Optional[str] = None, end: Optional[str] = None,
                      description: Optional[str] = None, location: Optional[str] = None,
@@ -96,7 +131,8 @@ class CalendarService:
         if svc is None:
             return NOT_CONNECTED
         try:
-            event = svc.events().get(calendarId="primary", eventId=event_id).execute()
+            cal_id = self._find_calendar_for_event(svc, event_id)
+            event = svc.events().get(calendarId=cal_id, eventId=event_id).execute()
             if title:
                 event["summary"] = title
             if start:
@@ -109,7 +145,7 @@ class CalendarService:
                 event["location"] = location
             if attendees is not None:
                 event["attendees"] = [{"email": a} for a in attendees]
-            updated = svc.events().update(calendarId="primary", eventId=event_id, body=event).execute()
+            updated = svc.events().update(calendarId=cal_id, eventId=event_id, body=event).execute()
             return {"id": updated["id"], "title": updated.get("summary"), "link": updated.get("htmlLink", "")}
         except Exception as exc:
             logger.error("Calendar update_event error: %s", exc)
@@ -120,7 +156,8 @@ class CalendarService:
         if svc is None:
             return NOT_CONNECTED
         try:
-            svc.events().delete(calendarId="primary", eventId=event_id).execute()
+            cal_id = self._find_calendar_for_event(svc, event_id)
+            svc.events().delete(calendarId=cal_id, eventId=event_id).execute()
             return True
         except Exception as exc:
             logger.error("Calendar delete_event error: %s", exc)
