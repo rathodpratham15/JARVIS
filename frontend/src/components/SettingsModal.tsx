@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Brain,
   Calendar,
@@ -53,6 +53,29 @@ export function SettingsModal() {
   const [addingMemory, setAddingMemory] = useState(false);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Load real Google OAuth status from backend on mount
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const token = localStorage.getItem('jarvis_access_token');
+    if (!token) return;
+    fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050'}/api/google/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        void updateSettings({
+          integrations: {
+            calendar: { connected: !!data.calendar, email: data.email },
+            gmail: { connected: !!data.gmail, email: data.email },
+            drive: { connected: !!data.drive, email: data.email },
+          },
+        });
+      })
+      .catch(() => {});
+  }, [settingsOpen]);
 
   if (!settingsOpen) return null;
 
@@ -81,20 +104,42 @@ export function SettingsModal() {
     }
   };
 
-  const toggleIntegration = (key: 'calendar' | 'gmail' | 'drive') => {
-    const current = settings.integrations[key];
-    void updateSettings({
-      integrations: {
-        ...settings.integrations,
-        [key]: current.connected
-          ? { connected: false }
-          : {
-              connected: true,
-              email: user?.email || 'user@example.com',
-              lastSynced: new Date().toISOString(),
-            },
-      },
-    });
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+
+  const handleGoogleConnect = async () => {
+    setGoogleLoading(true);
+    try {
+      const token = localStorage.getItem('jarvis_access_token');
+      const res = await fetch(`${BACKEND}/api/google/connect`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      // ignore
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleDisconnect = async () => {
+    setGoogleLoading(true);
+    try {
+      const token = localStorage.getItem('jarvis_access_token');
+      await fetch(`${BACKEND}/api/google/disconnect`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      void updateSettings({
+        integrations: {
+          calendar: { connected: false },
+          gmail: { connected: false },
+          drive: { connected: false },
+        },
+      });
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -471,8 +516,9 @@ export function SettingsModal() {
 
                         <button
                           type="button"
-                          onClick={() => toggleIntegration(item.key)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                          disabled={googleLoading}
+                          onClick={status.connected ? handleGoogleDisconnect : handleGoogleConnect}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-colors cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50 ${
                             status.connected
                               ? 'border border-[#E5E5E5] dark:border-white/15 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30'
                               : 'bg-[#6366f1] hover:bg-[#5558e6] text-white'
@@ -484,7 +530,7 @@ export function SettingsModal() {
                               <span>Connected</span>
                             </>
                           ) : (
-                            <span>Connect</span>
+                            <span>{googleLoading ? 'Connecting…' : 'Connect'}</span>
                           )}
                         </button>
                       </div>
