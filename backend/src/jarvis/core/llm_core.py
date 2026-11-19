@@ -265,7 +265,13 @@ class LLMCore:
                 temperature=self.temperature,
                 max_tokens=max_tokens_override or self.max_tokens,
             )
-            reply = response.choices[0].message.content or tool_result
+            choice = response.choices[0]
+            # Some providers (Groq) may still emit a tool_call even with no
+            # tools in the payload.  Fall back to the raw tool result.
+            if choice.finish_reason == "tool_calls":
+                reply = tool_result
+            else:
+                reply = choice.message.content or tool_result
         except Exception as exc:
             logger.error("LLM finish_after_tool failed: %s", exc)
             reply = tool_result

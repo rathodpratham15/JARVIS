@@ -872,14 +872,19 @@ def create_app() -> Flask:
                     system_prompt_override=sys_override,
                 )
                 if tool_name:
-                    tool_intent = tool_call_to_intent(tool_name, tool_args or {})
-                    tool_intent["_user_id"] = uid
-                    tool_result = actions.execute_action(tool_intent)
-                    tool_used = tool_name
-                    response = llm.finish_after_tool(
-                        user_input, tool_name, tool_result, memory=ctx,
-                        system_prompt_override=sys_override,
+                    def _exec_tool_chat(t_name: str, t_args: dict) -> str:
+                        t_intent = tool_call_to_intent(t_name, t_args)
+                        t_intent["_user_id"] = uid
+                        return actions.execute_action(t_intent)
+
+                    response, last_tool = llm.run_tool_loop(
+                        user_input, tools=TOOLS, execute_tool=_exec_tool_chat,
+                        memory=ctx, system_prompt_override=sys_override,
+                        first_tool_name=tool_name, first_tool_args=tool_args or {},
                     )
+                    tool_used = last_tool or tool_name
+                    tool_intent = tool_call_to_intent(tool_used, {})
+                    tool_intent["_user_id"] = uid
                     intent = {**intent, "type": tool_intent.get("type", intent.get("type"))}
                 else:
                     response = text or ""
@@ -937,18 +942,23 @@ def create_app() -> Flask:
         )
 
         if tool_name:
-            tool_intent = tool_call_to_intent(tool_name, tool_args or {})
-            tool_intent["_user_id"] = uid
-            tool_result = actions.execute_action(tool_intent)
-            tool_used = tool_name
-            response = llm.finish_after_tool(
+            def _exec_tool_voice(t_name: str, t_args: dict) -> str:
+                t_intent = tool_call_to_intent(t_name, t_args)
+                t_intent["_user_id"] = uid
+                return actions.execute_action(t_intent)
+
+            response, last_tool = llm.run_tool_loop(
                 user_input,
-                tool_name,
-                tool_result,
+                tools=TOOLS,
+                execute_tool=_exec_tool_voice,
                 memory=ctx,
                 system_prompt_override=voice_sys,
                 max_tokens_override=60 if wearable_mode else 80,
+                max_steps=3,
+                first_tool_name=tool_name,
+                first_tool_args=tool_args or {},
             )
+            tool_used = last_tool or tool_name
         else:
             response = text or ""
 
@@ -1298,13 +1308,19 @@ def create_app() -> Flask:
             return {"error": "Action not found or already resolved."}, 404
         if not confirmed:
             return {"response": "Action cancelled.", "tool_used": None}, 200
-        tool_result = actions.execute_action(pending["tool_intent"])
-        response_text = llm.finish_after_tool(
+        def _exec_confirm(t_name: str, t_args: dict) -> str:
+            t_intent = tool_call_to_intent(t_name, t_args)
+            t_intent["_user_id"] = pending["uid"]
+            return actions.execute_action(t_intent)
+
+        response_text, last_tool = llm.run_tool_loop(
             pending["user_input"],
-            pending["tool_name"],
-            tool_result,
+            tools=TOOLS,
+            execute_tool=_exec_confirm,
             memory=pending["ctx"],
             system_prompt_override=pending["stream_sys"],
+            first_tool_name=pending["tool_name"],
+            first_tool_args=pending["tool_args"],
         )
         memory.store_interaction(
             user_input=pending["user_input"],
@@ -1312,7 +1328,7 @@ def create_app() -> Flask:
             intent_type=pending["intent"].get("type"),
             user_id=pending["uid"],
         )
-        return {"response": response_text, "tool_used": pending["tool_name"]}, 200
+        return {"response": response_text, "tool_used": last_tool or pending["tool_name"]}, 200
 
     @app.get("/api/history")
     def history() -> tuple[dict, int]:
