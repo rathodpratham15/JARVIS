@@ -110,6 +110,9 @@ importers:
       three:
         specifier: ^0.186.1
         version: 0.186.1
+      zustand:
+        specifier: ^5.0.4
+        version: 5.0.15(@types/react@19.1.8)(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))
     devDependencies:
       '@capacitor/cli':
         specifier: ^8.4.1
