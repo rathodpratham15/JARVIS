@@ -174,6 +174,8 @@ def create_app() -> Flask:
         # SSO / SAML / Microsoft OIDC — must be public (browser redirect flows)
         "/auth/saml/metadata", "/auth/saml/login", "/auth/saml/acs", "/auth/saml/slo",
         "/auth/microsoft/login", "/auth/microsoft/callback",
+        # Static assets served by Flask (not Vite) must not require auth
+        "/favicon.ico",
     }
 
     # Endpoints a scanner token (type="scanner", scope="identify") may access.
