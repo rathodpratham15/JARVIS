@@ -870,10 +870,14 @@ def create_app() -> Flask:
                             info = _r.json()
                             sender_email = info.get("email", "") or sender_email
                             # name → given+family → capitalised email prefix
+                            _prefix = sender_email.split("@")[0].replace(".", " ").replace("_", " ")
+                            # Strip trailing digits (e.g. "lavishamunot7" → "lavishamunot")
+                            import re as _re
+                            _prefix = _re.sub(r'\d+$', '', _prefix).strip().title()
                             sender_name = (
                                 info.get("name")
                                 or " ".join(filter(None, [info.get("given_name"), info.get("family_name")]))
-                                or sender_email.split("@")[0].replace(".", " ").replace("_", " ").title()
+                                or _prefix
                             )
                             if sender_email:
                                 _google_svc.token_store.store_connected_email(uid, sender_email, sender_name or None)
