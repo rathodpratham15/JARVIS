@@ -868,8 +868,9 @@ def create_app() -> Flask:
         if sender_email:
             parts.append(
                 f" Emails are sent FROM {sender_email} — this is the SENDER address. "
-                "Do NOT use it as a recipient when asked to send email to other people (e.g. attendees, contacts). "
-                "If a calendar event lists this address as an attendee, skip it and send only to the other attendees."
+                "NEVER use it as a recipient. "
+                "If a calendar event lists this address as an attendee or organiser, skip it entirely. "
+                "If after skipping it there are no other attendees, ask the user who to send the email to rather than guessing."
             )
         return "".join(parts)
 
