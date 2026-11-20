@@ -132,6 +132,8 @@ interface JarvisState {
   refreshEnrolledFaces: () => Promise<void>;
   deleteEnrolledFace: (id: string) => Promise<void>;
 
+  appendVoiceTurn: (userText: string, assistantText: string, conversationId: string) => void;
+
   signOut: () => Promise<void>;
   signIn: (name: string, email: string, password?: string) => Promise<void>;
 }
@@ -315,6 +317,20 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     });
     const conv = await api.getConversation(id);
     set({ messages: conv.messages });
+  },
+
+  appendVoiceTurn: (userText, assistantText, conversationId) => {
+    const now = new Date().toISOString();
+    const uid = `voice-user-${Date.now()}`;
+    const aid = `voice-assistant-${Date.now()}`;
+    set((state) => ({
+      activeConversationId: conversationId,
+      messages: [
+        ...state.messages,
+        { id: uid, role: 'user' as const, content: userText, createdAt: now },
+        { id: aid, role: 'assistant' as const, content: assistantText, createdAt: now },
+      ],
+    }));
   },
 
   renameConversation: async (id, title) => {
