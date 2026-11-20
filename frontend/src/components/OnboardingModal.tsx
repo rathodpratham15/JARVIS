@@ -36,7 +36,7 @@ export function OnboardingModal({ onComplete }: Props) {
   };
 
   const saveProfile = async () => {
-    const res = await apiFetch('/api/user/profile', {
+    const res = await apiFetch('/user/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -45,6 +45,7 @@ export function OnboardingModal({ onComplete }: Props) {
         use_case: useCase,
       }),
     });
+    if (!res.ok) throw new Error(await res.text());
     const data = await res.json() as { access_token?: string; refresh_token?: string };
     if (data.access_token) {
       storeTokens(data.access_token, data.refresh_token ?? '');
@@ -54,7 +55,7 @@ export function OnboardingModal({ onComplete }: Props) {
 
   const handleConnectGoogle = () => {
     void saveProfile().then(() => {
-      void apiFetch('/api/google/connect').then(async (r) => {
+      void apiFetch('/google/connect').then(async (r) => {
         const d = await r.json() as { auth_url?: string };
         if (d.auth_url) window.location.href = d.auth_url;
       });
