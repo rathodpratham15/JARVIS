@@ -305,21 +305,29 @@ export const api = {
     return res.json() as Promise<MemoryItem[]>;
   },
 
-  async createMemory(_data: {
+  async createMemory(data: {
     title: string;
     content: string;
     category: MemoryCategory;
     importance: MemoryImportance;
   }): Promise<MemoryItem> {
-    throw new Error('Memory creation not implemented on this backend');
+    const res = await apiFetch('/memories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create memory');
+    return res.json() as Promise<MemoryItem>;
   },
 
-  async deleteMemory(_id: string): Promise<{ ok: boolean }> {
-    return { ok: true };
+  async deleteMemory(id: string): Promise<{ ok: boolean }> {
+    const res = await apiFetch(`/memories/${id}`, { method: 'DELETE' });
+    return res.ok ? { ok: true } : { ok: false };
   },
 
   async clearMemories(): Promise<{ ok: boolean }> {
-    return { ok: true };
+    const res = await apiFetch('/memories', { method: 'DELETE' });
+    return res.ok ? { ok: true } : { ok: false };
   },
 
   // ── Contacts ──────────────────────────────────────────────────────────────

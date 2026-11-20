@@ -856,6 +856,59 @@ def create_app() -> Flask:
         except Exception:
             return ""
 
+    _EXTRACT_PROMPT = (
+        "You are a memory extraction agent for a personal AI assistant. "
+        "Given the conversation exchange below, extract 0-2 key facts worth "
+        "remembering long-term about this user (personal preferences, goals, "
+        "important facts they shared, recurring patterns). Skip generic greetings, "
+        "calendar queries, one-off questions, or anything already common knowledge. "
+        "Return ONLY valid JSON — an array of objects with keys "
+        "\"title\" (short label ≤40 chars), \"content\" (the fact), and "
+        "\"category\" (one of: Personal, Work, Project, Health, System). "
+        "If nothing is worth remembering, return [].\n\n"
+        "User: {user_input}\nAssistant: {response}"
+    )
+
+    def _auto_extract_memory(user_input: str, response: str, uid: str) -> None:
+        """Background: ask LLM to extract memorable facts, save as notes."""
+        try:
+            import json as _json
+            prompt = _EXTRACT_PROMPT.format(
+                user_input=user_input[:500],
+                response=response[:500],
+            )
+            raw = llm.query_llm(prompt, memory=[], system_prompt_override=(
+                "Return only a JSON array. No markdown, no explanation."
+            ))
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1].lstrip("json").strip()
+            facts = _json.loads(raw)
+            if not isinstance(facts, list):
+                return
+            for fact in facts[:2]:
+                if not isinstance(fact, dict) or not fact.get("content"):
+                    continue
+                notes.add(
+                    content=fact.get("content", ""),
+                    title=fact.get("title") or fact.get("content", "")[:40],
+                    user_id=uid,
+                    category=fact.get("category") or "Personal",
+                    importance="Medium",
+                )
+        except Exception:
+            pass  # auto-extraction is best-effort
+
+    def _maybe_extract_memory(user_input: str, response: str, uid: str) -> None:
+        """Spawn a daemon thread for auto-extraction so it never blocks the reply."""
+        import threading
+        t = threading.Thread(
+            target=_auto_extract_memory,
+            args=(user_input, response, uid),
+            daemon=True,
+        )
+        t.start()
+
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -1284,6 +1337,7 @@ def create_app() -> Flask:
                 conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
+            _maybe_extract_memory(user_input, response_text, uid)
 
             def _tool_stream():
                 yield from _fake_stream_text(response_text)
@@ -1310,6 +1364,7 @@ def create_app() -> Flask:
                 conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(_iid, user_input, user_id=uid)
+            _maybe_extract_memory(user_input, full_text, uid)
             yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': _iid, 'conversation_id': _cid})}\n\n"
 
         return Response(
@@ -2218,21 +2273,47 @@ class MyPlugin(BasePlugin):
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
 
+    def _note_to_memory(n: dict) -> dict:
+        return {
+            "id": n.get("id", ""),
+            "title": n.get("title") or n.get("content", "")[:40],
+            "content": n.get("content", ""),
+            "category": n.get("category") or "Personal",
+            "importance": n.get("importance") or "Medium",
+            "createdAt": n.get("created_at", ""),
+        }
+
     @app.get("/api/memories")
     def list_memories() -> tuple[dict, int]:
-        """Map notes → MemoryItem shape expected by the frontend."""
+        return [_note_to_memory(n) for n in notes.list(user_id=_uid())], 200
+
+    @app.post("/api/memories")
+    def create_memory() -> tuple[dict, int]:
         uid = _uid()
-        raw = notes.list(user_id=uid)
-        def _to_memory(n: dict) -> dict:
-            return {
-                "id": n.get("id", ""),
-                "title": n.get("title") or n.get("content", "")[:40],
-                "content": n.get("content", ""),
-                "category": "Personal",
-                "importance": "Medium",
-                "createdAt": n.get("created_at", ""),
-            }
-        return [_to_memory(n) for n in raw], 200
+        payload = request.get_json(silent=True) or {}
+        content = (payload.get("content") or "").strip()
+        if not content:
+            return {"error": "content is required"}, 400
+        note = notes.add(
+            content=content,
+            title=(payload.get("title") or "").strip() or None,
+            user_id=uid,
+            category=payload.get("category") or "Personal",
+            importance=payload.get("importance") or "Medium",
+        )
+        return _note_to_memory(note), 201
+
+    @app.delete("/api/memories/<memory_id>")
+    def delete_memory(memory_id: str) -> tuple[dict, int]:
+        return ({"ok": True}, 200) if notes.delete(memory_id, user_id=_uid()) else ({"error": "not found"}, 404)
+
+    @app.delete("/api/memories")
+    def clear_memories() -> tuple[dict, int]:
+        uid = _uid()
+        all_notes = notes.list(user_id=uid)
+        for n in all_notes:
+            notes.delete(n["id"], user_id=uid)
+        return {"ok": True, "deleted": len(all_notes)}, 200
 
     @app.patch("/api/notes/<note_id>")
     def update_note(note_id: str) -> tuple[dict, int]:

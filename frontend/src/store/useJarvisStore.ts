@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, storeTokens, clearTokens, getToken } from '../lib/api';
+import { api, storeTokens, clearTokens, getToken, getRefreshToken } from '../lib/api';
 import type {
   AppSettings,
   ChatMessage,
@@ -381,25 +381,55 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     let resolvedConvId = get().activeConversationId ?? undefined;
     let currentAssistantId = tempAssistantId;
 
-    const token = getToken();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    const STREAM_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/chat/stream';
+    const streamBody = JSON.stringify({
+      message: trimmed,
+      conversation_id: resolvedConvId,
+      personality_mode: get().settings.personalityMode,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    const _makeStreamHeaders = (): Record<string, string> => {
+      const h: Record<string, string> = { 'Content-Type': 'application/json' };
+      const t = getToken();
+      if (t) h['Authorization'] = `Bearer ${t}`;
+      return h;
+    };
 
     try {
-      const res = await fetch(
-        (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/chat/stream',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            message: trimmed,
-            conversation_id: resolvedConvId,
-            personality_mode: get().settings.personalityMode,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-          signal: controller.signal,
+      let res = await fetch(STREAM_URL, {
+        method: 'POST',
+        headers: _makeStreamHeaders(),
+        body: streamBody,
+        signal: controller.signal,
+      });
+
+      // On 401, try to refresh the JWT and retry once
+      if (res.status === 401) {
+        const refresh = getRefreshToken();
+        if (refresh) {
+          const r = await fetch(
+            (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/auth/refresh',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refresh }),
+            }
+          );
+          if (r.ok) {
+            const data = await r.json() as { access_token: string; refresh_token?: string };
+            storeTokens(data.access_token, data.refresh_token ?? refresh);
+            res = await fetch(STREAM_URL, {
+              method: 'POST',
+              headers: _makeStreamHeaders(),
+              body: streamBody,
+              signal: controller.signal,
+            });
+          } else {
+            clearTokens();
+          }
         }
-      );
+      }
 
       if (!res.ok) {
         let errText = `Error ${res.status}`;
