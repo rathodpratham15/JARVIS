@@ -31,6 +31,17 @@ export const clearTokens = () => {
   localStorage.removeItem(REFRESH_KEY);
 };
 
+export function getTokenPayload(): Record<string, unknown> | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(b64)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken();
   const headers = new Headers(init.headers);

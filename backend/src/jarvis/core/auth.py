@@ -358,6 +358,15 @@ class AuthManager:
             resource["externalId"] = external_id
         return resource
 
+    def update_display_name(self, user_id: str, display_name: str) -> Optional[dict]:
+        """Update the user's display name and return the updated user dict."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET display_name = ? WHERE id = ?",
+                (display_name.strip(), user_id),
+            )
+        return self.get_user_by_id(user_id)
+
     def get_user_by_id(self, user_id: str) -> Optional[dict]:
         with self._connect() as conn:
             row = conn.execute(

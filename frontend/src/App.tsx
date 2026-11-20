@@ -13,6 +13,7 @@ import { ScheduledView } from './components/ScheduledView';
 import { LibraryView } from './components/LibraryView';
 import { ProjectView } from './components/ProjectView';
 import { ConfirmActionModal } from './components/ConfirmActionModal';
+import { OnboardingModal } from './components/OnboardingModal';
 import { LandingPage } from './components/LandingPage';
 import { LoginView } from './components/LoginView';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
@@ -35,6 +36,8 @@ export default function App() {
     openSettings,
     pendingConfirm,
     resolveConfirm,
+    userDisplayName,
+    setUserDisplayName,
   } = useJarvisStore();
 
   useEffect(() => {
@@ -140,6 +143,10 @@ export default function App() {
           pending={pendingConfirm}
           onResolved={resolveConfirm}
         />
+      )}
+
+      {!userDisplayName && isLoggedIn() && initialized && (
+        <OnboardingModal onComplete={setUserDisplayName} />
       )}
     </div>
   );

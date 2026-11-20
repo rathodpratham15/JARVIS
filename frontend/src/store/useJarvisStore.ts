@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, storeTokens, clearTokens, getToken, getRefreshToken } from '../lib/api';
+import { api, storeTokens, clearTokens, getToken, getRefreshToken, getTokenPayload } from '../lib/api';
 import type {
   AppSettings,
   ChatMessage,
@@ -54,6 +54,10 @@ interface JarvisState {
   addProject: (name: string) => void;
   deleteProject: (id: string) => void;
   renameProject: (id: string, name: string) => void;
+
+  // Onboarding
+  userDisplayName: string;
+  setUserDisplayName: (name: string) => void;
 
   // Tool confirmation
   pendingConfirm: PendingConfirm | null;
@@ -165,6 +169,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   enrolledFaces: [],
 
   projects: loadProjects(),
+  userDisplayName: '',
   pendingConfirm: null,
 
   streamStatus: 'idle',
@@ -213,6 +218,8 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     set({ projects: updated });
   },
 
+  setUserDisplayName: (name) => set({ userDisplayName: name }),
+
   setPendingConfirm: (c) => set({ pendingConfirm: c }),
 
   resolveConfirm: (response) => {
@@ -259,7 +266,9 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
 
       try {
         const user = await api.me();
-        set({ user });
+        const payload = getTokenPayload();
+        const displayName = (payload?.display_name as string | undefined) || '';
+        set({ user, userDisplayName: displayName });
       } catch {
         // Token invalid — user needs to sign in
         set({ initialized: true });

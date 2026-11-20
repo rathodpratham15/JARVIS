@@ -535,6 +535,24 @@ def create_app() -> Flask:
             return {"error": "not authenticated"}, 401
         return {"user": user}, 200
 
+    @app.patch("/api/user/profile")
+    def update_user_profile() -> tuple[dict, int]:
+        """Update the current user's profile (display name)."""
+        user = getattr(request, "current_user", None)
+        if user is None:
+            return {"error": "not authenticated"}, 401
+        if _auth_mgr is None:
+            return {"error": "auth not configured"}, 500
+        body = request.get_json(silent=True) or {}
+        display_name = (body.get("display_name") or "").strip()
+        if not display_name:
+            return {"error": "display_name is required"}, 400
+        updated = _auth_mgr.update_display_name(user["id"], display_name)
+        if updated is None:
+            return {"error": "user not found"}, 404
+        tokens = _auth_mgr.create_tokens(updated)
+        return {"user": updated, **tokens}, 200
+
     @app.get("/api/auth/config")
     def auth_config() -> tuple[dict, int]:
         """Tell the frontend which login methods are available."""
