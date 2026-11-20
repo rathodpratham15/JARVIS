@@ -58,6 +58,7 @@ interface JarvisState {
   // Tool confirmation
   pendingConfirm: PendingConfirm | null;
   setPendingConfirm: (c: PendingConfirm | null) => void;
+  resolveConfirm: (response: string | null) => void;
 
   // Streaming state
   streamStatus: 'idle' | 'waiting' | 'streaming' | 'error';
@@ -213,6 +214,25 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   },
 
   setPendingConfirm: (c) => set({ pendingConfirm: c }),
+
+  resolveConfirm: (response) => {
+    set((state) => {
+      // Replace the last assistant placeholder ("I need your confirmation...")
+      // with the actual response from the confirmed tool execution.
+      let messages = state.messages;
+      if (response) {
+        const lastAssistantIdx = [...messages].reverse().findIndex((m) => m.role === 'assistant');
+        if (lastAssistantIdx !== -1) {
+          const idx = messages.length - 1 - lastAssistantIdx;
+          messages = messages.map((m, i) =>
+            i === idx ? { ...m, content: response } : m
+          );
+        }
+      }
+      return { pendingConfirm: null, messages };
+    });
+    void get().refreshHistory();
+  },
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   applyTheme: (theme) => {

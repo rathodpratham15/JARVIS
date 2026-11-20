@@ -34,7 +34,7 @@ export default function App() {
     applyTheme,
     openSettings,
     pendingConfirm,
-    setPendingConfirm,
+    resolveConfirm,
   } = useJarvisStore();
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function App() {
       {pendingConfirm && (
         <ConfirmActionModal
           pending={pendingConfirm}
-          onResolved={() => setPendingConfirm(null)}
+          onResolved={resolveConfirm}
         />
       )}
     </div>
