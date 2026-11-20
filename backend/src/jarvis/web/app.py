@@ -860,6 +860,21 @@ def create_app() -> Flask:
         if uid and _google_svc:
             try:
                 sender_email = _google_svc.token_store.get_connected_email(uid) or ""
+                if not sender_email:
+                    # Lazy-populate: fetch from Google userinfo and cache it so
+                    # the user doesn't need to reconnect their Google account.
+                    creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
+                    if creds:
+                        import requests as _req_ctx
+                        _r = _req_ctx.get(
+                            "https://www.googleapis.com/oauth2/v3/userinfo",
+                            headers={"Authorization": f"Bearer {creds.token}"},
+                            timeout=3,
+                        )
+                        if _r.ok:
+                            sender_email = _r.json().get("email", "")
+                            if sender_email:
+                                _google_svc.token_store.store_connected_email(uid, sender_email)
             except Exception:
                 pass
         if not sender_email:

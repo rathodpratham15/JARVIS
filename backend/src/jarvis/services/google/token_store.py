@@ -85,6 +85,14 @@ class GoogleTokenStore:
             ).fetchone()
         return row["connected_email"] if row else None
 
+    def store_connected_email(self, user_id: str, email: str) -> None:
+        """Cache the connected Google email without touching the token fields."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE google_tokens SET connected_email = ? WHERE user_id = ?",
+                (email, user_id),
+            )
+
     def get_credentials(self, user_id: str, client_id: str, client_secret: str):
         """Return a refreshed google.oauth2.credentials.Credentials or None."""
         from google.oauth2.credentials import Credentials
