@@ -39,8 +39,19 @@ class Memory:
         self._lock = threading.RLock()
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            for _col, _def in [
+                ("user_id", "TEXT"),
+                ("conversation_id", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE interactions ADD COLUMN {_col} {_def}")
+                except Exception:
+                    pass
             try:
-                conn.execute("ALTER TABLE interactions ADD COLUMN user_id TEXT")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_interactions_conv "
+                    "ON interactions(conversation_id)"
+                )
             except Exception:
                 pass
             conn.commit()
@@ -63,12 +74,52 @@ class Memory:
         tags: Optional[list[str]] = None,
         metadata: Optional[dict] = None,
         user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
     ) -> str:
-        """Persist a single interaction and return its id."""
+        """Persist a single interaction and return its ``interaction_id``.
+
+        If *conversation_id* is not provided a new one is created equal to the
+        interaction id (i.e. the first message in a session starts a new
+        conversation).  Callers that need the resolved conversation_id should
+        call ``store_interaction_conv`` instead.
+        """
+        interaction_id, _ = self._store(
+            user_input, response, intent_type, tags, metadata, user_id, conversation_id
+        )
+        return interaction_id
+
+    def store_interaction_conv(
+        self,
+        user_input: str,
+        response: str,
+        intent_type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict] = None,
+        user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Like ``store_interaction`` but also returns the resolved conversation_id."""
+        return self._store(
+            user_input, response, intent_type, tags, metadata, user_id, conversation_id
+        )
+
+    def _store(
+        self,
+        user_input: str,
+        response: str,
+        intent_type: Optional[str],
+        tags: Optional[list[str]],
+        metadata: Optional[dict],
+        user_id: Optional[str],
+        conversation_id: Optional[str],
+    ) -> tuple[str, str]:
         interaction_id = str(uuid.uuid4())
+        conv_id = conversation_id or interaction_id
         with self._lock, self._connect() as conn:
             conn.execute(
-                "INSERT INTO interactions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO interactions "
+                "(id, timestamp, user_input, response, intent_type, tags, metadata, user_id, conversation_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     interaction_id,
                     datetime.now(timezone.utc).isoformat(),
@@ -78,10 +129,11 @@ class Memory:
                     json.dumps(tags or []),
                     json.dumps(metadata or {}),
                     user_id,
+                    conv_id,
                 ),
             )
             conn.commit()
-        return interaction_id
+        return interaction_id, conv_id
 
     def recent(self, limit: int = 20, user_id: Optional[str] = None) -> list[dict]:
         """Return the `limit` most recent interactions, oldest-first."""
@@ -145,62 +197,35 @@ class Memory:
             conn.commit()
             return cur.rowcount > 0
 
-    def delete_conversation(self, first_interaction_id: str, user_id: Optional[str] = None) -> int:
-        """Delete all interactions that belong to the same conversation.
+    def delete_conversation(self, conversation_id: str, user_id: Optional[str] = None) -> int:
+        """Delete all interactions belonging to *conversation_id*.
 
-        A conversation is defined as the continuous run of interactions within
-        30-minute gaps starting from ``first_interaction_id``.  Returns the
-        number of rows deleted.
+        Falls back to matching by interaction id for rows that pre-date the
+        conversation_id column.  Returns the number of rows deleted.
         """
-        _GAP = timedelta(minutes=30)
         with self._lock, self._connect() as conn:
-            # Fetch the anchor interaction
-            row = conn.execute(
-                "SELECT timestamp FROM interactions WHERE id = ?",
-                (first_interaction_id,),
-            ).fetchone()
-            if not row:
-                return 0
-            anchor_ts = datetime.fromisoformat(row[0])
-
-            # Collect all interactions for this user ordered by time
             if user_id is not None:
-                rows = conn.execute(
-                    "SELECT id, timestamp FROM interactions WHERE user_id = ? ORDER BY timestamp",
-                    (user_id,),
-                ).fetchall()
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE conversation_id = ? AND user_id = ?",
+                    (conversation_id, user_id),
+                )
             else:
-                rows = conn.execute(
-                    "SELECT id, timestamp FROM interactions ORDER BY timestamp"
-                ).fetchall()
-
-            # Find the group that includes the anchor
-            group_ids: list[str] = []
-            current: list[tuple[str, datetime]] = []
-            in_group = False
-            for rid, rts in rows:
-                ts = datetime.fromisoformat(rts)
-                if current:
-                    gap = ts - current[-1][1]
-                    if gap > _GAP:
-                        if in_group:
-                            break
-                        current = []
-                        in_group = False
-                current.append((rid, ts))
-                if rid == first_interaction_id:
-                    in_group = True
-            if in_group:
-                group_ids = [r[0] for r in current]
-            else:
-                group_ids = [first_interaction_id]
-
-            if not group_ids:
-                return 0
-            placeholders = ",".join("?" * len(group_ids))
-            cur = conn.execute(
-                f"DELETE FROM interactions WHERE id IN ({placeholders})", group_ids
-            )
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE conversation_id = ?",
+                    (conversation_id,),
+                )
+            # Legacy fallback: if nothing was deleted, try matching by id
+            if cur.rowcount == 0:
+                if user_id is not None:
+                    cur = conn.execute(
+                        "DELETE FROM interactions WHERE id = ? AND user_id = ?",
+                        (conversation_id, user_id),
+                    )
+                else:
+                    cur = conn.execute(
+                        "DELETE FROM interactions WHERE id = ?",
+                        (conversation_id,),
+                    )
             conn.commit()
             return cur.rowcount
 

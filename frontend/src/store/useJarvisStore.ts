@@ -395,6 +395,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
             message: trimmed,
             conversation_id: resolvedConvId,
             personality_mode: get().settings.personalityMode,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: controller.signal,
         }

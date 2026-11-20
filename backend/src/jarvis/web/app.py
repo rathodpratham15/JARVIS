@@ -1179,6 +1179,7 @@ def create_app() -> Flask:
         intent = parser.parse_intent(user_input)
         uid = _uid()
         intent["_user_id"] = uid
+        _req_conv_id = (payload.get("conversation_id") or "").strip() or None
 
         # Action-engine / plugin intents return instantly — no streaming needed.
         # Wrap as a single SSE event so the frontend can use one code path.
@@ -1192,17 +1193,18 @@ def create_app() -> Flask:
                 response_text = None
 
         if response_text is not None:
-            interaction_id = memory.store_interaction(
+            interaction_id, conv_id = memory.store_interaction_conv(
                 user_input=user_input,
                 response=response_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
             def _single():
                 yield f"data: {_json.dumps({'token': response_text})}\n\n"
-                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id, 'conversation_id': conv_id})}\n\n"
 
             return Response(
                 stream_with_context(_single()),
@@ -1238,18 +1240,19 @@ def create_app() -> Flask:
                 }
                 placeholder = "I need your confirmation before proceeding."
                 description = _describe_tool_action(tool_name, tool_args or {})
-                interaction_id = memory.store_interaction(
+                interaction_id, conv_id = memory.store_interaction_conv(
                     user_input=user_input,
                     response=placeholder,
                     intent_type=intent.get("type"),
                     user_id=uid,
+                    conversation_id=_req_conv_id,
                 )
                 sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
                 def _confirm_stream():
                     yield f"data: {_json.dumps({'confirm': True, 'action_id': action_id, 'tool': tool_name, 'description': description})}\n\n"
                     yield f"data: {_json.dumps({'token': placeholder})}\n\n"
-                    yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type')})}\n\n"
+                    yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'conversation_id': conv_id})}\n\n"
 
                 return Response(
                     stream_with_context(_confirm_stream()),
@@ -1273,17 +1276,18 @@ def create_app() -> Flask:
                 first_tool_args=tool_args or {},
             )
             tool_name = last_tool or tool_name
-            interaction_id = memory.store_interaction(
+            interaction_id, conv_id = memory.store_interaction_conv(
                 user_input=user_input,
                 response=response_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
             def _tool_stream():
                 yield from _fake_stream_text(response_text)
-                yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'tool_used': tool_name})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'tool_used': tool_name, 'conversation_id': conv_id})}\n\n"
 
             return Response(
                 stream_with_context(_tool_stream()),
@@ -1298,14 +1302,15 @@ def create_app() -> Flask:
                 full.append(token)
                 yield f"data: {_json.dumps({'token': token})}\n\n"
             full_text = "".join(full)
-            interaction_id = memory.store_interaction(
+            _iid, _cid = memory.store_interaction_conv(
                 user_input=user_input,
                 response=full_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
-            sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
-            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+            sem_memory.index_interaction(_iid, user_input, user_id=uid)
+            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': _iid, 'conversation_id': _cid})}\n\n"
 
         return Response(
             stream_with_context(_stream()),

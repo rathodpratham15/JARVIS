@@ -65,38 +65,56 @@ interface RawInteraction {
   user_input: string;
   response: string;
   timestamp: string;
+  conversation_id?: string;
 }
 
 function groupInteractionsToConversations(
   interactions: RawInteraction[]
 ): ConversationSummary[] {
   if (!interactions.length) return [];
+
+  // Group by conversation_id when available; fall back to 30-min time-gap for
+  // legacy rows that pre-date the conversation_id column.
+  const byConvId = new Map<string, RawInteraction[]>();
+
   const sorted = [...interactions].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  const groups: RawInteraction[][] = [];
-  let current: RawInteraction[] = [sorted[0]];
-
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1].timestamp).getTime();
-    const curr = new Date(sorted[i].timestamp).getTime();
-    if (curr - prev > 30 * 60 * 1000) {
-      groups.push(current);
-      current = [];
+  for (const inter of sorted) {
+    // Use conversation_id if present; otherwise fall back to a time-gap key
+    if (inter.conversation_id) {
+      const bucket = byConvId.get(inter.conversation_id) ?? [];
+      bucket.push(inter);
+      byConvId.set(inter.conversation_id, bucket);
+    } else {
+      // Legacy: find a bucket whose last entry is within 30 min
+      let placed = false;
+      for (const bucket of byConvId.values()) {
+        const last = bucket[bucket.length - 1];
+        if (!last.conversation_id) {
+          const gap = new Date(inter.timestamp).getTime() - new Date(last.timestamp).getTime();
+          if (gap <= 30 * 60 * 1000) {
+            bucket.push(inter);
+            placed = true;
+            break;
+          }
+        }
+      }
+      if (!placed) {
+        byConvId.set(inter.id, [inter]);
+      }
     }
-    current.push(sorted[i]);
   }
-  groups.push(current);
 
-  return groups.map((group) => ({
-    id: group[0].id,
+  return Array.from(byConvId.entries()).map(([convId, group]) => ({
+    id: convId,
     title:
       group[0].user_input.slice(0, 60) + (group[0].user_input.length > 60 ? '…' : ''),
     createdAt: group[0].timestamp,
     updatedAt: group[group.length - 1].timestamp,
     messageCount: group.length * 2,
-  }));
+  })).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
 
 function groupInteractionsToConversation(
@@ -111,17 +129,22 @@ function groupInteractionsToConversation(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
-  // Find the group for this id
-  const startIdx = sorted.findIndex((i) => i.id === id);
-  if (startIdx < 0) return null;
+  // Collect all interactions belonging to this conversation
+  const group = sorted.filter(
+    (i) => (i.conversation_id ?? i.id) === id
+  );
 
-  // Gather all interactions in this group (until 30-min gap)
-  const group: RawInteraction[] = [sorted[startIdx]];
-  for (let i = startIdx + 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1].timestamp).getTime();
-    const curr = new Date(sorted[i].timestamp).getTime();
-    if (curr - prev > 30 * 60 * 1000) break;
-    group.push(sorted[i]);
+  // Legacy fallback: if none matched by conversation_id, use 30-min gap from first match
+  if (!group.length) {
+    const startIdx = sorted.findIndex((i) => i.id === id);
+    if (startIdx < 0) return null;
+    group.push(sorted[startIdx]);
+    for (let i = startIdx + 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1].timestamp).getTime();
+      const curr = new Date(sorted[i].timestamp).getTime();
+      if (curr - prev > 30 * 60 * 1000) break;
+      group.push(sorted[i]);
+    }
   }
 
   const messages = group.flatMap((inter) => [
