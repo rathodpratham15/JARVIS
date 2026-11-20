@@ -79,6 +79,8 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN scim_external_id TEXT",
     "ALTER TABLE users ADD COLUMN scim_active INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE users ADD COLUMN display_name TEXT",
+    "ALTER TABLE users ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN use_case TEXT",
 ]
 
 _ACCESS_EXPIRE_MINUTES = 60
@@ -370,13 +372,25 @@ class AuthManager:
     def get_user_by_id(self, user_id: str) -> Optional[dict]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, username, email, role, display_name FROM users WHERE id = ?",
+                "SELECT id, username, email, role, display_name, onboarding_complete, use_case FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
         if row is None:
             return None
-        return {"id": row["id"], "username": row["username"], "email": row["email"],
-                "role": row["role"], "display_name": row["display_name"]}
+        return {
+            "id": row["id"], "username": row["username"], "email": row["email"],
+            "role": row["role"], "display_name": row["display_name"],
+            "onboarding_complete": bool(row["onboarding_complete"]) if row["onboarding_complete"] is not None else False,
+            "use_case": row["use_case"],
+        }
+
+    def complete_onboarding(self, user_id: str, display_name: str, use_case: str = "") -> Optional[dict]:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET display_name = ?, use_case = ?, onboarding_complete = 1 WHERE id = ?",
+                (display_name.strip(), use_case.strip(), user_id),
+            )
+        return self.get_user_by_id(user_id)
 
     def verify_password(self, username: str, password: str) -> Optional[dict]:
         with self._connect() as conn:
@@ -398,6 +412,8 @@ class AuthManager:
             "display_name": user.get("display_name") or None,
             "email": user.get("email"),
             "role": user["role"],
+            "onboarding_complete": bool(user.get("onboarding_complete", False)),
+            "use_case": user.get("use_case"),
             "exp": now + timedelta(minutes=_ACCESS_EXPIRE_MINUTES),
             "type": "access",
         }

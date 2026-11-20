@@ -38,6 +38,8 @@ export default function App() {
     resolveConfirm,
     userDisplayName,
     setUserDisplayName,
+    onboardingComplete,
+    setOnboardingComplete,
   } = useJarvisStore();
 
   useEffect(() => {
@@ -145,8 +147,11 @@ export default function App() {
         />
       )}
 
-      {!userDisplayName && isLoggedIn() && initialized && (
-        <OnboardingModal onComplete={setUserDisplayName} />
+      {!onboardingComplete && isLoggedIn() && initialized && (
+        <OnboardingModal onComplete={(name) => {
+          setUserDisplayName(name);
+          setOnboardingComplete(true);
+        }} />
       )}
     </div>
   );

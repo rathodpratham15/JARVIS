@@ -221,8 +221,12 @@ def create_app() -> Flask:
         # immediately without requiring a new login.
         live_user = _auth_mgr.get_user_by_id(payload.get("sub", ""))
         if live_user:
-            payload = {**payload, "role": live_user["role"],
-                       "display_name": live_user.get("display_name") or payload.get("display_name")}
+            payload = {
+                **payload,
+                "role": live_user["role"],
+                "display_name": live_user.get("display_name") or payload.get("display_name"),
+                "onboarding_complete": bool(live_user.get("onboarding_complete", False)),
+            }
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -537,17 +541,22 @@ def create_app() -> Flask:
 
     @app.patch("/api/user/profile")
     def update_user_profile() -> tuple[dict, int]:
-        """Update the current user's profile (display name)."""
+        """Update the current user's profile and mark onboarding complete."""
         user = getattr(request, "current_user", None)
         if user is None:
             return {"error": "not authenticated"}, 401
         if _auth_mgr is None:
             return {"error": "auth not configured"}, 500
         body = request.get_json(silent=True) or {}
+        first = (body.get("first_name") or "").strip()
+        last = (body.get("last_name") or "").strip()
         display_name = (body.get("display_name") or "").strip()
+        use_case = (body.get("use_case") or "").strip()
+        if not display_name:
+            display_name = " ".join(filter(None, [first, last]))
         if not display_name:
             return {"error": "display_name is required"}, 400
-        updated = _auth_mgr.update_display_name(user["id"], display_name)
+        updated = _auth_mgr.complete_onboarding(user["id"], display_name, use_case)
         if updated is None:
             return {"error": "user not found"}, 404
         tokens = _auth_mgr.create_tokens(updated)

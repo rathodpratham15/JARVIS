@@ -58,6 +58,8 @@ interface JarvisState {
   // Onboarding
   userDisplayName: string;
   setUserDisplayName: (name: string) => void;
+  onboardingComplete: boolean;
+  setOnboardingComplete: (v: boolean) => void;
 
   // Tool confirmation
   pendingConfirm: PendingConfirm | null;
@@ -170,6 +172,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
 
   projects: loadProjects(),
   userDisplayName: '',
+  onboardingComplete: false,
   pendingConfirm: null,
 
   streamStatus: 'idle',
@@ -219,6 +222,7 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   },
 
   setUserDisplayName: (name) => set({ userDisplayName: name }),
+  setOnboardingComplete: (v) => set({ onboardingComplete: v }),
 
   setPendingConfirm: (c) => set({ pendingConfirm: c }),
 
@@ -268,7 +272,8 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
         const user = await api.me();
         const payload = getTokenPayload();
         const displayName = (payload?.display_name as string | undefined) || '';
-        set({ user, userDisplayName: displayName });
+        const onboardingComplete = (payload?.onboarding_complete as boolean | undefined) ?? false;
+        set({ user, userDisplayName: displayName, onboardingComplete });
       } catch {
         // Token invalid — user needs to sign in
         set({ initialized: true });
