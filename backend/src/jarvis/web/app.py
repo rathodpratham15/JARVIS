@@ -138,6 +138,10 @@ def create_app() -> Flask:
         """Return the current request's user ID, or None when auth is disabled."""
         return getattr(request, "current_user", {}).get("sub") if _auth_enabled else None
 
+    def _user_display_name() -> str:
+        """Return the logged-in user's display name, or empty string."""
+        return getattr(request, "current_user", {}).get("username", "") or ""
+
     # ── Google OAuth integration ──────────────────────────────────────────
     _google_client_id_oauth = os.getenv("GOOGLE_CLIENT_ID", "")
     _google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
@@ -840,6 +844,13 @@ def create_app() -> Flask:
             return f" Always respond in {_LANGUAGE_NAMES[lang]}, regardless of the language the user writes in."
         return ""
 
+    def _user_context() -> str:
+        """Return a system-prompt snippet with the user's display name."""
+        name = _user_display_name()
+        if not name:
+            return ""
+        return f"\n\nThe user's name is {name}. When composing emails or letters on their behalf, sign with their name."
+
     def _datetime_context(tz_name: str) -> str:
         """Return a system-prompt snippet with the user's current local time."""
         try:
@@ -877,9 +888,12 @@ def create_app() -> Flask:
                 user_input=user_input[:500],
                 response=response[:500],
             )
-            raw = llm.query_llm(prompt, memory=[], system_prompt_override=(
-                "Return only a JSON array. No markdown, no explanation."
-            ))
+            raw = llm.query_llm(
+                prompt,
+                memory=[],
+                system_prompt_override="Return only a JSON array. No markdown, no explanation.",
+                record=False,  # must NOT pollute shared conversation_history
+            )
             raw = raw.strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1].lstrip("json").strip()
@@ -919,7 +933,7 @@ def create_app() -> Flask:
         wearable_mode = bool(payload.get("wearable_mode", False))
         _tz_name = (payload.get("timezone") or "UTC").strip()
         lang_suffix = _language_suffix()
-        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name)
+        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name) + _user_context()
         sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (base or None)
 
         intent = parser.parse_intent(user_input)
@@ -1268,7 +1282,7 @@ def create_app() -> Flask:
         # LLM path: check for tool calls first, then stream response
         ctx = _build_context(memory, user_id=uid)
         _tz_name = (payload.get("timezone") or "UTC").strip()
-        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name)) or None
+        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name) + _user_context()) or None
 
         text, tool_name, tool_args = llm.query_with_tools(
             user_input, tools=TOOLS, memory=ctx, system_prompt_override=stream_sys,

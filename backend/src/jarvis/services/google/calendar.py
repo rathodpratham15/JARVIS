@@ -122,8 +122,20 @@ class CalendarService:
             return f"Calendar error: {exc}"
 
     def _find_calendar_for_event(self, svc, event_id: str) -> str:
-        """Return the calendarId that owns event_id, falling back to 'primary'."""
+        """Return the calendarId that owns event_id, falling back to 'primary'.
+
+        Tries 'primary' first to avoid the O(n calendars) probe on the common case.
+        """
+        # Fast path: most events live on the primary calendar
+        try:
+            svc.events().get(calendarId="primary", eventId=event_id).execute()
+            return "primary"
+        except Exception:
+            pass
+        # Slow path: check remaining calendars
         for cal_id in self._get_calendar_ids(svc):
+            if cal_id == "primary":
+                continue
             try:
                 svc.events().get(calendarId=cal_id, eventId=event_id).execute()
                 return cal_id
