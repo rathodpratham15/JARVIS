@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Loader2,
   MessageSquareText,
@@ -21,13 +22,14 @@ interface VoiceTurn {
 }
 
 export function VoiceModeOverlay() {
+  const navigate = useNavigate();
   const {
     voiceOpen,
     setVoiceOpen,
     activeConversationId,
     settings,
     refreshHistory,
-    loadConversation,
+    appendVoiceTurn,
   } = useJarvisStore();
 
   const [phase, setPhase] = useState<VoicePhase>('idle');
@@ -45,10 +47,19 @@ export function VoiceModeOverlay() {
   const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const convIdRef = useRef<string | undefined>(activeConversationId || undefined);
+  // Set to true when we want to discard the current in-progress recording
+  const cancelRecordingRef = useRef(false);
+  // Tracks whether at least one full turn completed (so we know where to navigate on close)
+  const hasCompletedTurnRef = useRef(false);
 
   useEffect(() => {
-    convIdRef.current = activeConversationId || undefined;
-  }, [activeConversationId]);
+    // Only initialise convIdRef from store when voice isn't yet open
+    // (once open, convIdRef tracks its own conversation thread)
+    if (!voiceOpen) {
+      convIdRef.current = activeConversationId || undefined;
+      hasCompletedTurnRef.current = false;
+    }
+  }, [voiceOpen, activeConversationId]);
 
   const stopAudioPlayback = useCallback(() => {
     if (playbackAudioRef.current) {
@@ -109,11 +120,16 @@ export function VoiceModeOverlay() {
       cleanupAll();
       setPhase('idle');
       setErrorMsg(null);
+      setTurns([]);
+      // Navigate to the conversation that was built during this voice session
+      if (hasCompletedTurnRef.current && convIdRef.current) {
+        navigate(`/c/${convIdRef.current}`);
+      }
     }
     return () => {
       cleanupAll();
     };
-  }, [voiceOpen, cleanupAll]);
+  }, [voiceOpen, cleanupAll, navigate]);
 
   const processUserUtterance = async (spokenText: string) => {
     const clean = spokenText.trim();
@@ -161,10 +177,13 @@ export function VoiceModeOverlay() {
         }
       );
 
-      void refreshHistory();
+      // Push this completed turn into the chat store so the workspace is populated
+      // when voice mode closes — no network round-trip needed.
       if (convIdRef.current) {
-        void loadConversation(convIdRef.current);
+        appendVoiceTurn(clean, assistantText, convIdRef.current);
+        hasCompletedTurnRef.current = true;
       }
+      void refreshHistory();
 
       if (!assistantText.trim()) {
         setPhase('idle');
@@ -258,6 +277,13 @@ export function VoiceModeOverlay() {
           audioCtxRef.current = null;
         }
 
+        // If the recording was cancelled (user pressed X while listening), discard it
+        if (cancelRecordingRef.current) {
+          cancelRecordingRef.current = false;
+          setPhase('idle');
+          return;
+        }
+
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || 'audio/webm',
         });
@@ -306,6 +332,15 @@ export function VoiceModeOverlay() {
     setPhase('idle');
   };
 
+  const handleClose = useCallback(() => {
+    // If currently recording, mark the in-progress audio as cancelled so onstop
+    // skips transcription.  Previously completed turns are already saved.
+    if (phase === 'listening') {
+      cancelRecordingRef.current = true;
+    }
+    setVoiceOpen(false);
+  }, [phase, setVoiceOpen]);
+
   if (!voiceOpen) return null;
 
   return (
@@ -335,7 +370,7 @@ export function VoiceModeOverlay() {
 
           <button
             type="button"
-            onClick={() => setVoiceOpen(false)}
+            onClick={handleClose}
             aria-label="End voice conversation"
             className="w-9 h-9 rounded-full border border-[#E5E5E5] dark:border-white/10 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
           >
@@ -425,7 +460,7 @@ export function VoiceModeOverlay() {
 
               <button
                 type="button"
-                onClick={() => setVoiceOpen(false)}
+                onClick={handleClose}
                 aria-label="End conversation"
                 className="w-12 h-12 rounded-full border border-[#E5E5E5] dark:border-white/15 flex items-center justify-center text-[#717171] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
               >

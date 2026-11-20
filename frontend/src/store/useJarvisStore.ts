@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, storeTokens, clearTokens, getToken } from '../lib/api';
+import { api, storeTokens, clearTokens, getToken, getRefreshToken, getTokenPayload } from '../lib/api';
 import type {
   AppSettings,
   ChatMessage,
@@ -55,9 +55,16 @@ interface JarvisState {
   deleteProject: (id: string) => void;
   renameProject: (id: string, name: string) => void;
 
+  // Onboarding
+  userDisplayName: string;
+  setUserDisplayName: (name: string) => void;
+  onboardingComplete: boolean;
+  setOnboardingComplete: (v: boolean) => void;
+
   // Tool confirmation
   pendingConfirm: PendingConfirm | null;
   setPendingConfirm: (c: PendingConfirm | null) => void;
+  resolveConfirm: (response: string | null) => void;
 
   // Streaming state
   streamStatus: 'idle' | 'waiting' | 'streaming' | 'error';
@@ -132,6 +139,8 @@ interface JarvisState {
   refreshEnrolledFaces: () => Promise<void>;
   deleteEnrolledFace: (id: string) => Promise<void>;
 
+  appendVoiceTurn: (userText: string, assistantText: string, conversationId: string) => void;
+
   signOut: () => Promise<void>;
   signIn: (name: string, email: string, password?: string) => Promise<void>;
 }
@@ -162,6 +171,8 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   enrolledFaces: [],
 
   projects: loadProjects(),
+  userDisplayName: '',
+  onboardingComplete: false,
   pendingConfirm: null,
 
   streamStatus: 'idle',
@@ -210,7 +221,28 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     set({ projects: updated });
   },
 
+  setUserDisplayName: (name) => set({ userDisplayName: name }),
+  setOnboardingComplete: (v) => set({ onboardingComplete: v }),
+
   setPendingConfirm: (c) => set({ pendingConfirm: c }),
+
+  resolveConfirm: (response) => {
+    // Replace the placeholder with the actual response (confirmed) or a
+    // cancellation notice (denied). Never leave "I need your confirmation…".
+    const replacement = response ?? 'Action cancelled.';
+    set((state) => {
+      let messages = state.messages;
+      const lastAssistantIdx = [...messages].reverse().findIndex((m) => m.role === 'assistant');
+      if (lastAssistantIdx !== -1) {
+        const idx = messages.length - 1 - lastAssistantIdx;
+        messages = messages.map((m, i) =>
+          i === idx ? { ...m, content: replacement } : m
+        );
+      }
+      return { pendingConfirm: null, messages };
+    });
+    void get().refreshHistory();
+  },
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   applyTheme: (theme) => {
@@ -238,7 +270,10 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
 
       try {
         const user = await api.me();
-        set({ user });
+        const payload = getTokenPayload();
+        const displayName = (payload?.display_name as string | undefined) || '';
+        const onboardingComplete = (payload?.onboarding_complete as boolean | undefined) ?? false;
+        set({ user, userDisplayName: displayName, onboardingComplete });
       } catch {
         // Token invalid — user needs to sign in
         set({ initialized: true });
@@ -317,6 +352,20 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     set({ messages: conv.messages });
   },
 
+  appendVoiceTurn: (userText, assistantText, conversationId) => {
+    const now = new Date().toISOString();
+    const uid = `voice-user-${Date.now()}`;
+    const aid = `voice-assistant-${Date.now()}`;
+    set((state) => ({
+      activeConversationId: conversationId,
+      messages: [
+        ...state.messages,
+        { id: uid, role: 'user' as const, content: userText, createdAt: now },
+        { id: aid, role: 'assistant' as const, content: assistantText, createdAt: now },
+      ],
+    }));
+  },
+
   renameConversation: async (id, title) => {
     await api.updateConversation(id, { title });
     await get().refreshHistory();
@@ -381,25 +430,55 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
     let resolvedConvId = get().activeConversationId ?? undefined;
     let currentAssistantId = tempAssistantId;
 
-    const token = getToken();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    const STREAM_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/chat/stream';
+    const streamBody = JSON.stringify({
+      message: trimmed,
+      conversation_id: resolvedConvId,
+      personality_mode: get().settings.personalityMode,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    const _makeStreamHeaders = (): Record<string, string> => {
+      const h: Record<string, string> = { 'Content-Type': 'application/json' };
+      const t = getToken();
+      if (t) h['Authorization'] = `Bearer ${t}`;
+      return h;
+    };
 
     try {
-      const res = await fetch(
-        (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/chat/stream',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            message: trimmed,
-            conversation_id: resolvedConvId,
-            personality_mode: get().settings.personalityMode,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-          signal: controller.signal,
+      let res = await fetch(STREAM_URL, {
+        method: 'POST',
+        headers: _makeStreamHeaders(),
+        body: streamBody,
+        signal: controller.signal,
+      });
+
+      // On 401, try to refresh the JWT and retry once
+      if (res.status === 401) {
+        const refresh = getRefreshToken();
+        if (refresh) {
+          const r = await fetch(
+            (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050') + '/api/auth/refresh',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refresh }),
+            }
+          );
+          if (r.ok) {
+            const data = await r.json() as { access_token: string; refresh_token?: string };
+            storeTokens(data.access_token, data.refresh_token ?? refresh);
+            res = await fetch(STREAM_URL, {
+              method: 'POST',
+              headers: _makeStreamHeaders(),
+              body: streamBody,
+              signal: controller.signal,
+            });
+          } else {
+            clearTokens();
+          }
         }
-      );
+      }
 
       if (!res.ok) {
         let errText = `Error ${res.status}`;

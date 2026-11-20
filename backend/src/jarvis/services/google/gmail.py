@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64, logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -90,13 +91,30 @@ class GmailService:
         if svc is None:
             return NOT_CONNECTED
         try:
+            # Get sender email from Gmail profile
+            sender_email = ""
+            try:
+                profile = svc.users().getProfile(userId="me").execute()
+                sender_email = profile.get("emailAddress", "")
+            except Exception:
+                pass
+            # Get sender display name from token store (cached at OAuth/lazy-fetch time)
+            sender_name = ""
+            try:
+                sender_name = self._store.get_connected_name(user_id) or ""
+            except Exception:
+                pass
+
             msg = MIMEMultipart()
+            if sender_email:
+                # Format: "Lavisha Munot <lavishamunot7@gmail.com>"
+                msg["from"] = formataddr((sender_name, sender_email)) if sender_name else sender_email
             msg["to"] = to
             msg["subject"] = subject
             msg.attach(MIMEText(body, "plain"))
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
             sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-            return {"id": sent["id"], "status": "sent"}
+            return {"id": sent["id"], "status": "sent", "from": sender_email}
         except Exception as exc:
             logger.error("Gmail send error: %s", exc)
             return f"Gmail send error: {exc}"

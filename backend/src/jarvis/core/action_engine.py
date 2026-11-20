@@ -248,6 +248,7 @@ class ActionEngine:
             "calendar_list": self._calendar_list,
             "calendar_create": self._calendar_create,
             "calendar_update": self._calendar_update,
+            "calendar_delete": self._calendar_delete,
             "drive_list": self._drive_list,
             "drive_create": self._drive_create,
             "send_sms": self._send_sms,
@@ -758,6 +759,20 @@ class ActionEngine:
         if isinstance(result, str):
             return result
         return f"Event '{result.get('title', event_id)}' updated."
+
+    def _calendar_delete(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google integration not configured."
+        uid = intent.get("_user_id")
+        if not uid:
+            return "Cannot delete a Calendar event without a logged-in user."
+        event_id = intent.get("event_id", "")
+        if not event_id:
+            return "Please provide the event ID to delete."
+        result = self._google.calendar.delete_event(uid, event_id)
+        if isinstance(result, str):
+            return result
+        return f"Event deleted."
 
     def _drive_list(self, intent: dict) -> str:
         if self._google is None:

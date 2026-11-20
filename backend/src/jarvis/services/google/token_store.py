@@ -8,14 +8,21 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS google_tokens (
-    user_id      TEXT PRIMARY KEY,
-    access_token TEXT,
-    refresh_token TEXT NOT NULL,
-    token_expiry TEXT,
-    scopes       TEXT,
-    updated_at   TEXT NOT NULL
+    user_id              TEXT PRIMARY KEY,
+    access_token         TEXT,
+    refresh_token        TEXT NOT NULL,
+    token_expiry         TEXT,
+    scopes               TEXT,
+    connected_email      TEXT,
+    connected_name       TEXT,
+    updated_at           TEXT NOT NULL
 );
 """
+
+_MIGRATIONS = [
+    "ALTER TABLE google_tokens ADD COLUMN connected_email TEXT",
+    "ALTER TABLE google_tokens ADD COLUMN connected_name TEXT",
+]
 
 
 class GoogleTokenStore:
@@ -23,6 +30,15 @@ class GoogleTokenStore:
         self._db_path = db_path
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+        self._run_migrations()
+
+    def _run_migrations(self) -> None:
+        with self._connect() as conn:
+            for sql in _MIGRATIONS:
+                try:
+                    conn.execute(sql)
+                except Exception:
+                    pass  # column already exists
 
     @contextlib.contextmanager
     def _connect(self):
@@ -35,15 +51,56 @@ class GoogleTokenStore:
             conn.close()
 
     def save(self, user_id: str, access_token: str, refresh_token: str,
-             token_expiry: Optional[str], scopes: list[str]) -> None:
+             token_expiry: Optional[str], scopes: list[str],
+             connected_email: Optional[str] = None) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
+            if connected_email is not None:
+                conn.execute(
+                    """INSERT OR REPLACE INTO google_tokens
+                       (user_id, access_token, refresh_token, token_expiry, scopes, connected_email, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (user_id, access_token, refresh_token, token_expiry,
+                     json.dumps(scopes), connected_email, now),
+                )
+            else:
+                # Preserve existing connected_email on token-only refreshes
+                conn.execute(
+                    """INSERT INTO google_tokens
+                       (user_id, access_token, refresh_token, token_expiry, scopes, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(user_id) DO UPDATE SET
+                           access_token=excluded.access_token,
+                           refresh_token=excluded.refresh_token,
+                           token_expiry=excluded.token_expiry,
+                           scopes=excluded.scopes,
+                           updated_at=excluded.updated_at""",
+                    (user_id, access_token, refresh_token, token_expiry,
+                     json.dumps(scopes), now),
+                )
+
+    def get_connected_email(self, user_id: str) -> Optional[str]:
+        """Return the Google account email stored at OAuth time, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT connected_email FROM google_tokens WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        return row["connected_email"] if row else None
+
+    def get_connected_name(self, user_id: str) -> Optional[str]:
+        """Return the Google account display name, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT connected_name FROM google_tokens WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        return row["connected_name"] if row else None
+
+    def store_connected_email(self, user_id: str, email: str, name: Optional[str] = None) -> None:
+        """Cache the connected Google email (and optional display name) without touching token fields."""
+        with self._connect() as conn:
             conn.execute(
-                """INSERT OR REPLACE INTO google_tokens
-                   (user_id, access_token, refresh_token, token_expiry, scopes, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (user_id, access_token, refresh_token, token_expiry,
-                 json.dumps(scopes), now),
+                "UPDATE google_tokens SET connected_email = ?, connected_name = COALESCE(?, connected_name) WHERE user_id = ?",
+                (email, name or None, user_id),
             )
 
     def get_credentials(self, user_id: str, client_id: str, client_secret: str):

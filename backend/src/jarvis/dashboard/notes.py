@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
 """
 
+_MIGRATIONS = [
+    ("user_id", "TEXT"),
+    ("category", "TEXT"),
+    ("importance", "TEXT"),
+]
+
 
 class NotesStore:
     def __init__(self, db_path: str | Path = "data/notes.db") -> None:
@@ -29,10 +35,11 @@ class NotesStore:
         self._lock = threading.RLock()
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
-            try:
-                conn.execute("ALTER TABLE notes ADD COLUMN user_id TEXT")
-            except Exception:
-                pass
+            for col, typ in _MIGRATIONS:
+                try:
+                    conn.execute(f"ALTER TABLE notes ADD COLUMN {col} {typ}")
+                except Exception:
+                    pass
             conn.commit()
 
     @contextmanager
@@ -44,17 +51,21 @@ class NotesStore:
         finally:
             conn.close()
 
-    def add(self, content: str, title: Optional[str] = None, user_id: Optional[str] = None) -> dict:
+    def add(self, content: str, title: Optional[str] = None, user_id: Optional[str] = None,
+            category: Optional[str] = None, importance: Optional[str] = None) -> dict:
         note_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as conn:
             conn.execute(
-                "INSERT INTO notes VALUES (?, ?, ?, ?, ?, ?)",
-                (note_id, content, title, now, now, user_id),
+                "INSERT INTO notes (id, content, title, created_at, updated_at, user_id, category, importance) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (note_id, content, title, now, now, user_id,
+                 category or "Personal", importance or "Medium"),
             )
             conn.commit()
         return {"id": note_id, "content": content, "title": title,
-                "created_at": now, "updated_at": now, "user_id": user_id}
+                "created_at": now, "updated_at": now, "user_id": user_id,
+                "category": category or "Personal", "importance": importance or "Medium"}
 
     def list(self, user_id: Optional[str] = None) -> list[dict]:
         with self._lock, self._connect() as conn:

@@ -138,6 +138,11 @@ def create_app() -> Flask:
         """Return the current request's user ID, or None when auth is disabled."""
         return getattr(request, "current_user", {}).get("sub") if _auth_enabled else None
 
+    def _user_display_name() -> str:
+        """Return the logged-in user's display name (prefers Google/SSO full name over username)."""
+        user = getattr(request, "current_user", {}) if _auth_enabled else {}
+        return (user.get("display_name") or user.get("username") or "").strip()
+
     # ── Google OAuth integration ──────────────────────────────────────────
     _google_client_id_oauth = os.getenv("GOOGLE_CLIENT_ID", "")
     _google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
@@ -216,7 +221,12 @@ def create_app() -> Flask:
         # immediately without requiring a new login.
         live_user = _auth_mgr.get_user_by_id(payload.get("sub", ""))
         if live_user:
-            payload = {**payload, "role": live_user["role"]}
+            payload = {
+                **payload,
+                "role": live_user["role"],
+                "display_name": live_user.get("display_name") or payload.get("display_name"),
+                "onboarding_complete": bool(live_user.get("onboarding_complete", False)),
+            }
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -529,6 +539,29 @@ def create_app() -> Flask:
             return {"error": "not authenticated"}, 401
         return {"user": user}, 200
 
+    @app.patch("/api/user/profile")
+    def update_user_profile() -> tuple[dict, int]:
+        """Update the current user's profile and mark onboarding complete."""
+        user = getattr(request, "current_user", None)
+        if user is None:
+            return {"error": "not authenticated"}, 401
+        if _auth_mgr is None:
+            return {"error": "auth not configured"}, 500
+        body = request.get_json(silent=True) or {}
+        first = (body.get("first_name") or "").strip()
+        last = (body.get("last_name") or "").strip()
+        display_name = (body.get("display_name") or "").strip()
+        use_case = (body.get("use_case") or "").strip()
+        if not display_name:
+            display_name = " ".join(filter(None, [first, last]))
+        if not display_name:
+            return {"error": "display_name is required"}, 400
+        updated = _auth_mgr.complete_onboarding(user.get("sub") or user.get("id"), display_name, use_case)
+        if updated is None:
+            return {"error": "user not found"}, 404
+        tokens = _auth_mgr.create_tokens(updated)
+        return {"user": updated, **tokens}, 200
+
     @app.get("/api/auth/config")
     def auth_config() -> tuple[dict, int]:
         """Tell the frontend which login methods are available."""
@@ -840,6 +873,63 @@ def create_app() -> Flask:
             return f" Always respond in {_LANGUAGE_NAMES[lang]}, regardless of the language the user writes in."
         return ""
 
+    def _user_context() -> str:
+        """Return a system-prompt snippet with the user's display name and sender email."""
+        sender_email: str = ""
+        sender_name: str = ""
+        uid = _uid()
+        if uid and _google_svc:
+            try:
+                sender_email = _google_svc.token_store.get_connected_email(uid) or ""
+                sender_name = _google_svc.token_store.get_connected_name(uid) or ""
+                if not sender_email or not sender_name:
+                    # Lazy-populate: fetch from Google userinfo and cache both
+                    # email and display name without requiring a reconnect.
+                    creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
+                    if creds:
+                        import requests as _req_ctx
+                        _r = _req_ctx.get(
+                            "https://www.googleapis.com/oauth2/v3/userinfo",
+                            headers={"Authorization": f"Bearer {creds.token}"},
+                            timeout=3,
+                        )
+                        if _r.ok:
+                            info = _r.json()
+                            sender_email = info.get("email", "") or sender_email
+                            # name → given+family → capitalised email prefix
+                            _prefix = sender_email.split("@")[0].replace(".", " ").replace("_", " ")
+                            # Strip trailing digits (e.g. "lavishamunot7" → "lavishamunot")
+                            import re as _re
+                            _prefix = _re.sub(r'\d+$', '', _prefix).strip().title()
+                            sender_name = (
+                                info.get("name")
+                                or " ".join(filter(None, [info.get("given_name"), info.get("family_name")]))
+                                or _prefix
+                            )
+                            if sender_email:
+                                _google_svc.token_store.store_connected_email(uid, sender_email, sender_name or None)
+            except Exception:
+                pass
+
+        # Use the connected Google account's display name for email signatures
+        # when it differs from the JARVIS login account (e.g. shared/assistant setup).
+        signature_name = sender_name or _user_display_name()
+        if not signature_name:
+            return ""
+
+        parts = [f"\n\nThe user's name is {signature_name}. When composing emails or letters on their behalf, sign with their name."]
+        if not sender_email:
+            user = getattr(request, "current_user", {}) if _auth_enabled else {}
+            sender_email = (user.get("email") or "").strip()
+        if sender_email:
+            parts.append(
+                f" Emails are sent FROM {sender_email} — this is the SENDER address. "
+                "NEVER use it as a recipient. "
+                "If a calendar event lists this address as an attendee or organiser, skip it entirely. "
+                "If after skipping it there are no other attendees, ask the user who to send the email to rather than guessing."
+            )
+        return "".join(parts)
+
     def _datetime_context(tz_name: str) -> str:
         """Return a system-prompt snippet with the user's current local time."""
         try:
@@ -856,6 +946,62 @@ def create_app() -> Flask:
         except Exception:
             return ""
 
+    _EXTRACT_PROMPT = (
+        "You are a memory extraction agent for a personal AI assistant. "
+        "Given the conversation exchange below, extract 0-2 key facts worth "
+        "remembering long-term about this user (personal preferences, goals, "
+        "important facts they shared, recurring patterns). Skip generic greetings, "
+        "calendar queries, one-off questions, or anything already common knowledge. "
+        "Return ONLY valid JSON — an array of objects with keys "
+        "\"title\" (short label ≤40 chars), \"content\" (the fact), and "
+        "\"category\" (one of: Personal, Work, Project, Health, System). "
+        "If nothing is worth remembering, return [].\n\n"
+        "User: {user_input}\nAssistant: {response}"
+    )
+
+    def _auto_extract_memory(user_input: str, response: str, uid: str) -> None:
+        """Background: ask LLM to extract memorable facts, save as notes."""
+        try:
+            import json as _json
+            prompt = _EXTRACT_PROMPT.format(
+                user_input=user_input[:500],
+                response=response[:500],
+            )
+            raw = llm.query_llm(
+                prompt,
+                memory=[],
+                system_prompt_override="Return only a JSON array. No markdown, no explanation.",
+                record=False,  # must NOT pollute shared conversation_history
+            )
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1].lstrip("json").strip()
+            facts = _json.loads(raw)
+            if not isinstance(facts, list):
+                return
+            for fact in facts[:2]:
+                if not isinstance(fact, dict) or not fact.get("content"):
+                    continue
+                notes.add(
+                    content=fact.get("content", ""),
+                    title=fact.get("title") or fact.get("content", "")[:40],
+                    user_id=uid,
+                    category=fact.get("category") or "Personal",
+                    importance="Medium",
+                )
+        except Exception:
+            pass  # auto-extraction is best-effort
+
+    def _maybe_extract_memory(user_input: str, response: str, uid: str) -> None:
+        """Spawn a daemon thread for auto-extraction so it never blocks the reply."""
+        import threading
+        t = threading.Thread(
+            target=_auto_extract_memory,
+            args=(user_input, response, uid),
+            daemon=True,
+        )
+        t.start()
+
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -866,7 +1012,7 @@ def create_app() -> Flask:
         wearable_mode = bool(payload.get("wearable_mode", False))
         _tz_name = (payload.get("timezone") or "UTC").strip()
         lang_suffix = _language_suffix()
-        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name)
+        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name) + _user_context()
         sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (base or None)
 
         intent = parser.parse_intent(user_input)
@@ -925,7 +1071,8 @@ def create_app() -> Flask:
     _VOICE_SYSTEM_PROMPT = (
         "You are Jarvis, a voice assistant. "
         "Reply in 1-2 short sentences only — no lists, no markdown, no filler. "
-        "Be direct and natural, as if speaking aloud."
+        "Be direct and natural, as if speaking aloud. "
+        "When you can act using a tool, do so immediately — do not narrate the action."
     )
 
     _WEARABLE_SYSTEM_PROMPT_SUFFIX = (
@@ -1215,7 +1362,7 @@ def create_app() -> Flask:
         # LLM path: check for tool calls first, then stream response
         ctx = _build_context(memory, user_id=uid)
         _tz_name = (payload.get("timezone") or "UTC").strip()
-        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name)) or None
+        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name) + _user_context()) or None
 
         text, tool_name, tool_args = llm.query_with_tools(
             user_input, tools=TOOLS, memory=ctx, system_prompt_override=stream_sys,
@@ -1284,6 +1431,7 @@ def create_app() -> Flask:
                 conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
+            _maybe_extract_memory(user_input, response_text, uid)
 
             def _tool_stream():
                 yield from _fake_stream_text(response_text)
@@ -1310,6 +1458,7 @@ def create_app() -> Flask:
                 conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(_iid, user_input, user_id=uid)
+            _maybe_extract_memory(user_input, full_text, uid)
             yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': _iid, 'conversation_id': _cid})}\n\n"
 
         return Response(
@@ -2218,21 +2367,47 @@ class MyPlugin(BasePlugin):
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
 
+    def _note_to_memory(n: dict) -> dict:
+        return {
+            "id": n.get("id", ""),
+            "title": n.get("title") or n.get("content", "")[:40],
+            "content": n.get("content", ""),
+            "category": n.get("category") or "Personal",
+            "importance": n.get("importance") or "Medium",
+            "createdAt": n.get("created_at", ""),
+        }
+
     @app.get("/api/memories")
     def list_memories() -> tuple[dict, int]:
-        """Map notes → MemoryItem shape expected by the frontend."""
+        return [_note_to_memory(n) for n in notes.list(user_id=_uid())], 200
+
+    @app.post("/api/memories")
+    def create_memory() -> tuple[dict, int]:
         uid = _uid()
-        raw = notes.list(user_id=uid)
-        def _to_memory(n: dict) -> dict:
-            return {
-                "id": n.get("id", ""),
-                "title": n.get("title") or n.get("content", "")[:40],
-                "content": n.get("content", ""),
-                "category": "Personal",
-                "importance": "Medium",
-                "createdAt": n.get("created_at", ""),
-            }
-        return [_to_memory(n) for n in raw], 200
+        payload = request.get_json(silent=True) or {}
+        content = (payload.get("content") or "").strip()
+        if not content:
+            return {"error": "content is required"}, 400
+        note = notes.add(
+            content=content,
+            title=(payload.get("title") or "").strip() or None,
+            user_id=uid,
+            category=payload.get("category") or "Personal",
+            importance=payload.get("importance") or "Medium",
+        )
+        return _note_to_memory(note), 201
+
+    @app.delete("/api/memories/<memory_id>")
+    def delete_memory(memory_id: str) -> tuple[dict, int]:
+        return ({"ok": True}, 200) if notes.delete(memory_id, user_id=_uid()) else ({"error": "not found"}, 404)
+
+    @app.delete("/api/memories")
+    def clear_memories() -> tuple[dict, int]:
+        uid = _uid()
+        all_notes = notes.list(user_id=uid)
+        for n in all_notes:
+            notes.delete(n["id"], user_id=uid)
+        return {"ok": True, "deleted": len(all_notes)}, 200
 
     @app.patch("/api/notes/<note_id>")
     def update_note(note_id: str) -> tuple[dict, int]:
@@ -2677,14 +2852,33 @@ class MyPlugin(BasePlugin):
             flow.fetch_token(**fetch_kwargs)
             creds = flow.credentials
             expiry_iso = creds.expiry.isoformat() if creds.expiry else None
+            # Fetch the Google account email once at OAuth time and cache it
+            _google_email: Optional[str] = None
+            _google_name: Optional[str] = None
+            try:
+                import requests as _req2
+                _r = _req2.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {creds.token}"},
+                    timeout=5,
+                )
+                if _r.ok:
+                    _info2 = _r.json()
+                    _google_email = _info2.get("email")
+                    _google_name = _info2.get("name")
+            except Exception:
+                pass
             _google_svc.token_store.save(
                 user_id=uid,
                 access_token=creds.token,
                 refresh_token=creds.refresh_token or "",
                 token_expiry=expiry_iso,
                 scopes=list(creds.scopes or _GOOGLE_SCOPES),
+                connected_email=_google_email,
             )
-            logger.info("Google OAuth tokens stored for user %s", uid)
+            if _google_email:
+                _google_svc.token_store.store_connected_email(uid, _google_email, _google_name or None)
+            logger.info("Google OAuth tokens stored for user %s (account: %s / %s)", uid, _google_email or "unknown", _google_name or "")
             return flask_redirect(f"{_frontend_url}/chat?google=connected")
         except Exception as exc:
             logger.error("Google callback error: %s", exc)

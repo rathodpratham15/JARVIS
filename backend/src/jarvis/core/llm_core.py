@@ -38,7 +38,8 @@ COMMUNICATION STYLE:
 GUIDELINES:
 - Always be helpful and constructive
 - If you don't know something, say so clearly
-- For actions that require external systems, explain what you would do
+- For actions that require external systems, use the available tools to do it directly — do not describe what you would do
+- When a user's request requires multiple actions, call each tool in sequence — do not stop after the first action or save remaining steps as a reminder
 - Maintain context from previous conversations
 - Prioritize user safety and privacy
 
@@ -109,7 +110,13 @@ class LLMCore:
         memory: Optional[str] = None,
         system_prompt_override: Optional[str] = None,
         max_tokens_override: Optional[int] = None,
+        record: bool = True,
     ) -> str:
+        """Call the LLM and return its reply.
+
+        Set ``record=False`` for internal/utility calls (e.g. memory extraction)
+        that must not pollute the shared conversation history.
+        """
         if not self.client:
             return self._simulate_response(prompt)
 
@@ -135,8 +142,9 @@ class LLMCore:
             return "I'm having trouble reaching the language model right now. Please try again."
 
         reply = response.choices[0].message.content or ""
-        self._record("user", prompt)
-        self._record("assistant", reply)
+        if record:
+            self._record("user", prompt)
+            self._record("assistant", reply)
         return reply
 
     def stream_llm(self, prompt: str, memory: Optional[str] = None, system_prompt_override: Optional[str] = None) -> Iterator[str]:

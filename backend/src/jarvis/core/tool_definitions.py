@@ -92,7 +92,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "set_reminder",
-            "description": "Save a reminder for the user, optionally at a specific time.",
+            "description": "Schedule a future notification for the user — use ONLY when the user explicitly asks to be reminded about something at a later time (e.g. 'remind me at 9pm', 'remind me tomorrow'). Do NOT use this to defer or queue actions like sending emails, creating events, or deleting things — execute those tools directly instead.",
             "parameters": {
                 "type": "object",
                 "additionalProperties": False,
@@ -123,7 +123,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "save_note",
-            "description": "Save a note for the user.",
+            "description": "Save a plain-text note the user explicitly wants to keep for later reference — e.g. 'save this note', 'write this down'. Do NOT use to defer actions (sending emails, creating events, etc.).",
             "parameters": {
                 "type": "object",
                 "additionalProperties": False,
@@ -155,10 +155,9 @@ TOOLS: list[dict] = [
             "name": "search_web",
             "description": (
                 "Search the internet for real-time information, current events, "
-                "facts about people, companies, products, research, or anything "
-                "that requires up-to-date or public web data. Use this whenever "
-                "the user asks about someone's background, a company, recent news, "
-                "or any topic that benefits from live web results."
+                "products, research, or anything that requires up-to-date or public web data. "
+                "For background research on a specific named person or company, "
+                "prefer research_person / research_company over this tool."
             ),
             "parameters": {
                 "type": "object",
@@ -251,12 +250,10 @@ TOOLS: list[dict] = [
         "function": {
             "name": "control_app",
             "description": (
-                "Control a macOS application using AppleScript — media playback, "
-                "volume, track info, app activation/quit, system notifications, "
-                "or run a custom AppleScript snippet. "
-                "Use for: 'play Spotify', 'pause music', 'next song', 'previous track', "
-                "'set volume to 50', 'mute', 'quit Safari', 'switch to Chrome', "
-                "'what song is playing', 'send me a notification'."
+                "Control a macOS application using AppleScript — app activation/quit, "
+                "system notifications, or run a custom AppleScript snippet. "
+                "Do NOT use for Spotify playback (use control_spotify) or system volume/mute "
+                "(use system_api) — use this only when no dedicated tool exists for the action."
             ),
             "parameters": {
                 "type": "object",
@@ -349,7 +346,8 @@ TOOLS: list[dict] = [
             "description": (
                 "Create a recurring scheduled job that JARVIS will run autonomously. "
                 "Use when the user asks to schedule a recurring task, e.g. "
-                "'every morning check the news and save a summary', 'remind me daily at 9am to review my calendar'."
+                "'every morning check the news and save a summary', 'every day at 9am review my calendar'. "
+                "Use ONLY for recurring/scheduled background jobs. For a one-time future reminder use set_reminder instead."
             ),
             "parameters": {
                 "type": "object",
@@ -503,6 +501,21 @@ TOOLS: list[dict] = [
                     "end": {"type": "string", "description": "New end datetime ISO 8601 (optional)"},
                     "description": {"type": "string", "description": "New description (optional)"},
                     "location": {"type": "string", "description": "New location (optional)"},
+                },
+                "required": ["event_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_delete",
+            "description": "Delete a Google Calendar event by its event ID. Use when the user asks to delete, cancel, or remove a specific calendar event.",
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "event_id": {"type": "string", "description": "The Google Calendar event ID to delete"},
                 },
                 "required": ["event_id"],
             },
@@ -780,6 +793,9 @@ def tool_call_to_intent(name: str, args: dict) -> dict:
 
     if name == "calendar_update":
         return {**base, "type": "calendar_update", "event_id": args.get("event_id", ""), "title": args.get("title"), "start": args.get("start"), "end": args.get("end"), "description": args.get("description"), "location": args.get("location")}
+
+    if name == "calendar_delete":
+        return {**base, "type": "calendar_delete", "event_id": args.get("event_id", "")}
 
     if name == "drive_list":
         return {**base, "type": "drive_list", "query": args.get("query", ""), "max_results": int(args.get("max_results", 20))}

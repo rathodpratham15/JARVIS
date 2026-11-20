@@ -78,6 +78,9 @@ _MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN saml_idp TEXT",
     "ALTER TABLE users ADD COLUMN scim_external_id TEXT",
     "ALTER TABLE users ADD COLUMN scim_active INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE users ADD COLUMN display_name TEXT",
+    "ALTER TABLE users ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN use_case TEXT",
 ]
 
 _ACCESS_EXPIRE_MINUTES = 60
@@ -124,80 +127,83 @@ class AuthManager:
         """Find existing user by Google sub or email; create one if new."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, username, email, role FROM users WHERE google_sub = ? OR email = ?",
+                "SELECT id, username, email, role, display_name FROM users WHERE google_sub = ? OR email = ?",
                 (google_sub, email),
             ).fetchone()
         if row:
-            # Update google_sub if it wasn't stored yet (email-matched existing user)
+            # Update google_sub and display_name each login (name may change)
             with self._connect() as conn:
                 conn.execute(
-                    "UPDATE users SET google_sub = ? WHERE id = ?",
-                    (google_sub, row["id"]),
+                    "UPDATE users SET google_sub = ?, display_name = COALESCE(?, display_name) WHERE id = ?",
+                    (google_sub, name or None, row["id"]),
                 )
-            return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+            return {"id": row["id"], "username": row["username"], "email": row["email"],
+                    "role": row["role"], "display_name": name or row["display_name"]}
 
         uid = str(uuid.uuid4())
         username = email.split("@")[0]
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO users (id, username, email, role, google_sub, created_at) VALUES (?,?,?,?,?,?)",
-                (uid, username, email, "user", google_sub, now),
+                "INSERT INTO users (id, username, email, role, google_sub, display_name, created_at) VALUES (?,?,?,?,?,?,?)",
+                (uid, username, email, "user", google_sub, name or None, now),
             )
         logger.info("New user created via Google OAuth: %s", email)
-        return {"id": uid, "username": username, "email": email, "role": "user"}
+        return {"id": uid, "username": username, "email": email, "role": "user", "display_name": name or None}
 
     def create_or_get_saml_user(self, email: str, name: str, name_id: str, idp: str) -> dict:
         """Find or create a user authenticated via SAML 2.0 SSO."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, username, email, role FROM users WHERE saml_name_id = ? OR email = ?",
+                "SELECT id, username, email, role, display_name FROM users WHERE saml_name_id = ? OR email = ?",
                 (name_id, email),
             ).fetchone()
         if row:
             with self._connect() as conn:
                 conn.execute(
-                    "UPDATE users SET saml_name_id = ?, saml_idp = ? WHERE id = ?",
-                    (name_id, idp, row["id"]),
+                    "UPDATE users SET saml_name_id = ?, saml_idp = ?, display_name = COALESCE(?, display_name) WHERE id = ?",
+                    (name_id, idp, name or None, row["id"]),
                 )
-            return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+            return {"id": row["id"], "username": row["username"], "email": row["email"],
+                    "role": row["role"], "display_name": name or row["display_name"]}
 
         uid = str(uuid.uuid4())
         username = email.split("@")[0]
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO users (id, username, email, role, saml_name_id, saml_idp, created_at) VALUES (?,?,?,?,?,?,?)",
-                (uid, username, email, "user", name_id, idp, now),
+                "INSERT INTO users (id, username, email, role, saml_name_id, saml_idp, display_name, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (uid, username, email, "user", name_id, idp, name or None, now),
             )
         logger.info("New user created via SAML SSO: %s (IdP: %s)", email, idp)
-        return {"id": uid, "username": username, "email": email, "role": "user"}
+        return {"id": uid, "username": username, "email": email, "role": "user", "display_name": name or None}
 
     def create_or_get_microsoft_user(self, email: str, name: str, microsoft_sub: str) -> dict:
         """Find or create a user authenticated via Microsoft OIDC."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, username, email, role FROM users WHERE microsoft_sub = ? OR email = ?",
+                "SELECT id, username, email, role, display_name FROM users WHERE microsoft_sub = ? OR email = ?",
                 (microsoft_sub, email),
             ).fetchone()
         if row:
             with self._connect() as conn:
                 conn.execute(
-                    "UPDATE users SET microsoft_sub = ? WHERE id = ?",
-                    (microsoft_sub, row["id"]),
+                    "UPDATE users SET microsoft_sub = ?, display_name = COALESCE(?, display_name) WHERE id = ?",
+                    (microsoft_sub, name or None, row["id"]),
                 )
-            return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+            return {"id": row["id"], "username": row["username"], "email": row["email"],
+                    "role": row["role"], "display_name": name or row["display_name"]}
 
         uid = str(uuid.uuid4())
         username = email.split("@")[0]
         now = datetime.now(timezone.utc).isoformat()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO users (id, username, email, role, microsoft_sub, created_at) VALUES (?,?,?,?,?,?)",
-                (uid, username, email, "user", microsoft_sub, now),
+                "INSERT INTO users (id, username, email, role, microsoft_sub, display_name, created_at) VALUES (?,?,?,?,?,?,?)",
+                (uid, username, email, "user", microsoft_sub, name or None, now),
             )
         logger.info("New user created via Microsoft OIDC: %s", email)
-        return {"id": uid, "username": username, "email": email, "role": "user"}
+        return {"id": uid, "username": username, "email": email, "role": "user", "display_name": name or None}
 
     # ── SCIM 2.0 user management ───────────────────────────────────────────
 
@@ -354,15 +360,37 @@ class AuthManager:
             resource["externalId"] = external_id
         return resource
 
+    def update_display_name(self, user_id: str, display_name: str) -> Optional[dict]:
+        """Update the user's display name and return the updated user dict."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET display_name = ? WHERE id = ?",
+                (display_name.strip(), user_id),
+            )
+        return self.get_user_by_id(user_id)
+
     def get_user_by_id(self, user_id: str) -> Optional[dict]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, username, email, role FROM users WHERE id = ?",
+                "SELECT id, username, email, role, display_name, onboarding_complete, use_case FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
         if row is None:
             return None
-        return {"id": row["id"], "username": row["username"], "email": row["email"], "role": row["role"]}
+        return {
+            "id": row["id"], "username": row["username"], "email": row["email"],
+            "role": row["role"], "display_name": row["display_name"],
+            "onboarding_complete": bool(row["onboarding_complete"]) if row["onboarding_complete"] is not None else False,
+            "use_case": row["use_case"],
+        }
+
+    def complete_onboarding(self, user_id: str, display_name: str, use_case: str = "") -> Optional[dict]:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE users SET display_name = ?, use_case = ?, onboarding_complete = 1 WHERE id = ?",
+                (display_name.strip(), use_case.strip(), user_id),
+            )
+        return self.get_user_by_id(user_id)
 
     def verify_password(self, username: str, password: str) -> Optional[dict]:
         with self._connect() as conn:
@@ -381,8 +409,11 @@ class AuthManager:
         access_payload = {
             "sub": user["id"],
             "username": user["username"],
+            "display_name": user.get("display_name") or None,
             "email": user.get("email"),
             "role": user["role"],
+            "onboarding_complete": bool(user.get("onboarding_complete", False)),
+            "use_case": user.get("use_case"),
             "exp": now + timedelta(minutes=_ACCESS_EXPIRE_MINUTES),
             "type": "access",
         }
