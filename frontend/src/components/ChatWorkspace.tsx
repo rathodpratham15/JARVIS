@@ -45,12 +45,15 @@ export function ChatWorkspace() {
     loadConversation,
   } = useJarvisStore();
 
-  // When navigating to /c/:id or refreshing on that URL, load that conversation.
+  // When navigating to /c/:id (URL changes), load that conversation.
+  // Intentionally only depends on urlConvId so that clearing activeConversationId
+  // via startNewChat() does NOT re-trigger a load while still on the old URL.
   useEffect(() => {
-    if (urlConvId && urlConvId !== activeConversationId) {
+    if (urlConvId) {
       void loadConversation(urlConvId);
     }
-  }, [urlConvId, activeConversationId, loadConversation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlConvId]);
 
   // Once a conversation ID is assigned (e.g. after the first reply), push
   // the URL from /chat → /c/:id so a refresh stays on the same chat.
