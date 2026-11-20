@@ -848,21 +848,16 @@ def create_app() -> Flask:
 
     def _user_context() -> str:
         """Return a system-prompt snippet with the user's display name and sender email."""
-        name = _user_display_name()
-        if not name:
-            return ""
-        parts = [f"\n\nThe user's name is {name}. When composing emails or letters on their behalf, sign with their name."]
-        # Use the connected Google account email (the actual sender) rather than
-        # the JARVIS login email, since they may differ (e.g. user logs in with
-        # one Google account but has connected another account for Gmail/Calendar).
         sender_email: str = ""
+        sender_name: str = ""
         uid = _uid()
         if uid and _google_svc:
             try:
                 sender_email = _google_svc.token_store.get_connected_email(uid) or ""
+                sender_name = _google_svc.token_store.get_connected_name(uid) or ""
                 if not sender_email:
-                    # Lazy-populate: fetch from Google userinfo and cache it so
-                    # the user doesn't need to reconnect their Google account.
+                    # Lazy-populate: fetch from Google userinfo and cache both
+                    # email and display name without requiring a reconnect.
                     creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
                     if creds:
                         import requests as _req_ctx
@@ -872,11 +867,21 @@ def create_app() -> Flask:
                             timeout=3,
                         )
                         if _r.ok:
-                            sender_email = _r.json().get("email", "")
+                            info = _r.json()
+                            sender_email = info.get("email", "")
+                            sender_name = info.get("name", "")
                             if sender_email:
-                                _google_svc.token_store.store_connected_email(uid, sender_email)
+                                _google_svc.token_store.store_connected_email(uid, sender_email, sender_name or None)
             except Exception:
                 pass
+
+        # Use the connected Google account's display name for email signatures
+        # when it differs from the JARVIS login account (e.g. shared/assistant setup).
+        signature_name = sender_name or _user_display_name()
+        if not signature_name:
+            return ""
+
+        parts = [f"\n\nThe user's name is {signature_name}. When composing emails or letters on their behalf, sign with their name."]
         if not sender_email:
             user = getattr(request, "current_user", {}) if _auth_enabled else {}
             sender_email = (user.get("email") or "").strip()
@@ -2812,6 +2817,7 @@ class MyPlugin(BasePlugin):
             expiry_iso = creds.expiry.isoformat() if creds.expiry else None
             # Fetch the Google account email once at OAuth time and cache it
             _google_email: Optional[str] = None
+            _google_name: Optional[str] = None
             try:
                 import requests as _req2
                 _r = _req2.get(
@@ -2820,7 +2826,9 @@ class MyPlugin(BasePlugin):
                     timeout=5,
                 )
                 if _r.ok:
-                    _google_email = _r.json().get("email")
+                    _info2 = _r.json()
+                    _google_email = _info2.get("email")
+                    _google_name = _info2.get("name")
             except Exception:
                 pass
             _google_svc.token_store.save(
@@ -2831,7 +2839,9 @@ class MyPlugin(BasePlugin):
                 scopes=list(creds.scopes or _GOOGLE_SCOPES),
                 connected_email=_google_email,
             )
-            logger.info("Google OAuth tokens stored for user %s (account: %s)", uid, _google_email or "unknown")
+            if _google_email:
+                _google_svc.token_store.store_connected_email(uid, _google_email, _google_name or None)
+            logger.info("Google OAuth tokens stored for user %s (account: %s / %s)", uid, _google_email or "unknown", _google_name or "")
             return flask_redirect(f"{_frontend_url}/chat?google=connected")
         except Exception as exc:
             logger.error("Google callback error: %s", exc)

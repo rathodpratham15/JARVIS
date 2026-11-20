@@ -8,18 +8,20 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS google_tokens (
-    user_id         TEXT PRIMARY KEY,
-    access_token    TEXT,
-    refresh_token   TEXT NOT NULL,
-    token_expiry    TEXT,
-    scopes          TEXT,
-    connected_email TEXT,
-    updated_at      TEXT NOT NULL
+    user_id              TEXT PRIMARY KEY,
+    access_token         TEXT,
+    refresh_token        TEXT NOT NULL,
+    token_expiry         TEXT,
+    scopes               TEXT,
+    connected_email      TEXT,
+    connected_name       TEXT,
+    updated_at           TEXT NOT NULL
 );
 """
 
 _MIGRATIONS = [
     "ALTER TABLE google_tokens ADD COLUMN connected_email TEXT",
+    "ALTER TABLE google_tokens ADD COLUMN connected_name TEXT",
 ]
 
 
@@ -85,12 +87,20 @@ class GoogleTokenStore:
             ).fetchone()
         return row["connected_email"] if row else None
 
-    def store_connected_email(self, user_id: str, email: str) -> None:
-        """Cache the connected Google email without touching the token fields."""
+    def get_connected_name(self, user_id: str) -> Optional[str]:
+        """Return the Google account display name, or None."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT connected_name FROM google_tokens WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        return row["connected_name"] if row else None
+
+    def store_connected_email(self, user_id: str, email: str, name: Optional[str] = None) -> None:
+        """Cache the connected Google email (and optional display name) without touching token fields."""
         with self._connect() as conn:
             conn.execute(
-                "UPDATE google_tokens SET connected_email = ? WHERE user_id = ?",
-                (email, user_id),
+                "UPDATE google_tokens SET connected_email = ?, connected_name = COALESCE(?, connected_name) WHERE user_id = ?",
+                (email, name or None, user_id),
             )
 
     def get_credentials(self, user_id: str, client_id: str, client_secret: str):

@@ -85,18 +85,31 @@ class GmailService:
             logger.error("Gmail get_message error: %s", exc)
             return f"Gmail error: {exc}"
 
+    def _get_sender_profile(self, svc) -> tuple[str, str]:
+        """Return (email, display_name) of the authenticated Google account."""
+        try:
+            profile = svc.users().getProfile(userId="me").execute()
+            email = profile.get("emailAddress", "")
+            # Gmail profile doesn't expose display name; use email prefix as fallback
+            return email, email.split("@")[0] if email else ""
+        except Exception:
+            return "", ""
+
     def send_message(self, user_id: str, to: str, subject: str, body: str) -> "dict | str":
         svc = self._build(user_id)
         if svc is None:
             return NOT_CONNECTED
         try:
+            sender_email, _ = self._get_sender_profile(svc)
             msg = MIMEMultipart()
+            if sender_email:
+                msg["from"] = sender_email
             msg["to"] = to
             msg["subject"] = subject
             msg.attach(MIMEText(body, "plain"))
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
             sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-            return {"id": sent["id"], "status": "sent"}
+            return {"id": sent["id"], "status": "sent", "from": sender_email}
         except Exception as exc:
             logger.error("Gmail send error: %s", exc)
             return f"Gmail send error: {exc}"
