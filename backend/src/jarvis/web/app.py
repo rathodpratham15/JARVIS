@@ -847,17 +847,28 @@ def create_app() -> Flask:
         return ""
 
     def _user_context() -> str:
-        """Return a system-prompt snippet with the user's display name and email."""
+        """Return a system-prompt snippet with the user's display name and sender email."""
         name = _user_display_name()
-        user = getattr(request, "current_user", {}) if _auth_enabled else {}
-        own_email = (user.get("email") or "").strip()
         if not name:
             return ""
         parts = [f"\n\nThe user's name is {name}. When composing emails or letters on their behalf, sign with their name."]
-        if own_email:
+        # Use the connected Google account email (the actual sender) rather than
+        # the JARVIS login email, since they may differ (e.g. user logs in with
+        # one Google account but has connected another account for Gmail/Calendar).
+        sender_email: str = ""
+        uid = _uid()
+        if uid and _google_svc:
+            try:
+                sender_email = _google_svc.token_store.get_connected_email(uid) or ""
+            except Exception:
+                pass
+        if not sender_email:
+            user = getattr(request, "current_user", {}) if _auth_enabled else {}
+            sender_email = (user.get("email") or "").strip()
+        if sender_email:
             parts.append(
-                f" The user's own email address is {own_email}. "
-                "This is their SENDER address — do NOT use it as a recipient when asked to send email to other people (e.g. attendees, contacts). "
+                f" Emails are sent FROM {sender_email} — this is the SENDER address. "
+                "Do NOT use it as a recipient when asked to send email to other people (e.g. attendees, contacts). "
                 "If a calendar event lists this address as an attendee, skip it and send only to the other attendees."
             )
         return "".join(parts)
@@ -2783,14 +2794,28 @@ class MyPlugin(BasePlugin):
             flow.fetch_token(**fetch_kwargs)
             creds = flow.credentials
             expiry_iso = creds.expiry.isoformat() if creds.expiry else None
+            # Fetch the Google account email once at OAuth time and cache it
+            _google_email: Optional[str] = None
+            try:
+                import requests as _req2
+                _r = _req2.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {creds.token}"},
+                    timeout=5,
+                )
+                if _r.ok:
+                    _google_email = _r.json().get("email")
+            except Exception:
+                pass
             _google_svc.token_store.save(
                 user_id=uid,
                 access_token=creds.token,
                 refresh_token=creds.refresh_token or "",
                 token_expiry=expiry_iso,
                 scopes=list(creds.scopes or _GOOGLE_SCOPES),
+                connected_email=_google_email,
             )
-            logger.info("Google OAuth tokens stored for user %s", uid)
+            logger.info("Google OAuth tokens stored for user %s (account: %s)", uid, _google_email or "unknown")
             return flask_redirect(f"{_frontend_url}/chat?google=connected")
         except Exception as exc:
             logger.error("Google callback error: %s", exc)

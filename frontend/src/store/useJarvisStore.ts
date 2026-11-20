@@ -216,18 +216,17 @@ export const useJarvisStore = create<JarvisState>((set, get) => ({
   setPendingConfirm: (c) => set({ pendingConfirm: c }),
 
   resolveConfirm: (response) => {
+    // Replace the placeholder with the actual response (confirmed) or a
+    // cancellation notice (denied). Never leave "I need your confirmation…".
+    const replacement = response ?? 'Action cancelled.';
     set((state) => {
-      // Replace the last assistant placeholder ("I need your confirmation...")
-      // with the actual response from the confirmed tool execution.
       let messages = state.messages;
-      if (response) {
-        const lastAssistantIdx = [...messages].reverse().findIndex((m) => m.role === 'assistant');
-        if (lastAssistantIdx !== -1) {
-          const idx = messages.length - 1 - lastAssistantIdx;
-          messages = messages.map((m, i) =>
-            i === idx ? { ...m, content: response } : m
-          );
-        }
+      const lastAssistantIdx = [...messages].reverse().findIndex((m) => m.role === 'assistant');
+      if (lastAssistantIdx !== -1) {
+        const idx = messages.length - 1 - lastAssistantIdx;
+        messages = messages.map((m, i) =>
+          i === idx ? { ...m, content: replacement } : m
+        );
       }
       return { pendingConfirm: null, messages };
     });
