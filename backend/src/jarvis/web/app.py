@@ -868,8 +868,13 @@ def create_app() -> Flask:
                         )
                         if _r.ok:
                             info = _r.json()
-                            sender_email = info.get("email", "")
-                            sender_name = info.get("name", "")
+                            sender_email = info.get("email", "") or sender_email
+                            # name → given+family → capitalised email prefix
+                            sender_name = (
+                                info.get("name")
+                                or " ".join(filter(None, [info.get("given_name"), info.get("family_name")]))
+                                or sender_email.split("@")[0].replace(".", " ").replace("_", " ").title()
+                            )
                             if sender_email:
                                 _google_svc.token_store.store_connected_email(uid, sender_email, sender_name or None)
             except Exception:
