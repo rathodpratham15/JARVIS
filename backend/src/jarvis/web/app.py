@@ -139,8 +139,9 @@ def create_app() -> Flask:
         return getattr(request, "current_user", {}).get("sub") if _auth_enabled else None
 
     def _user_display_name() -> str:
-        """Return the logged-in user's display name, or empty string."""
-        return getattr(request, "current_user", {}).get("username", "") or ""
+        """Return the logged-in user's display name (prefers Google/SSO full name over username)."""
+        user = getattr(request, "current_user", {}) if _auth_enabled else {}
+        return (user.get("display_name") or user.get("username") or "").strip()
 
     # ── Google OAuth integration ──────────────────────────────────────────
     _google_client_id_oauth = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -220,7 +221,8 @@ def create_app() -> Flask:
         # immediately without requiring a new login.
         live_user = _auth_mgr.get_user_by_id(payload.get("sub", ""))
         if live_user:
-            payload = {**payload, "role": live_user["role"]}
+            payload = {**payload, "role": live_user["role"],
+                       "display_name": live_user.get("display_name") or payload.get("display_name")}
         request.current_user = payload  # type: ignore[attr-defined]
 
     from jarvis.core.push_store import PushTokenStore
@@ -846,8 +848,8 @@ def create_app() -> Flask:
 
     def _user_context() -> str:
         """Return a system-prompt snippet with the user's display name and email."""
+        name = _user_display_name()
         user = getattr(request, "current_user", {}) if _auth_enabled else {}
-        name = (user.get("username") or "").strip()
         own_email = (user.get("email") or "").strip()
         if not name:
             return ""
