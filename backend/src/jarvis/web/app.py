@@ -556,7 +556,7 @@ def create_app() -> Flask:
             display_name = " ".join(filter(None, [first, last]))
         if not display_name:
             return {"error": "display_name is required"}, 400
-        updated = _auth_mgr.complete_onboarding(user["id"], display_name, use_case)
+        updated = _auth_mgr.complete_onboarding(user.get("sub") or user.get("id"), display_name, use_case)
         if updated is None:
             return {"error": "user not found"}, 404
         tokens = _auth_mgr.create_tokens(updated)
