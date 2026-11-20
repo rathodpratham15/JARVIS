@@ -845,11 +845,20 @@ def create_app() -> Flask:
         return ""
 
     def _user_context() -> str:
-        """Return a system-prompt snippet with the user's display name."""
-        name = _user_display_name()
+        """Return a system-prompt snippet with the user's display name and email."""
+        user = getattr(request, "current_user", {}) if _auth_enabled else {}
+        name = (user.get("username") or "").strip()
+        own_email = (user.get("email") or "").strip()
         if not name:
             return ""
-        return f"\n\nThe user's name is {name}. When composing emails or letters on their behalf, sign with their name."
+        parts = [f"\n\nThe user's name is {name}. When composing emails or letters on their behalf, sign with their name."]
+        if own_email:
+            parts.append(
+                f" The user's own email address is {own_email}. "
+                "This is their SENDER address — do NOT use it as a recipient when asked to send email to other people (e.g. attendees, contacts). "
+                "If a calendar event lists this address as an attendee, skip it and send only to the other attendees."
+            )
+        return "".join(parts)
 
     def _datetime_context(tz_name: str) -> str:
         """Return a system-prompt snippet with the user's current local time."""
