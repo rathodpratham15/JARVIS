@@ -15,7 +15,7 @@ import webbrowser
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Callable, Optional
 
-from jarvis.services.weather_service import get_weather
+from jarvis.services.weather_service import get_weather, get_aqi
 from jarvis.services.smart_home import control_device as _smart_home_control
 from jarvis.services.web_search import search_and_summarize as _web_search
 from jarvis.services.system_api import handle_system_api as _handle_system_api
@@ -254,6 +254,8 @@ class ActionEngine:
             "send_whatsapp": self._send_whatsapp,
             "control_spotify": self._control_spotify,
             "list_ha_devices": self._list_ha_devices,
+            "get_aqi": self._get_aqi,
+            "search_google_contacts": self._search_google_contacts,
         }
 
     def _require(self, perm_name: str, label: str) -> Optional[str]:
@@ -706,7 +708,7 @@ class ActionEngine:
         lines = [f"Found {len(result)} upcoming event(s):"]
         for e in result:
             attendees = ", ".join(e["attendees"]) if e["attendees"] else "no attendees"
-            lines.append(f"• {e['start'][:16]} — {e['title']} ({attendees}){' @ ' + e['location'] if e['location'] else ''}")
+            lines.append(f"• [id:{e['id']}] {e['start'][:16]} — {e['title']} ({attendees}){' @ ' + e['location'] if e['location'] else ''}")
         return "\n".join(lines)
 
     def _calendar_create(self, intent: dict) -> str:
@@ -787,6 +789,22 @@ class ActionEngine:
         if isinstance(result, str):
             return result
         return f"File '{name}' created in Drive." + (f" View: {result['link']}" if result.get("link") else "")
+
+    @staticmethod
+    def _get_aqi(intent: dict) -> str:
+        return get_aqi(intent.get("location"))
+
+    def _search_google_contacts(self, intent: dict) -> str:
+        if self._google is None:
+            return "Google Contacts not connected. Connect Google in Settings first."
+        uid = intent.get("_user_id", "")
+        if not uid:
+            return "Cannot access Google Contacts without a logged-in user."
+        contacts = self._google.contacts.search_contacts(uid, intent.get("query", ""), intent.get("max_results", 5))
+        if not contacts:
+            return f"No contacts found for '{intent.get('query', '')}'."
+        lines = [f"- {c['name']}" + (f" ({c['email']})" if c.get("email") else "") + (f" — {c['phone']}" if c.get("phone") else "") for c in contacts]
+        return "Found contacts:\n" + "\n".join(lines)
 
     def _resolve_to_phone(self, to: str, user_id: Optional[str]) -> str:
         """Resolve a contact name to a phone number, or return the number as-is."""

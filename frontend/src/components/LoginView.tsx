@@ -27,6 +27,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, initialMod
     fetchAuthConfig().then(setConfig);
   }, []);
 
+  // Keep body dark + scrollable while this page is mounted
+  useEffect(() => {
+    document.body.style.overflow = 'auto';
+    document.body.style.backgroundColor = '#0d0f12';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
   // Handle SSO callback: /auth/callback?access_token=...&refresh_token=...
   useEffect(() => {
     if (!window.location.pathname.startsWith("/auth/callback")) return;

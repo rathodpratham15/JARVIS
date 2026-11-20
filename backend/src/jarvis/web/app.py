@@ -162,9 +162,12 @@ def create_app() -> Flask:
     _spotify_oauth_states: dict[str, float] = {}  # state → expiry
 
     _GOOGLE_SCOPES = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/contacts.readonly",
     ]
 
     _PUBLIC_ROUTES = {
@@ -174,6 +177,8 @@ def create_app() -> Flask:
         # SSO / SAML / Microsoft OIDC — must be public (browser redirect flows)
         "/auth/saml/metadata", "/auth/saml/login", "/auth/saml/acs", "/auth/saml/slo",
         "/auth/microsoft/login", "/auth/microsoft/callback",
+        # Static assets served by Flask (not Vite) must not require auth
+        "/favicon.ico",
     }
 
     # Endpoints a scanner token (type="scanner", scope="identify") may access.
@@ -569,8 +574,8 @@ def create_app() -> Flask:
         except RuntimeError as exc:
             return {"error": str(exc)}, 501
         except Exception as exc:
-            logger.exception("saml_login error: %s", exc)
-            return {"error": str(exc)}, 500
+            logger.warning("saml_login unavailable: %s", exc)
+            return {"error": "SAML SSO temporarily unavailable — check server logs"}, 503
 
     @app.post("/auth/saml/acs")
     def saml_acs():
@@ -835,6 +840,22 @@ def create_app() -> Flask:
             return f" Always respond in {_LANGUAGE_NAMES[lang]}, regardless of the language the user writes in."
         return ""
 
+    def _datetime_context(tz_name: str) -> str:
+        """Return a system-prompt snippet with the user's current local time."""
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+            tz = ZoneInfo(tz_name)
+            now_local = datetime.now(tz)
+            return (
+                f"\n\nUser's current local time: {now_local.strftime('%A, %B %d %Y %H:%M')} "
+                f"({tz_name}). "
+                "When creating or updating calendar events, always express datetimes "
+                f"in the user's timezone ({tz_name}). Never shift times to UTC."
+            )
+        except Exception:
+            return ""
+
     @app.post("/api/chat")
     def chat() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -843,9 +864,10 @@ def create_app() -> Flask:
             return {"error": "message field is required"}, 400
 
         wearable_mode = bool(payload.get("wearable_mode", False))
+        _tz_name = (payload.get("timezone") or "UTC").strip()
         lang_suffix = _language_suffix()
-        base = llm.system_prompt + lang_suffix
-        sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (lang_suffix and base or None)
+        base = llm.system_prompt + lang_suffix + _datetime_context(_tz_name)
+        sys_override = (base + _WEARABLE_SYSTEM_PROMPT_SUFFIX) if wearable_mode else (base or None)
 
         intent = parser.parse_intent(user_input)
         uid = _uid()
@@ -867,14 +889,19 @@ def create_app() -> Flask:
                     system_prompt_override=sys_override,
                 )
                 if tool_name:
-                    tool_intent = tool_call_to_intent(tool_name, tool_args or {})
-                    tool_intent["_user_id"] = uid
-                    tool_result = actions.execute_action(tool_intent)
-                    tool_used = tool_name
-                    response = llm.finish_after_tool(
-                        user_input, tool_name, tool_result, memory=ctx,
-                        system_prompt_override=sys_override,
+                    def _exec_tool_chat(t_name: str, t_args: dict) -> str:
+                        t_intent = tool_call_to_intent(t_name, t_args)
+                        t_intent["_user_id"] = uid
+                        return actions.execute_action(t_intent)
+
+                    response, last_tool = llm.run_tool_loop(
+                        user_input, tools=TOOLS, execute_tool=_exec_tool_chat,
+                        memory=ctx, system_prompt_override=sys_override,
+                        first_tool_name=tool_name, first_tool_args=tool_args or {},
                     )
+                    tool_used = last_tool or tool_name
+                    tool_intent = tool_call_to_intent(tool_used, {})
+                    tool_intent["_user_id"] = uid
                     intent = {**intent, "type": tool_intent.get("type", intent.get("type"))}
                 else:
                     response = text or ""
@@ -932,18 +959,23 @@ def create_app() -> Flask:
         )
 
         if tool_name:
-            tool_intent = tool_call_to_intent(tool_name, tool_args or {})
-            tool_intent["_user_id"] = uid
-            tool_result = actions.execute_action(tool_intent)
-            tool_used = tool_name
-            response = llm.finish_after_tool(
+            def _exec_tool_voice(t_name: str, t_args: dict) -> str:
+                t_intent = tool_call_to_intent(t_name, t_args)
+                t_intent["_user_id"] = uid
+                return actions.execute_action(t_intent)
+
+            response, last_tool = llm.run_tool_loop(
                 user_input,
-                tool_name,
-                tool_result,
+                tools=TOOLS,
+                execute_tool=_exec_tool_voice,
                 memory=ctx,
                 system_prompt_override=voice_sys,
                 max_tokens_override=60 if wearable_mode else 80,
+                max_steps=3,
+                first_tool_name=tool_name,
+                first_tool_args=tool_args or {},
             )
+            tool_used = last_tool or tool_name
         else:
             response = text or ""
 
@@ -1147,6 +1179,7 @@ def create_app() -> Flask:
         intent = parser.parse_intent(user_input)
         uid = _uid()
         intent["_user_id"] = uid
+        _req_conv_id = (payload.get("conversation_id") or "").strip() or None
 
         # Action-engine / plugin intents return instantly — no streaming needed.
         # Wrap as a single SSE event so the frontend can use one code path.
@@ -1160,17 +1193,18 @@ def create_app() -> Flask:
                 response_text = None
 
         if response_text is not None:
-            interaction_id = memory.store_interaction(
+            interaction_id, conv_id = memory.store_interaction_conv(
                 user_input=user_input,
                 response=response_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
             def _single():
                 yield f"data: {_json.dumps({'token': response_text})}\n\n"
-                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id, 'conversation_id': conv_id})}\n\n"
 
             return Response(
                 stream_with_context(_single()),
@@ -1180,7 +1214,8 @@ def create_app() -> Flask:
 
         # LLM path: check for tool calls first, then stream response
         ctx = _build_context(memory, user_id=uid)
-        stream_sys = (llm.system_prompt + _language_suffix()) or None
+        _tz_name = (payload.get("timezone") or "UTC").strip()
+        stream_sys = (llm.system_prompt + _language_suffix() + _datetime_context(_tz_name)) or None
 
         text, tool_name, tool_args = llm.query_with_tools(
             user_input, tools=TOOLS, memory=ctx, system_prompt_override=stream_sys,
@@ -1205,18 +1240,19 @@ def create_app() -> Flask:
                 }
                 placeholder = "I need your confirmation before proceeding."
                 description = _describe_tool_action(tool_name, tool_args or {})
-                interaction_id = memory.store_interaction(
+                interaction_id, conv_id = memory.store_interaction_conv(
                     user_input=user_input,
                     response=placeholder,
                     intent_type=intent.get("type"),
                     user_id=uid,
+                    conversation_id=_req_conv_id,
                 )
                 sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
                 def _confirm_stream():
                     yield f"data: {_json.dumps({'confirm': True, 'action_id': action_id, 'tool': tool_name, 'description': description})}\n\n"
                     yield f"data: {_json.dumps({'token': placeholder})}\n\n"
-                    yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type')})}\n\n"
+                    yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'conversation_id': conv_id})}\n\n"
 
                 return Response(
                     stream_with_context(_confirm_stream()),
@@ -1224,22 +1260,34 @@ def create_app() -> Flask:
                     headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
                 )
 
-            # Non-sensitive tool: execute and stream the finish response
-            tool_result = actions.execute_action(tool_intent)
-            response_text = llm.finish_after_tool(
-                user_input, tool_name, tool_result, memory=ctx, system_prompt_override=stream_sys,
+            # Non-sensitive tool: run multi-step tool loop then stream the reply
+            def _execute_tool(t_name: str, t_args: dict) -> str:
+                t_intent = tool_call_to_intent(t_name, t_args)
+                t_intent["_user_id"] = uid
+                return actions.execute_action(t_intent)
+
+            response_text, last_tool = llm.run_tool_loop(
+                user_input,
+                tools=TOOLS,
+                execute_tool=_execute_tool,
+                memory=ctx,
+                system_prompt_override=stream_sys,
+                first_tool_name=tool_name,
+                first_tool_args=tool_args or {},
             )
-            interaction_id = memory.store_interaction(
+            tool_name = last_tool or tool_name
+            interaction_id, conv_id = memory.store_interaction_conv(
                 user_input=user_input,
                 response=response_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
             sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
 
             def _tool_stream():
                 yield from _fake_stream_text(response_text)
-                yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'tool_used': tool_name})}\n\n"
+                yield f"data: {_json.dumps({'done': True, 'id': interaction_id, 'intent': intent.get('type'), 'tool_used': tool_name, 'conversation_id': conv_id})}\n\n"
 
             return Response(
                 stream_with_context(_tool_stream()),
@@ -1254,14 +1302,15 @@ def create_app() -> Flask:
                 full.append(token)
                 yield f"data: {_json.dumps({'token': token})}\n\n"
             full_text = "".join(full)
-            interaction_id = memory.store_interaction(
+            _iid, _cid = memory.store_interaction_conv(
                 user_input=user_input,
                 response=full_text,
                 intent_type=intent.get("type"),
                 user_id=uid,
+                conversation_id=_req_conv_id,
             )
-            sem_memory.index_interaction(interaction_id, user_input, user_id=uid)
-            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': interaction_id})}\n\n"
+            sem_memory.index_interaction(_iid, user_input, user_id=uid)
+            yield f"data: {_json.dumps({'done': True, 'intent': intent.get('type'), 'id': _iid, 'conversation_id': _cid})}\n\n"
 
         return Response(
             stream_with_context(_stream()),
@@ -1282,13 +1331,19 @@ def create_app() -> Flask:
             return {"error": "Action not found or already resolved."}, 404
         if not confirmed:
             return {"response": "Action cancelled.", "tool_used": None}, 200
-        tool_result = actions.execute_action(pending["tool_intent"])
-        response_text = llm.finish_after_tool(
+        def _exec_confirm(t_name: str, t_args: dict) -> str:
+            t_intent = tool_call_to_intent(t_name, t_args)
+            t_intent["_user_id"] = pending["uid"]
+            return actions.execute_action(t_intent)
+
+        response_text, last_tool = llm.run_tool_loop(
             pending["user_input"],
-            pending["tool_name"],
-            tool_result,
+            tools=TOOLS,
+            execute_tool=_exec_confirm,
             memory=pending["ctx"],
             system_prompt_override=pending["stream_sys"],
+            first_tool_name=pending["tool_name"],
+            first_tool_args=pending["tool_args"],
         )
         memory.store_interaction(
             user_input=pending["user_input"],
@@ -1296,7 +1351,7 @@ def create_app() -> Flask:
             intent_type=pending["intent"].get("type"),
             user_id=pending["uid"],
         )
-        return {"response": response_text, "tool_used": pending["tool_name"]}, 200
+        return {"response": response_text, "tool_used": last_tool or pending["tool_name"]}, 200
 
     @app.get("/api/history")
     def history() -> tuple[dict, int]:
@@ -1305,6 +1360,13 @@ def create_app() -> Flask:
         except ValueError:
             return {"error": "limit must be an integer"}, 400
         return {"interactions": memory.recent(limit=min(limit, 200), user_id=_uid())}, 200
+
+    @app.delete("/api/history/<interaction_id>")
+    def delete_history(interaction_id: str) -> tuple[dict, int]:
+        count = memory.delete_conversation(interaction_id, user_id=_uid())
+        if not count:
+            return {"error": "Not found"}, 404
+        return {"ok": True, "deleted": count}, 200
 
     @app.get("/api/search")
     def search() -> tuple[dict, int]:
@@ -2156,6 +2218,22 @@ class MyPlugin(BasePlugin):
     # Alias for frontend which calls /api/notes directly
     app.add_url_rule("/api/notes", view_func=dashboard_notes, methods=["GET", "POST", "DELETE"])
 
+    @app.get("/api/memories")
+    def list_memories() -> tuple[dict, int]:
+        """Map notes → MemoryItem shape expected by the frontend."""
+        uid = _uid()
+        raw = notes.list(user_id=uid)
+        def _to_memory(n: dict) -> dict:
+            return {
+                "id": n.get("id", ""),
+                "title": n.get("title") or n.get("content", "")[:40],
+                "content": n.get("content", ""),
+                "category": "Personal",
+                "importance": "Medium",
+                "createdAt": n.get("created_at", ""),
+            }
+        return [_to_memory(n) for n in raw], 200
+
     @app.patch("/api/notes/<note_id>")
     def update_note(note_id: str) -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
@@ -2495,8 +2573,27 @@ class MyPlugin(BasePlugin):
         uid = _uid()
         if uid is None or _google_svc is None:
             return {"connected": False, "gmail": False, "calendar": False, "drive": False}, 200
-        connected = _google_svc.token_store.has_tokens(uid)
-        return {"connected": connected, "gmail": connected, "calendar": connected, "drive": connected}, 200
+        creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
+        if creds is None:
+            return {"connected": False, "gmail": False, "calendar": False, "drive": False}, 200
+        granted = set(creds.scopes or [])
+        gmail = any("gmail" in s for s in granted)
+        calendar = any("calendar" in s for s in granted)
+        drive = any("drive" in s for s in granted)
+        contacts = any("contacts" in s for s in granted)
+        email = None
+        try:
+            import requests as _req
+            r = _req.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {creds.token}"},
+                timeout=5,
+            )
+            if r.ok:
+                email = r.json().get("email")
+        except Exception:
+            pass
+        return {"connected": True, "gmail": gmail, "calendar": calendar, "drive": drive, "contacts": contacts, "email": email}, 200
 
     @app.get("/api/google/connect")
     def google_connect() -> tuple[dict, int]:
@@ -2519,11 +2616,20 @@ class MyPlugin(BasePlugin):
             )
             flow.redirect_uri = f"{_backend_url}/api/google/callback"
             state = _secrets_mod.token_urlsafe(24)
-            _oauth_states[state] = (uid, _time_mod.time() + 600)
+            # Generate PKCE pair so the callback's token exchange succeeds
+            import hashlib as _hl, base64 as _b64
+            _raw = _secrets_mod.token_bytes(32)
+            code_verifier = _b64.urlsafe_b64encode(_raw).rstrip(b"=").decode()
+            code_challenge = _b64.urlsafe_b64encode(
+                _hl.sha256(code_verifier.encode()).digest()
+            ).rstrip(b"=").decode()
+            _oauth_states[state] = (uid, _time_mod.time() + 600, code_verifier)
             auth_url, _ = flow.authorization_url(
                 access_type="offline",
                 prompt="consent",
                 state=state,
+                code_challenge=code_challenge,
+                code_challenge_method="S256",
             )
             return {"url": auth_url}, 200
         except Exception as exc:
@@ -2538,16 +2644,21 @@ class MyPlugin(BasePlugin):
         error = request.args.get("error")
 
         if error:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={error}")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason={error}")
 
         if not code or not state or state not in _oauth_states:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=invalid_state")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason=invalid_state")
 
-        uid, expiry = _oauth_states.pop(state)
+        state_entry = _oauth_states.pop(state)
+        uid, expiry = state_entry[0], state_entry[1]
+        code_verifier = state_entry[2] if len(state_entry) > 2 else None
         if _time_mod.time() > expiry:
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason=state_expired")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason=state_expired")
 
         try:
+            import os as _os
+            # Allow user to approve a subset of requested scopes (e.g. skip Drive)
+            _os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
             from google_auth_oauthlib.flow import Flow
             flow = Flow.from_client_config(
                 {"web": {
@@ -2560,7 +2671,10 @@ class MyPlugin(BasePlugin):
                 scopes=_GOOGLE_SCOPES,
             )
             flow.redirect_uri = f"{_backend_url}/api/google/callback"
-            flow.fetch_token(code=code)
+            fetch_kwargs: dict = {"code": code}
+            if code_verifier:
+                fetch_kwargs["code_verifier"] = code_verifier
+            flow.fetch_token(**fetch_kwargs)
             creds = flow.credentials
             expiry_iso = creds.expiry.isoformat() if creds.expiry else None
             _google_svc.token_store.save(
@@ -2571,10 +2685,10 @@ class MyPlugin(BasePlugin):
                 scopes=list(creds.scopes or _GOOGLE_SCOPES),
             )
             logger.info("Google OAuth tokens stored for user %s", uid)
-            return flask_redirect(f"{_frontend_url}/settings?google=connected")
+            return flask_redirect(f"{_frontend_url}/chat?google=connected")
         except Exception as exc:
             logger.error("Google callback error: %s", exc)
-            return flask_redirect(f"{_frontend_url}/settings?google=error&reason={str(exc)[:100]}")
+            return flask_redirect(f"{_frontend_url}/chat?google=error&reason={str(exc)[:100]}")
 
     @app.delete("/api/google/disconnect")
     def google_disconnect() -> tuple[dict, int]:

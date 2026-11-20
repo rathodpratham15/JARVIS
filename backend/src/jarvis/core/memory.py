@@ -8,7 +8,7 @@ import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Optional
 
@@ -39,8 +39,19 @@ class Memory:
         self._lock = threading.RLock()
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            for _col, _def in [
+                ("user_id", "TEXT"),
+                ("conversation_id", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE interactions ADD COLUMN {_col} {_def}")
+                except Exception:
+                    pass
             try:
-                conn.execute("ALTER TABLE interactions ADD COLUMN user_id TEXT")
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_interactions_conv "
+                    "ON interactions(conversation_id)"
+                )
             except Exception:
                 pass
             conn.commit()
@@ -63,12 +74,52 @@ class Memory:
         tags: Optional[list[str]] = None,
         metadata: Optional[dict] = None,
         user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
     ) -> str:
-        """Persist a single interaction and return its id."""
+        """Persist a single interaction and return its ``interaction_id``.
+
+        If *conversation_id* is not provided a new one is created equal to the
+        interaction id (i.e. the first message in a session starts a new
+        conversation).  Callers that need the resolved conversation_id should
+        call ``store_interaction_conv`` instead.
+        """
+        interaction_id, _ = self._store(
+            user_input, response, intent_type, tags, metadata, user_id, conversation_id
+        )
+        return interaction_id
+
+    def store_interaction_conv(
+        self,
+        user_input: str,
+        response: str,
+        intent_type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict] = None,
+        user_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Like ``store_interaction`` but also returns the resolved conversation_id."""
+        return self._store(
+            user_input, response, intent_type, tags, metadata, user_id, conversation_id
+        )
+
+    def _store(
+        self,
+        user_input: str,
+        response: str,
+        intent_type: Optional[str],
+        tags: Optional[list[str]],
+        metadata: Optional[dict],
+        user_id: Optional[str],
+        conversation_id: Optional[str],
+    ) -> tuple[str, str]:
         interaction_id = str(uuid.uuid4())
+        conv_id = conversation_id or interaction_id
         with self._lock, self._connect() as conn:
             conn.execute(
-                "INSERT INTO interactions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO interactions "
+                "(id, timestamp, user_input, response, intent_type, tags, metadata, user_id, conversation_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     interaction_id,
                     datetime.now(timezone.utc).isoformat(),
@@ -78,10 +129,11 @@ class Memory:
                     json.dumps(tags or []),
                     json.dumps(metadata or {}),
                     user_id,
+                    conv_id,
                 ),
             )
             conn.commit()
-        return interaction_id
+        return interaction_id, conv_id
 
     def recent(self, limit: int = 20, user_id: Optional[str] = None) -> list[dict]:
         """Return the `limit` most recent interactions, oldest-first."""
@@ -129,6 +181,53 @@ class Memory:
                     "SELECT COUNT(*) FROM interactions WHERE user_id = ?", (user_id,)
                 ).fetchone()[0]
             return conn.execute("SELECT COUNT(*) FROM interactions").fetchone()[0]
+
+    def delete_interaction(self, interaction_id: str, user_id: Optional[str] = None) -> bool:
+        """Delete a single interaction.  Returns True if a row was removed."""
+        with self._lock, self._connect() as conn:
+            if user_id is not None:
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE id = ? AND user_id = ?",
+                    (interaction_id, user_id),
+                )
+            else:
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE id = ?", (interaction_id,)
+                )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def delete_conversation(self, conversation_id: str, user_id: Optional[str] = None) -> int:
+        """Delete all interactions belonging to *conversation_id*.
+
+        Falls back to matching by interaction id for rows that pre-date the
+        conversation_id column.  Returns the number of rows deleted.
+        """
+        with self._lock, self._connect() as conn:
+            if user_id is not None:
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE conversation_id = ? AND user_id = ?",
+                    (conversation_id, user_id),
+                )
+            else:
+                cur = conn.execute(
+                    "DELETE FROM interactions WHERE conversation_id = ?",
+                    (conversation_id,),
+                )
+            # Legacy fallback: if nothing was deleted, try matching by id
+            if cur.rowcount == 0:
+                if user_id is not None:
+                    cur = conn.execute(
+                        "DELETE FROM interactions WHERE id = ? AND user_id = ?",
+                        (conversation_id, user_id),
+                    )
+                else:
+                    cur = conn.execute(
+                        "DELETE FROM interactions WHERE id = ?",
+                        (conversation_id,),
+                    )
+            conn.commit()
+            return cur.rowcount
 
     def clear(self) -> None:
         """Wipe all interactions. Primarily for tests."""

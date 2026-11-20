@@ -265,7 +265,13 @@ class LLMCore:
                 temperature=self.temperature,
                 max_tokens=max_tokens_override or self.max_tokens,
             )
-            reply = response.choices[0].message.content or tool_result
+            choice = response.choices[0]
+            # Some providers (Groq) may still emit a tool_call even with no
+            # tools in the payload.  Fall back to the raw tool result.
+            if choice.finish_reason == "tool_calls":
+                reply = tool_result
+            else:
+                reply = choice.message.content or tool_result
         except Exception as exc:
             logger.error("LLM finish_after_tool failed: %s", exc)
             reply = tool_result
@@ -273,6 +279,146 @@ class LLMCore:
         self._record("user", prompt)
         self._record("assistant", reply)
         return reply
+
+    def run_tool_loop(
+        self,
+        prompt: str,
+        tools: list[dict],
+        execute_tool,
+        memory: Optional[str] = None,
+        system_prompt_override: Optional[str] = None,
+        max_tokens_override: Optional[int] = None,
+        max_steps: int = 5,
+        first_tool_name: Optional[str] = None,
+        first_tool_args: Optional[dict] = None,
+    ) -> tuple[str, str | None]:
+        """Run a multi-step tool-calling loop.
+
+        Calls the LLM repeatedly until it produces a text reply (not a tool
+        call), executing each requested tool via ``execute_tool(name, args) ->
+        str`` along the way.  Returns ``(reply_text, last_tool_name)`` where
+        ``last_tool_name`` is the last tool that was called (or ``None`` if the
+        LLM answered directly without any tool).
+
+        When ``first_tool_name`` and ``first_tool_args`` are provided the
+        initial LLM call is skipped — the given tool is executed directly and
+        the loop continues from that result.  This lets callers that already
+        ran ``query_with_tools`` avoid a redundant round-trip.
+        """
+        if not self.client:
+            return self._simulate_response(prompt), None
+
+        sys = system_prompt_override or self.system_prompt
+        messages: list[dict] = [{"role": "system", "content": sys}]
+        if memory:
+            messages.append({"role": "system", "content": f"Context from memory: {memory}"})
+        for m in self.conversation_history[-_CONTEXT_WINDOW:]:
+            messages.append({"role": m["role"], "content": m["content"]})
+        messages.append({"role": "user", "content": prompt})
+
+        last_tool: str | None = None
+
+        # If the caller already has the first tool call, inject it directly.
+        if first_tool_name is not None:
+            tool_call_id = "call_0"
+            last_tool = first_tool_name
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": first_tool_name,
+                        "arguments": json.dumps(first_tool_args or {}),
+                    },
+                }],
+            })
+            tool_result = execute_tool(first_tool_name, first_tool_args or {})
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": tool_result,
+            })
+            # Start loop from step 1 (we already consumed one step)
+            steps = range(max_steps - 1)
+        else:
+            steps = range(max_steps)
+
+        for step in steps:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=self.temperature,
+                    max_tokens=max_tokens_override or self.max_tokens,
+                )
+            except Exception as exc:
+                logger.error("LLM run_tool_loop step %d failed: %s", step, exc)
+                reply = "I'm having trouble reaching the language model right now. Please try again."
+                self._record("user", prompt)
+                self._record("assistant", reply)
+                return reply, last_tool
+
+            choice = response.choices[0]
+
+            if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+                tc = choice.message.tool_calls[0]
+                try:
+                    args = json.loads(tc.function.arguments)
+                except (json.JSONDecodeError, AttributeError):
+                    args = {}
+
+                tool_call_id = tc.id
+                tool_name = tc.function.name
+                last_tool = tool_name
+
+                # Append assistant tool-call turn
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": tc.function.arguments},
+                    }],
+                })
+
+                # Execute the tool
+                tool_result = execute_tool(tool_name, args)
+
+                # Append tool result turn
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": tool_result,
+                })
+                continue
+
+            # LLM returned a text answer
+            reply = choice.message.content or ""
+            self._record("user", prompt)
+            self._record("assistant", reply)
+            return reply, last_tool
+
+        # Exhausted steps — ask LLM to summarise without further tool calls
+        try:
+            messages.append({"role": "user", "content": "Please summarise what you found."})
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=max_tokens_override or self.max_tokens,
+            )
+            reply = response.choices[0].message.content or "Done."
+        except Exception as exc:
+            logger.error("LLM run_tool_loop final step failed: %s", exc)
+            reply = "Done."
+        self._record("user", prompt)
+        self._record("assistant", reply)
+        return reply, last_tool
 
     def _record(self, role: str, content: str) -> None:
         self.conversation_history.append(

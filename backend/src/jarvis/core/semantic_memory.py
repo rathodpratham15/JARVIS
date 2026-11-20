@@ -47,14 +47,22 @@ class SemanticMemory:
     # ── initialisation ─────────────────────────────────────────────────────
 
     def _load_model(self):
+        import io
+        import sys
+        # Suppress the verbose C-extension import traceback that numpy/scipy
+        # prints to stderr when compiled against a different NumPy ABI.
+        _real_stderr = sys.stderr
+        sys.stderr = io.StringIO()
         try:
             from sentence_transformers import SentenceTransformer
             model = SentenceTransformer(_MODEL_NAME)
             logger.info("SemanticMemory: loaded %s", _MODEL_NAME)
             return model
-        except Exception as exc:
+        except BaseException as exc:
             logger.warning("SemanticMemory: could not load model — %s", exc)
             return None
+        finally:
+            sys.stderr = _real_stderr
 
     def _init_vec_table(self) -> None:
         with self._connect() as conn:

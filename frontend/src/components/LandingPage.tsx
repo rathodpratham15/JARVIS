@@ -167,6 +167,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
     return () => clearInterval(t);
   }, []);
 
+  // Restore body overflow when navigating away (app needs overflow:hidden)
+  useEffect(() => {
+    document.body.style.overflow = 'auto';
+    document.body.style.backgroundColor = '#080808';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.backgroundColor = '';
+    };
+  }, []);
+
   const switchTab = (tab: TabKey) => setActiveTab(tab);
 
   const data = FEATURE_DATA[activeTab];
@@ -175,6 +185,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnter }) => {
     <div className="min-h-screen bg-[#080808] text-white font-mono antialiased overflow-x-hidden" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
       <style>{`
         .lp-no-radius * { border-radius: 0 !important; }
+        /* Restore serif headings — main branch used Instrument Serif for h1-h3 */
+        .lp-no-radius h1,
+        .lp-no-radius h2,
+        .lp-no-radius h3 {
+          font-family: 'Instrument Serif', 'Playfair Display', Georgia, serif !important;
+        }
+        .lp-no-radius h4,
+        .lp-no-radius h5,
+        .lp-no-radius h6 {
+          font-family: 'JetBrains Mono', 'Space Mono', monospace !important;
+        }
         .grid-pattern {
           background-size: 40px 40px;
           background-image:
