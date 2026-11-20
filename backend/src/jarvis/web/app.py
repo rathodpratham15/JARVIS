@@ -1071,7 +1071,8 @@ def create_app() -> Flask:
     _VOICE_SYSTEM_PROMPT = (
         "You are Jarvis, a voice assistant. "
         "Reply in 1-2 short sentences only — no lists, no markdown, no filler. "
-        "Be direct and natural, as if speaking aloud."
+        "Be direct and natural, as if speaking aloud. "
+        "When you can act using a tool, do so immediately — do not narrate the action."
     )
 
     _WEARABLE_SYSTEM_PROMPT_SUFFIX = (

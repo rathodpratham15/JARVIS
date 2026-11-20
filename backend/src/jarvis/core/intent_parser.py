@@ -35,7 +35,7 @@ INTENT_PATTERNS: dict[str, list[str]] = {
     "define": [r"define (.+)", r"definition of (.+)", r"meaning of (.+)", r"what does (.+) mean"],
     "fact": [r"who is (.+)", r"facts about (.+)", r"information about (.+)"],
     "joke": [r"tell me a joke", r"\bjoke\b", r"\bfunny\b", r"make me laugh", r"something funny"],
-    "reminder": [r"remind me", r"set a reminder", r"don't forget", r"remember to", r"schedule"],
+    "reminder": [r"remind me", r"set a reminder", r"don't forget", r"remember to"],
     "note": [r"take a note", r"write down", r"note that", r"remember this", r"save this note"],
     "calculation": [
         r"calculate (.+)",
@@ -110,7 +110,7 @@ PRIORITY_ORDER = [
 ACTION_REQUIRED = {
     "search", "weather", "open_app", "time", "date", "define", "fact",
     "reminder", "note", "calculation", "music", "smart_home", "timer",
-    "navigation", "email", "news", "person_identification", "visual_recognition",
+    "navigation", "news", "person_identification", "visual_recognition",
     "joke", "greeting", "goodbye", "help", "system_api",
 }
 
