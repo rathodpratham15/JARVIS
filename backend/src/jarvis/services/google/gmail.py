@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64, logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -85,25 +86,29 @@ class GmailService:
             logger.error("Gmail get_message error: %s", exc)
             return f"Gmail error: {exc}"
 
-    def _get_sender_profile(self, svc) -> tuple[str, str]:
-        """Return (email, display_name) of the authenticated Google account."""
-        try:
-            profile = svc.users().getProfile(userId="me").execute()
-            email = profile.get("emailAddress", "")
-            # Gmail profile doesn't expose display name; use email prefix as fallback
-            return email, email.split("@")[0] if email else ""
-        except Exception:
-            return "", ""
-
     def send_message(self, user_id: str, to: str, subject: str, body: str) -> "dict | str":
         svc = self._build(user_id)
         if svc is None:
             return NOT_CONNECTED
         try:
-            sender_email, _ = self._get_sender_profile(svc)
+            # Get sender email from Gmail profile
+            sender_email = ""
+            try:
+                profile = svc.users().getProfile(userId="me").execute()
+                sender_email = profile.get("emailAddress", "")
+            except Exception:
+                pass
+            # Get sender display name from token store (cached at OAuth/lazy-fetch time)
+            sender_name = ""
+            try:
+                sender_name = self._store.get_connected_name(user_id) or ""
+            except Exception:
+                pass
+
             msg = MIMEMultipart()
             if sender_email:
-                msg["from"] = sender_email
+                # Format: "Lavisha Munot <lavishamunot7@gmail.com>"
+                msg["from"] = formataddr((sender_name, sender_email)) if sender_name else sender_email
             msg["to"] = to
             msg["subject"] = subject
             msg.attach(MIMEText(body, "plain"))

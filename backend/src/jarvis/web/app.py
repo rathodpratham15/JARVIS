@@ -855,7 +855,7 @@ def create_app() -> Flask:
             try:
                 sender_email = _google_svc.token_store.get_connected_email(uid) or ""
                 sender_name = _google_svc.token_store.get_connected_name(uid) or ""
-                if not sender_email:
+                if not sender_email or not sender_name:
                     # Lazy-populate: fetch from Google userinfo and cache both
                     # email and display name without requiring a reconnect.
                     creds = _google_svc.token_store.get_credentials(uid, _google_client_id_oauth, _google_client_secret)
