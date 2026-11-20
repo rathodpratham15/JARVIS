@@ -24,6 +24,7 @@ export function OnboardingModal({ onComplete }: Props) {
   const [error, setError] = useState('');
 
   const goNext = () => setStep((s) => s + 1);
+  const goBack = () => { setError(''); setStep((s) => s - 1); };
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,13 +54,24 @@ export function OnboardingModal({ onComplete }: Props) {
     return data;
   };
 
-  const handleConnectGoogle = () => {
-    void saveProfile().then(() => {
-      void apiFetch('/google/connect').then(async (r) => {
-        const d = await r.json() as { auth_url?: string };
-        if (d.auth_url) window.location.href = d.auth_url;
-      });
-    });
+  const handleConnectGoogle = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await saveProfile();
+      const r = await apiFetch('/google/connect');
+      const d = await r.json() as { url?: string; auth_url?: string };
+      const dest = d.url ?? d.auth_url;
+      if (dest) {
+        window.location.href = dest;
+      } else {
+        setError('Could not get Google auth URL. Try again.');
+      }
+    } catch {
+      setError('Failed to initiate Google sign-in. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFinish = async () => {
@@ -162,13 +174,14 @@ export function OnboardingModal({ onComplete }: Props) {
               >
                 Continue
               </button>
-              <button
-                type="button"
-                onClick={goNext}
-                className="w-full text-[#71717A] text-sm hover:text-white transition-colors py-1"
-              >
-                Skip for now
-              </button>
+              <div className="flex justify-between">
+                <button type="button" onClick={goBack} className="text-[#71717A] text-sm hover:text-white transition-colors py-1">
+                  ← Back
+                </button>
+                <button type="button" onClick={goNext} className="text-[#71717A] text-sm hover:text-white transition-colors py-1">
+                  Skip for now
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -182,23 +195,26 @@ export function OnboardingModal({ onComplete }: Props) {
                 Give JARVIS access to Gmail, Calendar and Drive so it can send emails, manage events and find files.
               </p>
             </div>
+            {error && <p className="text-xs text-red-400">{error}</p>}
             <button
               type="button"
-              onClick={handleConnectGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-white text-black font-semibold rounded-xl py-3 text-sm hover:bg-white/90 transition-colors"
+              onClick={() => { void handleConnectGoogle(); }}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 bg-white text-black font-semibold rounded-xl py-3 text-sm hover:bg-white/90 disabled:opacity-50 transition-colors"
             >
               <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
                 <path fill="#4285F4" d="M43.6 20H24v8h11.3C33.9 32.7 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"/>
               </svg>
-              Connect Google Account
+              {loading ? 'Connecting…' : 'Connect Google Account'}
             </button>
-            <button
-              type="button"
-              onClick={goNext}
-              className="w-full text-[#71717A] text-sm hover:text-white transition-colors py-1"
-            >
-              Skip for now
-            </button>
+            <div className="flex justify-between">
+              <button type="button" onClick={goBack} className="text-[#71717A] text-sm hover:text-white transition-colors py-1">
+                ← Back
+              </button>
+              <button type="button" onClick={goNext} className="text-[#71717A] text-sm hover:text-white transition-colors py-1">
+                Skip for now
+              </button>
+            </div>
           </div>
         )}
 
@@ -227,6 +243,9 @@ export function OnboardingModal({ onComplete }: Props) {
               className="w-full bg-white text-black font-semibold rounded-xl py-3 text-sm hover:bg-white/90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Setting up…' : 'Start chatting →'}
+            </button>
+            <button type="button" onClick={goBack} className="w-full text-[#71717A] text-sm hover:text-white transition-colors py-1">
+              ← Back
             </button>
           </div>
         )}
