@@ -92,7 +92,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "set_reminder",
-            "description": "Save a reminder for the user, optionally at a specific time.",
+            "description": "Schedule a future notification for the user — use ONLY when the user explicitly asks to be reminded about something at a later time (e.g. 'remind me at 9pm', 'remind me tomorrow'). Do NOT use this to defer or queue actions like sending emails, creating events, or deleting things — execute those tools directly instead.",
             "parameters": {
                 "type": "object",
                 "additionalProperties": False,
